@@ -46,5 +46,5 @@ jobs:
           username: leonidk
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: 22
-          source: frontend/dist/*
+          source: ./frontend/dist/*
           target: /home/leonidk/yachtpricer/frontend/dist/
