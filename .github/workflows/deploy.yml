@@ -23,6 +23,8 @@ jobs:
           cd frontend
           npm ci
           npm run build
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.0
@@ -35,6 +37,15 @@ jobs:
             cd ~/yachtpricer/frontend
             git checkout main
             git pull origin main
-            npm ci
-            npm run build
-            pm2 restart yachtpricer || pm2 serve dist 80 --spa --name yachtpricer
+            # replace dist with freshly built one
+            rm -rf dist
+            mkdir dist
+      - name: Upload built dist
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: sandbox.leonidk.de
+          username: leonidk
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: 22
+          source: frontend/dist/*
+          target: /home/leonidk/yachtpricer/frontend/dist/
