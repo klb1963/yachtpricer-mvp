@@ -48,3 +48,4 @@ jobs:
           port: 22
           source: ./frontend/dist/*
           target: /home/leonidk/yachtpricer/frontend/dist/
+          strip_components: 2
