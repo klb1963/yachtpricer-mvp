@@ -1,0 +1,9 @@
+{
+    "app": {
+      "title": "Добро пожаловать в YachtPricer v {{version}}",
+      "subtitle": "Ваш дашборд готов."
+    },
+    "actions": {
+      "changeLang": "RU/EN"
+    }
+  }

@@ -8,84 +8,84 @@ datasource db {
 }
 
 model Yacht {
-  id            String           @id @default(uuid())
-  name          String
-  manufacturer  String
-  model         String
-  type          String
-  length        Float
-  builtYear     Int
-  cabins        Int
-  heads         Int
-  basePrice     Decimal
-  location      String
-  fleet         String
-  charterCompany String
+  id                   String  @id @default(uuid())
+  name                 String
+  manufacturer         String
+  model                String
+  type                 String
+  length               Float
+  builtYear            Int
+  cabins               Int
+  heads                Int
+  basePrice            Decimal
+  location             String
+  fleet                String
+  charterCompany       String
   currentExtraServices Json
 
-  ownerId       String?
-  owner         Owner?           @relation(fields: [ownerId], references: [id])
+  ownerId String?
+  owner   Owner?  @relation(fields: [ownerId], references: [id])
 
-  weekSlots     WeekSlot[]
+  weekSlots           WeekSlot[]
   extraServiceHistory ExtraServiceHistory[]
 
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Owner {
-  id         String   @id @default(uuid())
-  name       String
-  email      String   @unique
-  phone      String?
-  yachts     Yacht[]
+  id     String  @id @default(uuid())
+  name   String
+  email  String  @unique
+  phone  String?
+  yachts Yacht[]
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model WeekSlot {
-  id               String          @id @default(uuid())
-  yacht            Yacht           @relation(fields: [yachtId], references: [id])
-  yachtId          String
+  id      String @id @default(uuid())
+  yacht   Yacht  @relation(fields: [yachtId], references: [id])
+  yachtId String
 
-  startDate        DateTime
-  status           WeekSlotStatus
-  currentPrice     Decimal
-  currentDiscount  Decimal
+  startDate       DateTime
+  status          WeekSlotStatus
+  currentPrice    Decimal
+  currentDiscount Decimal
 
-  priceHistory     PriceHistory[]
+  priceHistory PriceHistory[]
 
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model PriceHistory {
-  id           String      @id @default(uuid())
-  weekSlot     WeekSlot    @relation(fields: [weekSlotId], references: [id])
-  weekSlotId   String
+  id         String   @id @default(uuid())
+  weekSlot   WeekSlot @relation(fields: [weekSlotId], references: [id])
+  weekSlotId String
 
-  date         DateTime    @default(now())
-  price        Decimal
-  discount     Decimal
-  authorId     String?
-  note         String?
+  date     DateTime @default(now())
+  price    Decimal
+  discount Decimal
+  authorId String?
+  note     String?
 
-  createdAt    DateTime    @default(now())
+  createdAt DateTime @default(now())
 }
 
 model ExtraServiceHistory {
-  id           String      @id @default(uuid())
-  yacht        Yacht       @relation(fields: [yachtId], references: [id])
-  yachtId      String
+  id      String @id @default(uuid())
+  yacht   Yacht  @relation(fields: [yachtId], references: [id])
+  yachtId String
 
-  date         DateTime    @default(now())
-  serviceName  String
-  price        Decimal
-  note         String?
-  authorId     String?
+  date        DateTime @default(now())
+  serviceName String
+  price       Decimal
+  note        String?
+  authorId    String?
 
-  createdAt    DateTime    @default(now())
+  createdAt DateTime @default(now())
 }
 
 enum WeekSlotStatus {

@@ -1,0 +1,26 @@
+{
+  "name": "YachtPricer Workspace",
+  "dockerComposeFile": [
+    "../docker-compose.yml",
+    "docker-compose.devcontainer.yml"
+  ],
+  "service": "workspace",
+  "workspaceFolder": "/workspace/yachtpricer-mvp",
+  "runServices": ["backend", "frontend", "db"],
+  "shutdownAction": "stopCompose",
+  "forwardPorts": [3000, 8000, 5432],
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "Prisma.prisma",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/postCreate.sh"
+}
