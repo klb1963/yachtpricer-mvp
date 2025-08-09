@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 set -e
 
-echo "→ Installing frontend deps in devcontainer volume…"
-cd /workspace/frontend
-npm ci || npm install
+FRONT=/workspace/yachtpricer-mvp/frontend
+BACK=/workspace/yachtpricer-mvp/backend
 
-echo "→ Installing backend deps in devcontainer volume…"
-cd /workspace/backend
-npm ci || npm install
+echo "→ Fixing ownership on volumes…"
+mkdir -p "$FRONT/node_modules" "$BACK/node_modules"
+chown -R node:node "$FRONT" "$BACK"
 
-echo "✓ Done."
+echo "→ Installing frontend deps…"
+su node -c "cd $FRONT && (npm ci || npm install)"
+
+echo "→ Installing backend deps…"
+su node -c "cd $BACK && (npm ci || npm install)"
+
+echo "✓ postCreate done."

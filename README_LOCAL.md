@@ -102,3 +102,62 @@ docker compose up frontend
 Открыть: http://localhost:3000
 
 
+## Наглядная схема того, что у нас сейчас работает:
+
+┌─────────────────────────────── Твой Mac (host) ────────────────────────────────┐
+│                                                                               │
+│  ▶ Браузер (Safari/Chrome/…)                                                  │
+│      ├─ http://localhost:3000  ─────────────►  frontend контейнер (Vite)      │
+│      └─ http://localhost:8000  ─────────────►  backend контейнер (NestJS)     │
+│                                                                               │
+│  ▶ VS Code (Reopen in Container)                                              │
+│      └─ DevContainer = отдельный контейнер "workspace"                        │
+│         • Внутри него работает твоя IDE, терминалы, npm, Prisma CLI и т.п.    │
+│         • В него примонтирован код: /workspace/yachtpricer-mvp                │
+│         • postCreate.sh ставит зависимости (frontend/backend)                 │
+│                                                                               │
+│  ▶ Docker Compose управляет сервисами:                                        │
+│      ┌─────────────────────────────────────────────── docker network ─────────┐
+│      │                                                                         │
+│      │  frontend (порт 👉 3000:3000)                                           │
+│      │     • читает переменные из frontend/.env                                │
+│      │     • ходит к backend по VITE_API_URL (у нас http://localhost:8000)     │
+│      │                                                                         │
+│      │  backend  (порт 👉 8000:8000)                                           │
+│      │     • NestJS/Prisma                                                     │
+│      │     • подключается к БД по хосту "db" (внутреннее имя сервиса)          │
+│      │       DATABASE_URL=postgres://postgres:postgres@db:5432/yachtpricer     │
+│      │                                                                         │
+│      │  db = PostgreSQL (порт 👉 5432:5432)                                    │
+│      │     • том ./db-data → данные сохраняются между перезапусками            │
+│      │                                                                         │
+│      └─────────────────────────────────────────────────────────────────────────┘
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+Куда что ходит
+	•	Браузер → localhost:3000 → frontend
+	•	Браузер → localhost:8000 → backend
+	•	backend → db:5432 (внутреннее имя сервиса в сети Compose)
+
+Где лежит код и зависимости
+	•	Код: на твоём Mac, но примонтирован в DevContainer по пути /workspace/yachtpricer-mvp.
+	•	node_modules:
+	•	для работы IDE — ставим в DevContainer (postCreate.sh).
+	•	для рантайма — свои внутри контейнеров frontend/backend (Compose собирает/запускает их отдельно).
+
+Что запускает/останавливает сервисы
+	•	Запуск/перезапуск с Mac (не внутри DevContainer):
+	•	docker compose up -d backend frontend — поднять
+	•	docker compose restart frontend — перезапустить фронт
+	•	docker compose logs -f backend — логи бэка
+	•	docker compose down — всё остановить
+
+Где живут переменные
+	•	frontend: frontend/.env (например, VITE_CLERK_PUBLISHABLE_KEY, VITE_API_URL)
+	•	backend: в docker-compose.yml (DATABASE_URL) и/или backend/.env (если добавим)
+
+Что делает DevContainer
+	•	Даёт одинаковую среду для разработки (Node 20 и т.п.).
+	•	Запускает postCreate.sh → ставит зависимости → IDE без красных подчёркиваний.
+	•	Не управляет сервисами Docker (это делает Compose на хосте).

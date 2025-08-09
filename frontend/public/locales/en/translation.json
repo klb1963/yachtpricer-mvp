@@ -1,6 +1,6 @@
 {
     "app": {
-      "title": "Welcome to YachtPricer v {{version}}",
+      "title": "YachtPricer v {{version}}",
       "subtitle": "Your dashboard is ready."
     },
     "actions": {

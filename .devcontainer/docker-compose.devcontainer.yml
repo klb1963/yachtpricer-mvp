@@ -3,15 +3,12 @@ services:
     image: mcr.microsoft.com/devcontainers/typescript-node:20
     volumes:
       - ..:/workspace:cached
-      # отдельные тома, чтобы не конфликтовать с рантайм-контейнерами
-      - workspace-frontend-node_modules:/workspace/frontend/node_modules
-      - workspace-backend-node_modules:/workspace/backend/node_modules
-    working_dir: /workspace
+      - workspace-frontend-node_modules:/workspace/yachtpricer-mvp/frontend/node_modules
+      - workspace-backend-node_modules:/workspace/yachtpricer-mvp/backend/node_modules
+    working_dir: /workspace/yachtpricer-mvp
     command: sleep infinity
-    # Чтобы dev-контейнер видел остальные контейнеры по compose-сети
     networks:
       - yachtpricer-net
-    # ENV для удобства (по желанию)
     environment:
       VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-pk_test_dummy}
 

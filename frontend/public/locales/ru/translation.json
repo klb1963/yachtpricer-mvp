@@ -1,6 +1,6 @@
 {
     "app": {
-      "title": "Добро пожаловать в YachtPricer v {{version}}",
+      "title": "YachtPricer v {{version}}",
       "subtitle": "Ваш дашборд готов."
     },
     "actions": {
