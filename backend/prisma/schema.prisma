@@ -24,6 +24,7 @@ model Yacht {
   currentExtraServices Json
 
   ownerId String?
+  ownerName String?
   owner   Owner?  @relation(fields: [ownerId], references: [id])
 
   weekSlots           WeekSlot[]
@@ -92,4 +93,11 @@ enum WeekSlotStatus {
   BOOKED
   OPEN
   OPTION
+}
+
+enum YachtType {
+  monohull
+  catamaran
+  trimaran
+  compromis
 }

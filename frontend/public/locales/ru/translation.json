@@ -1,9 +1,9 @@
 {
-    "app": {
-      "title": "YachtPricer v {{version}}",
-      "subtitle": "Ваш дашборд готов."
-    },
-    "actions": {
-      "changeLang": "RU/EN"
-    }
+  "app": {
+    "title": "YachtPricer v {{version}}",
+    "subtitle": "Ваш дашборд готов."
+  },
+  "actions": {
+    "changeLang": "RU/EN"
   }
+}

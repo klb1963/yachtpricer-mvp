@@ -1,9 +1,9 @@
 {
-    "app": {
-      "title": "YachtPricer v {{version}}",
-      "subtitle": "Your dashboard is ready."
-    },
-    "actions": {
-      "changeLang": "RU/EN"
-    }
+  "app": {
+    "title": "YachtPricer v {{version}}",
+    "subtitle": "Your dashboard is ready."
+  },
+  "actions": {
+    "changeLang": "RU/EN"
   }
+}
