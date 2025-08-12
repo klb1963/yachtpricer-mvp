@@ -1,3 +1,5 @@
+// frontend/src/pages/DashboardPage.tsx
+
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Yacht } from '../api'
