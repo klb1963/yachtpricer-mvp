@@ -165,6 +165,18 @@ export default function DashboardPage() {
           onChange={(e) => setQ(e.target.value)}
         />
 
+        <select
+          className="rounded border p-2"
+          value={sort}
+          onChange={(e) => setSort(e.target.value as typeof sort)}
+        >
+          {SORT_OPTIONS.map((s) => (
+            <option key={s.value} value={s.value}>
+              Sort: {s.label}
+            </option>
+          ))}
+        </select>
+
         <select className="rounded border p-2" value={type} onChange={(e) => setType(e.target.value)}>
           {TYPE_OPTIONS.map((t) => (
             <option key={t} value={t}>
@@ -187,18 +199,6 @@ export default function DashboardPage() {
           value={maxYear}
           onChange={(e) => setMaxYear(e.target.value)}
         />
-
-        <select
-          className="rounded border p-2"
-          value={sort}
-          onChange={(e) => setSort(e.target.value as typeof sort)}
-        >
-          {SORT_OPTIONS.map((s) => (
-            <option key={s.value} value={s.value}>
-              Sort: {s.label}
-            </option>
-          ))}
-        </select>
 
         <input
           className="rounded border p-2"
