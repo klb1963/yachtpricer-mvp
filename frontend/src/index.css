@@ -6,8 +6,8 @@
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  /* color: rgba(255, 255, 255, 0.87); */
+  /* background-color: #242424; */
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -73,4 +73,16 @@ button:focus-visible {
   /* button {
     background-color: #f9f9f9;
   } */
+}
+
+/* Переключатель Table/Cards — стиль для неактивных кнопок */
+.view-toggle-inactive {
+  background-color: #f3f4f6; /* светло-серый фон */
+  border: 1px solid #d1d5db; /* тонкая серая граница */
+  color: #374151; /* тёмно-серый текст */
+}
+
+html, body {
+  color: #111 !important;
+  background-color: #fff !important;
 }

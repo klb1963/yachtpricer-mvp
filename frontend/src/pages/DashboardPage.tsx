@@ -123,22 +123,25 @@ export default function DashboardPage() {
 
         {/* Переключатель вида */}
         <div className="flex items-center gap-2">
+
           <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">
             <button
               type="button"
               onClick={() => setView('table')}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                view === 'table' ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
-              }`}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === 'table'
+                  ? 'bg-gray-900 text-white'
+                  : '!text-gray-800 hover:bg-gray-100'   // <- добавили !text-gray-800
+                }`}
             >
               Table
             </button>
             <button
               type="button"
               onClick={() => setView('cards')}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                view === 'cards' ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
-              }`}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === 'cards'
+                  ? 'bg-gray-900 text-white'
+                  : '!text-gray-800 hover:bg-gray-100'   // <- добавили !text-gray-800
+                }`}
             >
               Cards
             </button>
