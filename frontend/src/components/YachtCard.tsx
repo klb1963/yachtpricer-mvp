@@ -1,5 +1,7 @@
 // frontend/src/components/YachtCard.tsx
 
+// props: { y: Yacht; search?: string }
+
 import { Link } from 'react-router-dom';
 import type { Yacht } from '../api';
 
@@ -17,7 +19,7 @@ function Badge({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function YachtCard({ y }: { y: Yacht }) {
+export default function YachtCard({ y, search }: { y: Yacht; search?: string }) {
   const isNew =
     y.createdAt ? Date.now() - new Date(y.createdAt).getTime() < 7 * 24 * 3600 * 1000 : false;
 
@@ -71,20 +73,22 @@ export default function YachtCard({ y }: { y: Yacht }) {
             <div className="text-xs text-gray-500">Base price</div>
             <div className="text-lg font-bold text-gray-900">€ {fmtPrice(y.basePrice)}</div>
           </div>
-          <div className="flex gap-2">
-            <Link
-              to={`/yacht/${y.id}`}
-              className="rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-gray-50"
-            >
-              View
-            </Link>
-            <Link
-              to={`/yacht/${y.id}/edit`}
-              className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
-            >
-              Edit
-            </Link>
-          </div>
+
+            <div className="flex gap-2">
+                <Link
+                    className="rounded border px-3 py-1 hover:bg-gray-50"
+                    to={{ pathname: `/yacht/${y.id}`, search }}
+                >
+                    View
+                </Link>
+                <Link
+                    to={{ pathname: `/yacht/${y.id}/edit`, search }}
+                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                    Edit
+                </Link>
+            </div>
+
         </div>
       </div>
     </div>

@@ -5,11 +5,13 @@ import { useParams, Link } from 'react-router-dom'
 import { getYacht } from '../api'
 import type { Yacht } from '../api'
 import { PencilSquareIcon } from '@heroicons/react/24/solid'
+import { useLocation } from 'react-router-dom';
 
 export default function YachtDetailsPage() {
   const { id } = useParams()
   const [yacht, setYacht] = useState<Yacht | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const location = useLocation();
 
   useEffect(() => {
     if (!id) return
@@ -31,9 +33,14 @@ export default function YachtDetailsPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">{yacht.name}</h1>
         <div className="flex items-center gap-3">
-          <Link to="/dashboard" className="text-blue-600 hover:underline">
+
+          <Link
+            to={{ pathname: '/dashboard', search: location.search }}
+            className="text-blue-600 hover:underline"
+          >
             ← Back
           </Link>
+
           <Link
             to={`/yacht/${yacht.id}/edit`}
             className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 hover:bg-blue-700"

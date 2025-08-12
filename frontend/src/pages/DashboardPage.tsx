@@ -1,7 +1,7 @@
 // frontend/src/pages/DashboardPage.tsx
 
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Yacht, YachtListParams, YachtListResponse } from '../api';
 import { listYachts } from '../api';
 import YachtCard from '../components/YachtCard';
@@ -17,11 +17,32 @@ const SORT_OPTIONS = [
 
 const CURRENT_YEAR = new Date().getFullYear();
 
-type ViewMode = 'table' | 'cards';
+const useViewMode = () => {
+  const loc = useLocation();
+  const nav = useNavigate();
+
+  const initial =
+    (new URLSearchParams(loc.search).get('view') as 'cards' | 'table' | null) ||
+    (localStorage.getItem('dashboard:view') as 'cards' | 'table' | null) ||
+    'table';
+
+  const [view, setView] = useState<'cards' | 'table'>(initial);
+
+  // Синхроним URL и LS
+  useEffect(() => {
+    localStorage.setItem('dashboard:view', view);
+    const sp = new URLSearchParams(loc.search);
+    sp.set('view', view);
+    nav({ pathname: '/dashboard', search: sp.toString() }, { replace: true });
+  }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { view, setView };
+};
 
 export default function DashboardPage() {
-  // 🔀 режим отображения
-  const [view, setView] = useState<ViewMode>('table');
+
+  const { view, setView } = useViewMode();
+  const location = useLocation();
 
   // фильтры/сортировка/пагинация
   const [q, setQ] = useState('');
@@ -208,7 +229,7 @@ export default function DashboardPage() {
         // ✨ Карточная сетка: от 1 до 5 колонок
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {items.map((y) => (
-            <YachtCard key={y.id} y={y} />
+           <YachtCard key={y.id} y={y} search={location.search} /> 
           ))}
           {items.length === 0 && (
             <div className="col-span-full py-10 text-center text-gray-500">No results</div>
@@ -255,13 +276,18 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((y) => (
-                <tr key={y.id} className="border-t [&>td]:px-4 [&>td]:py-2">
-                  <td>
-                    <Link className="text-blue-600 hover:underline" to={`/yacht/${y.id}`}>
-                      {y.name}
-                    </Link>
-                  </td>
+                    {items.map((y) => (
+                      <tr key={y.id} className="border-t [&>td]:px-4 [&>td]:py-2">
+                        <td>
+
+                          <Link
+                            className="text-blue-600 hover:underline"
+                            to={{ pathname: `/yacht/${y.id}`, search: location.search }}
+                          >
+
+                            {y.name}
+                          </Link>
+                        </td>
                   <td>
                     {y.manufacturer} {y.model}
                   </td>
