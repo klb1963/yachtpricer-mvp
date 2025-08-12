@@ -1,4 +1,5 @@
 // backend/src/yachts.controller.ts
+
 import {
   BadRequestException,
   Body,
@@ -9,20 +10,117 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+/** Хелперы парсинга */
+const toInt = (v: unknown): number | undefined => {
+  if (v === undefined || v === null || v === '') return undefined;
+  const n = Number(v);
+  return Number.isInteger(n) ? n : undefined;
+};
+const toNum = (v: unknown): number | undefined => {
+  if (v === undefined || v === null || v === '') return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+const clamp = (n: number, a: number, b: number) => Math.min(Math.max(n, a), b);
+
 @Controller('yachts')
 export class YachtsController {
   // -------- list --------
   @Get()
-  async list() {
-    return prisma.yacht.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
+  async list(
+    @Query()
+    query: {
+      q?: string;
+      type?: string;
+      minYear?: string;
+      maxYear?: string;
+      minPrice?: string;
+      maxPrice?: string;
+      sort?: 'priceAsc' | 'priceDesc' | 'yearAsc' | 'yearDesc' | 'createdDesc';
+      page?: string;
+      pageSize?: string;
+    },
+  ) {
+    // 1) Параметры
+    const q = (query.q ?? '').trim();
+    const type = (query.type ?? '').trim() || undefined;
+
+    const minYear = toInt(query.minYear);
+    const maxYear = toInt(query.maxYear);
+
+    // basePrice у нас Decimal — Prisma принимает number | string
+    const minPrice = toNum(query.minPrice);
+    const maxPrice = toNum(query.maxPrice);
+
+    const page = clamp(toInt(query.page) ?? 1, 1, 10_000);
+    const pageSize = clamp(toInt(query.pageSize) ?? 20, 1, 200);
+    const skip = (page - 1) * pageSize;
+    const take = pageSize;
+
+    // 2) WHERE
+    const where: Prisma.YachtWhereInput = {
+      AND: [
+        q
+          ? {
+              OR: [
+                { name: { contains: q, mode: 'insensitive' } },
+                { manufacturer: { contains: q, mode: 'insensitive' } },
+                { model: { contains: q, mode: 'insensitive' } },
+                { location: { contains: q, mode: 'insensitive' } },
+                { charterCompany: { contains: q, mode: 'insensitive' } },
+                { ownerName: { contains: q, mode: 'insensitive' } },
+              ],
+            }
+          : undefined,
+        type ? { type } : undefined,
+        minYear !== undefined ? { builtYear: { gte: minYear } } : undefined,
+        maxYear !== undefined ? { builtYear: { lte: maxYear } } : undefined,
+        minPrice !== undefined
+          ? { basePrice: { gte: String(minPrice) } }
+          : undefined,
+        maxPrice !== undefined
+          ? { basePrice: { lte: String(maxPrice) } }
+          : undefined,
+      ].filter(Boolean) as Prisma.YachtWhereInput[],
+    };
+
+    // 3) ORDER BY
+    let orderBy:
+      | Prisma.YachtOrderByWithRelationInput
+      | Prisma.YachtOrderByWithRelationInput[] = { createdAt: 'desc' };
+
+    switch (query.sort) {
+      case 'priceAsc':
+        orderBy = [{ basePrice: 'asc' }, { createdAt: 'desc' }];
+        break;
+      case 'priceDesc':
+        orderBy = [{ basePrice: 'desc' }, { createdAt: 'desc' }];
+        break;
+      case 'yearAsc':
+        orderBy = [{ builtYear: 'asc' }, { createdAt: 'desc' }];
+        break;
+      case 'yearDesc':
+        orderBy = [{ builtYear: 'desc' }, { createdAt: 'desc' }];
+        break;
+      case 'createdDesc':
+      default:
+        orderBy = { createdAt: 'desc' };
+    }
+
+    // 4) total + items (одной транзакцией)
+    const [total, items] = await prisma.$transaction([
+      prisma.yacht.count({ where }),
+      prisma.yacht.findMany({ where, orderBy, skip, take }),
+    ]);
+
+    // 5) Ответ для фронта
+    return { items, total, page, pageSize };
   }
 
   // -------- by id --------
