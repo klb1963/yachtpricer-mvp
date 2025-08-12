@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+// frontend/src/pages/DashboardPage.tsx
+
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listYachts } from '../api';
 import type { Yacht, YachtListParams, YachtListResponse } from '../api';
+import { listYachts } from '../api';
+import YachtCard from '../components/YachtCard';
 
 const TYPE_OPTIONS = ['', 'monohull', 'catamaran', 'trimaran', 'compromis'] as const;
 const SORT_OPTIONS = [
@@ -14,36 +17,50 @@ const SORT_OPTIONS = [
 
 const CURRENT_YEAR = new Date().getFullYear();
 
+type ViewMode = 'table' | 'cards';
+
 export default function DashboardPage() {
-  // --- черновики фильтров (то, что в инпутах) ---
+  // 🔀 режим отображения
+  const [view, setView] = useState<ViewMode>('table');
+
+  // фильтры/сортировка/пагинация
   const [q, setQ] = useState('');
   const [type, setType] = useState<string>('');
   const [minYear, setMinYear] = useState<string>('');
   const [maxYear, setMaxYear] = useState<string>('');
   const [minPrice, setMinPrice] = useState<string>('');
   const [maxPrice, setMaxPrice] = useState<string>('');
-
-  // сортировка/страницы – управляем отдельно
   const [sort, setSort] =
     useState<'priceAsc' | 'priceDesc' | 'yearAsc' | 'yearDesc' | 'createdDesc'>('createdDesc');
+
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // --- применённые параметры запроса (только они триггерят загрузку) ---
-  const [query, setQuery] = useState<YachtListParams>({ sort: 'createdDesc', page: 1, pageSize: 10 });
-
-  // данные
   const [items, setItems] = useState<Yacht[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // загрузка только при изменении query
+  const params: YachtListParams = useMemo(
+    () => ({
+      q: q || undefined,
+      type: type || undefined,
+      minYear: minYear ? Number(minYear) : undefined,
+      maxYear: maxYear ? Number(maxYear) : undefined,
+      minPrice: minPrice ? Number(minPrice) : undefined,
+      maxPrice: maxPrice ? Number(maxPrice) : undefined,
+      sort,
+      page,
+      pageSize,
+    }),
+    [q, type, minYear, maxYear, minPrice, maxPrice, sort, page, pageSize],
+  );
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setErr(null);
-    listYachts(query)
+    listYachts(params)
       .then((res: YachtListResponse) => {
         if (cancelled) return;
         setItems(res.items);
@@ -56,134 +73,82 @@ export default function DashboardPage() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => { cancelled = true; };
-  }, [query]);
-
-  const totalPages = Math.max(1, Math.ceil(total / (query.pageSize ?? pageSize)));
-
-  // Применить фильтры
-  function applyFilters(e: React.FormEvent) {
-    e.preventDefault();
-    const next: YachtListParams = {
-      q: q || undefined,
-      type: type || undefined,
-      minYear: minYear ? Number(minYear) : undefined,
-      maxYear: maxYear ? Number(maxYear) : undefined,
-      minPrice: minPrice ? Number(minPrice) : undefined,
-      maxPrice: maxPrice ? Number(maxPrice) : undefined,
-      sort,
-      page: 1,                // при смене фильтров всегда на первую
-      pageSize,
+    return () => {
+      cancelled = true;
     };
-    setPage(1);
-    setQuery(next);
-  }
+  }, [params]);
 
-  // Сбросить
-  function resetFilters() {
-    setQ('');
-    setType('');
-    setMinYear('');
-    setMaxYear('');
-    setMinPrice('');
-    setMaxPrice('');
-    setSort('createdDesc');
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const goPrev = () => setPage((p) => Math.max(1, p - 1));
+  const goNext = () => setPage((p) => Math.min(totalPages, p + 1));
+  const applyFilters = (e: React.FormEvent) => {
+    e.preventDefault();
     setPage(1);
-    setPageSize(10);
-    setQuery({ sort: 'createdDesc', page: 1, pageSize: 10 });
-  }
+  };
 
-  // Пагинация и сортировка меняют query без трогания черновиков
-  function goPrev() {
-    const p = Math.max(1, (query.page ?? 1) - 1);
-    setPage(p);
-    setQuery({ ...query, page: p });
-  }
-  function goNext() {
-    const p = Math.min(totalPages, (query.page ?? 1) + 1);
-    setPage(p);
-    setQuery({ ...query, page: p });
-  }
-  function changePageSize(n: number) {
-    setPageSize(n);
-    setPage(1);
-    setQuery({ ...query, pageSize: n, page: 1 });
-  }
-  function changeSort(v: typeof sort) {
-    setSort(v);
-    setQuery({ ...query, sort: v });
-  }
-  function changeType(val: string) {
-    setType(val);
-    setPage(1);
-    setQuery({ ...query, type: val || undefined, page: 1 });
-  }
-  // Мэппинг кликов по колонкам в значения бэкенда
-  function toggleSortBy(col: 'year' | 'price') {
-    setPage(1); // при смене сортировки — на первую страницу
+  // сорт по клику на заголовок (как сделали ранее — оставляю)
+  const onSortBy = (field: 'price' | 'year') => {
     setSort((prev) => {
-      if (col === 'year') {
-        return prev === 'yearAsc' ? 'yearDesc' : 'yearAsc';
-      }
-      // col === 'price'
-      return prev === 'priceAsc' ? 'priceDesc' : 'priceAsc';
+      if (field === 'price') return prev === 'priceAsc' ? 'priceDesc' : 'priceAsc';
+      return prev === 'yearAsc' ? 'yearDesc' : 'yearAsc';
     });
-  }
-
-  // для стрелочек в UI
-  function sortArrow(col: 'year' | 'price') {
-    if ((col === 'year' && (sort === 'yearAsc' || sort === 'yearDesc')) ||
-      (col === 'price' && (sort === 'priceAsc' || sort === 'priceDesc'))) {
-      const dir = sort.endsWith('Asc') ? '↑' : '↓';
-      return <span className="ml-1 text-gray-500">{dir}</span>;
-    }
-    return null;
-  }
+    setPage(1);
+  };
 
   return (
-    <div className="mx-auto max-w-6xl p-6">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-3xl font-bold">List:</h2>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Sort:&nbsp;</label>
-          <select
-            className="rounded border p-2"
-            value={sort}
-            onChange={(e) => changeSort(e.target.value as typeof sort)}
-          >
-            {SORT_OPTIONS.map((s) => (
-              <option key={s.value} value={s.value}> {s.label} </option>
-            ))}
-          </select>
+    <div className="mx-auto max-w-7xl p-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h1 className="text-3xl font-bold">Boats</h1>
 
-          {/* Кнопка Add */}
+        {/* Переключатель вида */}
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setView('table')}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                view === 'table' ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              Table
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('cards')}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                view === 'cards' ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              Cards
+            </button>
+          </div>
+
           <Link
             to="/yacht/new"
-            className="rounded bg-blue-600 px-3 py-2 hover:bg-blue-700"
+            className="rounded bg-blue-600 px-3 py-2 font-semibold text-white hover:bg-blue-700"
           >
-            <span className="text-white font-bold">+ Add</span>
+            + Add
           </Link>
-
         </div>
       </div>
 
       {/* Фильтры */}
-      <form onSubmit={applyFilters} className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-6">
+      <form onSubmit={applyFilters} className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-6">
         <input
           className="rounded border p-2 md:col-span-2"
-          placeholder="Search (name/model/location/owner)…"
+          placeholder="Search (name, model, location, owner)…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select
-          className="rounded border p-2"
-          value={type}
-          onChange={(e) => changeType(e.target.value)}
-        >
+
+        <select className="rounded border p-2" value={type} onChange={(e) => setType(e.target.value)}>
           {TYPE_OPTIONS.map((t) => (
-            <option key={t} value={t}>{t ? `Type: ${t}` : 'Any type'}</option>
+            <option key={t} value={t}>
+              {t ? `Type: ${t}` : 'Any type'}
+            </option>
           ))}
         </select>
+
         <input
           className="rounded border p-2"
           placeholder={`Min year (≤ ${CURRENT_YEAR})`}
@@ -198,6 +163,19 @@ export default function DashboardPage() {
           value={maxYear}
           onChange={(e) => setMaxYear(e.target.value)}
         />
+
+        <select
+          className="rounded border p-2"
+          value={sort}
+          onChange={(e) => setSort(e.target.value as typeof sort)}
+        >
+          {SORT_OPTIONS.map((s) => (
+            <option key={s.value} value={s.value}>
+              Sort: {s.label}
+            </option>
+          ))}
+        </select>
+
         <input
           className="rounded border p-2"
           placeholder="Min price"
@@ -212,29 +190,32 @@ export default function DashboardPage() {
           value={maxPrice}
           onChange={(e) => setMaxPrice(e.target.value)}
         />
-        <div className="flex gap-2 md:col-span-1">
 
-          {/* Кнопка Apply */}
-          <button
-            type="submit"
-            className="rounded bg-gray-800 px-4 py-2 hover:bg-gray-900"
-          >
-            <span className="text-white font-bold">Apply</span>
-          </button>
-
-          <button type="button" onClick={resetFilters} className="rounded border px-4 py-2">
-            Reset
-          </button>
-
-        </div>
+        <button
+          type="submit"
+          className="rounded bg-gray-800 px-4 py-2 text-white hover:bg-gray-900 md:col-span-1"
+        >
+          Apply
+        </button>
       </form>
 
-      {/* Таблица/лоадер/ошибка — инпуты остаются в DOM, фокусы не теряются */}
-      {err ? (
-        <div className="mt-10 text-center text-red-600">{err}</div>
-      ) : loading ? (
+      {/* Контент: таблица или карточки */}
+      {loading ? (
         <div className="mt-10 text-center">Loading…</div>
+      ) : err ? (
+        <div className="mt-10 text-center text-red-600">{err}</div>
+      ) : view === 'cards' ? (
+        // ✨ Карточная сетка: от 1 до 5 колонок
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {items.map((y) => (
+            <YachtCard key={y.id} y={y} />
+          ))}
+          {items.length === 0 && (
+            <div className="col-span-full py-10 text-center text-gray-500">No results</div>
+          )}
+        </div>
       ) : (
+        // Таблица (как было), с кликом по заголовкам для сортировки части полей
         <div className="overflow-x-auto rounded-lg border">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">
@@ -243,49 +224,67 @@ export default function DashboardPage() {
                 <th>Model</th>
                 <th>Type</th>
                 <th>Length</th>
-
-                {/* Year — кликабельно */}
-                <th
-                  className="cursor-pointer hover:underline"
-                  onClick={() => toggleSortBy('year')}
-                  title="Sort by year"
-                >
-                  Year {sortArrow('year')}
+                <th>
+                  <button
+                    type="button"
+                    onClick={() => onSortBy('year')}
+                    className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-gray-100"
+                    title="Sort by year"
+                  >
+                    Year
+                    <span className="text-gray-400">
+                      {sort === 'yearAsc' ? '↑' : sort === 'yearDesc' ? '↓' : ''}
+                    </span>
+                  </button>
                 </th>
-
                 <th>Location</th>
-
-                {/* Price (base) — кликабельно */}
-                <th
-                  className="cursor-pointer hover:underline"
-                  onClick={() => toggleSortBy('price')}
-                  title="Sort by price"
-                >
-                  Price (base) {sortArrow('price')}
+                <th>
+                  <button
+                    type="button"
+                    onClick={() => onSortBy('price')}
+                    className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-gray-100"
+                    title="Sort by price"
+                  >
+                    Price (base)
+                    <span className="text-gray-400">
+                      {sort === 'priceAsc' ? '↑' : sort === 'priceDesc' ? '↓' : ''}
+                    </span>
+                  </button>
                 </th>
-
-                <th>Owner</th>
+                <th className="px-4 py-2 text-left">Owner</th>
               </tr>
             </thead>
             <tbody>
               {items.map((y) => (
-                <tr key={y.id} className="border-top [&>td]:px-4 [&>td]:py-2">
+                <tr key={y.id} className="border-t [&>td]:px-4 [&>td]:py-2">
                   <td>
                     <Link className="text-blue-600 hover:underline" to={`/yacht/${y.id}`}>
                       {y.name}
                     </Link>
                   </td>
-                  <td>{y.manufacturer} {y.model}</td>
+                  <td>
+                    {y.manufacturer} {y.model}
+                  </td>
                   <td>{y.type}</td>
                   <td>{y.length} m</td>
                   <td>{y.builtYear}</td>
                   <td>{y.location}</td>
-                  <td>{typeof y.basePrice === 'string' ? y.basePrice : String(y.basePrice)}</td>
-                  <td>{y.ownerName ?? '—'}</td>
+                  <td>
+                    {typeof y.basePrice === 'string'
+                      ? y.basePrice
+                      : Number.isFinite(y.basePrice)
+                      ? String(Math.round(Number(y.basePrice)))
+                      : '—'}
+                  </td>
+                  <td className="px-4 py-2">{y.ownerName ?? '—'}</td>
                 </tr>
               ))}
               {items.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-6 text-center text-gray-500">No results</td></tr>
+                <tr>
+                  <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
+                    No results
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
@@ -293,24 +292,35 @@ export default function DashboardPage() {
       )}
 
       {/* Пагинация */}
-      <div className="mt-3 flex items-center justify-between">
+      <div className="mt-6 flex items-center justify-between">
         <div className="text-sm text-gray-600">
-          Total: {total} • Page {query.page ?? page} of {totalPages}
+          Total: {total} • Page {page} of {Math.max(1, Math.ceil(total / pageSize))}
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={goPrev} disabled={(query.page ?? 1) <= 1} className="rounded border px-3 py-1 disabled:opacity-50">
+          <button
+            onClick={goPrev}
+            disabled={page <= 1}
+            className="rounded border px-3 py-1 disabled:opacity-50"
+          >
             ← Prev
           </button>
           <select
             className="rounded border px-2 py-1"
-            value={query.pageSize ?? pageSize}
-            onChange={(e) => changePageSize(Number(e.target.value))}
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
           >
-            {[10, 20, 50].map((n) => <option key={n} value={n}>{n} / page</option>)}
+            {[10, 20, 50].map((n) => (
+              <option key={n} value={n}>
+                {n} / page
+              </option>
+            ))}
           </select>
           <button
             onClick={goNext}
-            disabled={(query.page ?? 1) >= totalPages}
+            disabled={page >= totalPages}
             className="rounded border px-3 py-1 disabled:opacity-50"
           >
             Next →

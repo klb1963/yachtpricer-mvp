@@ -1,0 +1,92 @@
+// frontend/src/components/YachtCard.tsx
+
+import { Link } from 'react-router-dom';
+import type { Yacht } from '../api';
+
+function fmtPrice(p: Yacht['basePrice']) {
+  if (typeof p === 'string') return p;
+  if (typeof p === 'number' && Number.isFinite(p)) return String(Math.round(p));
+  return '—';
+}
+
+function Badge({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+      {children}
+    </span>
+  );
+}
+
+export default function YachtCard({ y }: { y: Yacht }) {
+  const isNew =
+    y.createdAt ? Date.now() - new Date(y.createdAt).getTime() < 7 * 24 * 3600 * 1000 : false;
+
+  // заглушка под фото (позже прикрутим реальные)
+  const img =
+    'https://images.unsplash.com/photo-1508182311256-e3f28c3f8d0f?q=80&w=1200&auto=format&fit=crop';
+
+  return (
+    <div className="group flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md">
+      <div className="relative aspect-[16/10] w-full overflow-hidden bg-gray-100">
+        <img
+          src={img}
+          alt={y.name}
+          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+          loading="lazy"
+        />
+        {isNew && (
+          <span className="absolute left-3 top-3 rounded-full bg-green-600/90 px-2 py-0.5 text-xs font-semibold text-white">
+            New
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-1 flex-col gap-3 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="truncate text-lg font-semibold text-gray-900">{y.name}</h3>
+            <p className="truncate text-sm text-gray-600">
+              {y.manufacturer} {y.model}
+            </p>
+          </div>
+          <Badge>{y.type}</Badge>
+        </div>
+
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-700">
+          <div className="text-gray-500">Length</div>
+          <div className="font-medium">{y.length} m</div>
+
+          <div className="text-gray-500">Year</div>
+          <div className="font-medium">{y.builtYear}</div>
+
+          <div className="text-gray-500">Location</div>
+          <div className="truncate font-medium">{y.location}</div>
+
+          <div className="text-gray-500">Owner</div>
+          <div className="truncate font-medium">{y.ownerName ?? '—'}</div>
+        </div>
+
+        <div className="mt-auto flex items-center justify-between pt-2">
+          <div>
+            <div className="text-xs text-gray-500">Base price</div>
+            <div className="text-lg font-bold text-gray-900">€ {fmtPrice(y.basePrice)}</div>
+          </div>
+          <div className="flex gap-2">
+            <Link
+              to={`/yacht/${y.id}`}
+              className="rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-gray-50"
+            >
+              View
+            </Link>
+            <Link
+              to={`/yacht/${y.id}/edit`}
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Edit
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
