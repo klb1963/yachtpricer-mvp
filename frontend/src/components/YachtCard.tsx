@@ -5,6 +5,14 @@
 import { Link } from 'react-router-dom';
 import type { Yacht } from '../api';
 
+// Карта типов -> картинка из /public/images/yachts
+const IMAGE_MAP: Record<string, string> = {
+    monohull: '/images/yachts/monohull.jpg',
+    catamaran: '/images/yachts/catamaran.jpg',
+    trimaran: '/images/yachts/trimaran.jpg',
+    compromis: '/images/yachts/compromis.jpg',
+};
+
 function fmtPrice(p: Yacht['basePrice']) {
   if (typeof p === 'string') return p;
   if (typeof p === 'number' && Number.isFinite(p)) return String(Math.round(p));
@@ -23,9 +31,8 @@ export default function YachtCard({ y, search }: { y: Yacht; search?: string }) 
   const isNew =
     y.createdAt ? Date.now() - new Date(y.createdAt).getTime() < 7 * 24 * 3600 * 1000 : false;
 
-  // заглушка под фото (позже прикрутим реальные)
-  const img =
-    'https://images.unsplash.com/photo-1508182311256-e3f28c3f8d0f?q=80&w=1200&auto=format&fit=crop';
+    // Выбираем картинку по типу яхты; иначе плейсхолдер
+    const img = IMAGE_MAP[y.type?.toLowerCase?.()] ?? '/images/yachts/placeholder.jpg';
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md">
