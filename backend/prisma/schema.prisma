@@ -23,12 +23,13 @@ model Yacht {
   charterCompany       String
   currentExtraServices Json
 
-  ownerId String?
+  ownerId   String?
   ownerName String?
-  owner   Owner?  @relation(fields: [ownerId], references: [id])
+  owner     Owner?  @relation(fields: [ownerId], references: [id])
 
   weekSlots           WeekSlot[]
   extraServiceHistory ExtraServiceHistory[]
+  competitorPrices    CompetitorPrice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -100,4 +101,46 @@ enum YachtType {
   catamaran
   trimaran
   compromis
+}
+
+enum ScrapeSource {
+  BOATAROUND
+  SEARADAR
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+model CompetitorPrice {
+  id              String       @id @default(uuid())
+  yachtId         String?
+  yacht           Yacht?       @relation(fields: [yachtId], references: [id])
+
+  weekStart       DateTime
+  source          ScrapeSource
+  competitorYacht String
+  price           Decimal
+  currency        String       @default("EUR")
+  link            String?
+  scrapedAt       DateTime     @default(now())
+  raw             Json?
+
+  @@index([yachtId, weekStart, source])
+  @@index([weekStart, source])
+}
+
+model ScrapeJob {
+  id         String     @id @default(uuid())
+  source     ScrapeSource
+  status     JobStatus  @default(PENDING)
+  params     Json
+
+  createdAt  DateTime   @default(now())
+  startedAt  DateTime?
+  finishedAt DateTime?
+  error      String?
 }
