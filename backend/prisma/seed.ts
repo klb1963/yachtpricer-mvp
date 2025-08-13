@@ -1,3 +1,5 @@
+// backend/prisma/seed.ts
+
 /* eslint-disable no-console */
 /* eslint-disable no-process-exit */
 /* eslint-disable @typescript-eslint/no-floating-promises */
@@ -39,11 +41,12 @@ async function main() {
       location: 'Marina Kastela',
       fleet: 'EN',
       charterCompany: 'Adriatic Charter',
+      ownerId: owner1.id,
+      ownerName: owner1.name,
       currentExtraServices: JSON.stringify([
         { name: 'Transit log', price: 150 },
         { name: 'Final cleaning', price: 100 },
       ]),
-      ownerId: owner1.id,
     },
   });
 
@@ -61,16 +64,40 @@ async function main() {
       location: 'Marina Split',
       fleet: 'EN',
       charterCompany: 'Split Charter',
+      ownerId: owner2.id,
+      ownerName: owner2.name,
       currentExtraServices: JSON.stringify([
         { name: 'Outboard engine', price: 80 },
         { name: 'WiFi', price: 50 },
       ]),
-      ownerId: owner2.id,
+    },
+  });
+
+  const yacht3 = await prisma.yacht.create({
+    data: {
+      name: 'Lagoon 42',
+      manufacturer: 'Lagoon',
+      model: '42',
+      type: 'Catamaran',
+      length: 12.8,
+      builtYear: 2020,
+      cabins: 4,
+      heads: 4,
+      basePrice: 5200,
+      location: 'Marina Dubrovnik',
+      fleet: 'EN',
+      charterCompany: 'Dubrovnik Sailing',
+      ownerId: owner1.id,
+      ownerName: owner1.name,
+      currentExtraServices: JSON.stringify([
+        { name: 'Skipper', price: 180 },
+        { name: 'Final cleaning', price: 150 },
+      ]),
     },
   });
 
   console.log('📅 Seeding week slots for August 2025…');
-  const yachts = [yacht1, yacht2];
+  const yachts = [yacht1, yacht2, yacht3];
   const augustStart = new Date('2025-08-02'); // первая суббота августа
 
   for (const yacht of yachts) {
