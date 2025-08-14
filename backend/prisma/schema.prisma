@@ -23,6 +23,8 @@ model Yacht {
   charterCompany       String
   currentExtraServices Json
 
+  imageUrl             String? 
+
   ownerId   String?
   ownerName String?
   owner     Owner?  @relation(fields: [ownerId], references: [id])

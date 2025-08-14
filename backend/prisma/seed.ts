@@ -47,6 +47,7 @@ async function main() {
         { name: 'Transit log', price: 150 },
         { name: 'Final cleaning', price: 100 },
       ]),
+      imageUrl: '/images/yachts/monohull.jpg',
     },
   });
 
@@ -70,6 +71,7 @@ async function main() {
         { name: 'Outboard engine', price: 80 },
         { name: 'WiFi', price: 50 },
       ]),
+      imageUrl: '/images/yachts/monohull.jpg',
     },
   });
 
@@ -93,6 +95,7 @@ async function main() {
         { name: 'Skipper', price: 180 },
         { name: 'Final cleaning', price: 150 },
       ]),
+      imageUrl: '/images/yachts/catamaran.jpg',
     },
   });
 
