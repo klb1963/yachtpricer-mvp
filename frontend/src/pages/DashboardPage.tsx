@@ -234,6 +234,23 @@ export default function DashboardPage() {
         >
           Apply
         </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setQ('');
+            setType('');
+            setMinYear('');
+            setMaxYear('');
+            setMinPrice('');
+            setMaxPrice('');
+            setSort('createdDesc');
+            setPage(1);
+          }}
+          className="rounded bg-gray-300 px-4 py-2 text-black hover:bg-gray-400 md:col-span-1"
+        >
+          Reset
+        </button>
       </form>
 
       {/* Контент: таблица или карточки */}
