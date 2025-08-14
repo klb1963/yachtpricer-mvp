@@ -6,7 +6,18 @@ import type { Yacht, YachtListParams, YachtListResponse } from '../api';
 import { listYachts } from '../api';
 import YachtCard from '../components/YachtCard';
 
-const TYPE_OPTIONS = ['', 'monohull', 'catamaran', 'trimaran', 'compromis'] as const;
+// Значения value должны совпадать с тем, как хранится в БД (см. backend):
+//  - "Sailing yacht" — монокорпус (Monohull)
+//  - "Catamaran"
+//  - (опционально) другие типы, если появятся в БД
+const TYPE_OPTIONS = [
+    { value: '',              label: 'Any type' },
+    { value: 'Sailing yacht', label: 'Monohull' },
+    { value: 'Catamaran',     label: 'Catamaran' },
+    { value: 'Trimaran',      label: 'Trimaran' },
+    { value: 'Compromis',     label: 'Compromis' },
+  ] as const;
+
 const SORT_OPTIONS = [
   { value: 'createdDesc', label: 'Newest' },
   { value: 'priceAsc', label: 'Price ↑' },
@@ -177,11 +188,13 @@ export default function DashboardPage() {
           ))}
         </select>
 
-        <select className="rounded border p-2" value={type} onChange={(e) => setType(e.target.value)}>
-          {TYPE_OPTIONS.map((t) => (
-            <option key={t} value={t}>
-              {t ? `Type: ${t}` : 'Any type'}
-            </option>
+        <select
+          className="rounded border p-2"
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+        >
+          {TYPE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
 

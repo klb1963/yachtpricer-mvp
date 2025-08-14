@@ -49,7 +49,17 @@ export class YachtsController {
   ) {
     // 1) Параметры
     const q = (query.q ?? '').trim();
-    const type = (query.type ?? '').trim() || undefined;
+
+    const typeRaw = (query.type ?? '').trim().toLowerCase();
+    const TYPE_ALIASES: Record<string, string> = {
+      monohull: 'Sailing yacht',
+      sailing: 'Sailing yacht',
+      sail: 'Sailing yacht',
+      catamaran: 'Catamaran',
+      trimaran: 'Trimaran',
+    };
+    const typeNormalized =
+      TYPE_ALIASES[typeRaw] ?? (typeRaw ? query.type : undefined);
 
     const minYear = toInt(query.minYear);
     const maxYear = toInt(query.maxYear);
@@ -78,7 +88,12 @@ export class YachtsController {
               ],
             }
           : undefined,
-        type ? { type } : undefined,
+
+        // ✅ фильтр по типу: catamaran → "Catamaran", sailing → "Sailing yacht"
+        typeNormalized
+          ? { type: { equals: typeNormalized, mode: 'insensitive' } }
+          : undefined,
+
         minYear !== undefined ? { builtYear: { gte: minYear } } : undefined,
         maxYear !== undefined ? { builtYear: { lte: maxYear } } : undefined,
         minPrice !== undefined
