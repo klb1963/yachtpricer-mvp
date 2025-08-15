@@ -118,31 +118,51 @@ enum JobStatus {
 }
 
 model CompetitorPrice {
-  id              String       @id @default(uuid())
+  id              String        @id @default(uuid())
+  yacht           Yacht?        @relation(fields: [yachtId], references: [id])
   yachtId         String?
-  yacht           Yacht?       @relation(fields: [yachtId], references: [id])
 
+  // неделя чартерная (суббота)
   weekStart       DateTime
   source          ScrapeSource
+
+  // кто и что: базовые поля
   competitorYacht String
   price           Decimal
-  currency        String       @default("EUR")
-  link            String?
-  scrapedAt       DateTime     @default(now())
+  currency        String
+  link            String
+  scrapedAt       DateTime      @default(now())
   raw             Json?
 
-  @@index([yachtId, weekStart, source])
+  // 👇 новые полезные поля для Boataround
+  scrapeJob       ScrapeJob?    @relation(fields: [scrapeJobId], references: [id])
+  scrapeJobId     String?
+
+  externalId      String?       // ID лодки у поставщика (если сможем достать)
+  year            Int?
+  cabins          Int?
+  heads           Int?
+  lengthFt        Float?        // удобнее сразу хранить в футах
+  marina          String?
+  discountPct     Decimal?      // реальная скидка на итог против “прайса”
+  feesTotal       Decimal?      // доп. сборы (чистка/турист.налог и т.п.), если считаем
+
   @@index([weekStart, source])
+  @@index([yachtId, weekStart, source])
+  // часто удобно дедуплицировать по ссылке + неделя + источник:
+  @@unique([source, link, weekStart])
 }
 
 model ScrapeJob {
-  id         String     @id @default(uuid())
-  source     ScrapeSource
-  status     JobStatus  @default(PENDING)
-  params     Json
+  id          String      @id @default(uuid())
+  source      ScrapeSource
+  status      JobStatus
+  params      Json
+  createdAt   DateTime    @default(now())
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  error       String?
 
-  createdAt  DateTime   @default(now())
-  startedAt  DateTime?
-  finishedAt DateTime?
-  error      String?
+  // 👇 связь к результатам
+  results     CompetitorPrice[]
 }

@@ -165,12 +165,3 @@ Scrape / агрегация
 YachtPricer Team
 
 ⸻
-
-Коммит
-
-# коммит
-git add docs/scraping-plan.md
-git commit -m "docs: add end-to-end scraping + pricing integration plan (Boataround, snapshots, decisions, FE/BE API)"
-
-# пуш
-git push origin main
