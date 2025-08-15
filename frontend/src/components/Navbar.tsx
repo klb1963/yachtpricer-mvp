@@ -17,7 +17,7 @@ export default function Navbar() {
         to="/"
         style={{ fontWeight: 'bold', fontSize: '1.2rem', color: 'white', textDecoration: 'none' }}
       >
-        YachtPricer
+        ⛵ YachtPricer 💲
       </Link>
 
       <UserButton
