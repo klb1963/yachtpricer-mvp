@@ -1,21 +1,35 @@
 {
   "compilerOptions": {
+    "target": "ES2023",
     "module": "commonjs",
+    "moduleResolution": "node",
+    "baseUrl": "./",
+    "rootDir": "./src",
+    "outDir": "./dist",
+
     "declaration": true,
+    "sourceMap": true,
     "removeComments": true,
+    "incremental": true,
+
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+
+    "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "target": "ES2023",
-    "sourceMap": true,
-    "outDir": "./dist",
-    "baseUrl": "./",
-    "incremental": true,
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "lib": ["ES2023"],
+
     "skipLibCheck": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false
-  }
+  },
+  "rootDir": "./src",
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/**/*.spec.ts"]
 }

@@ -32,6 +32,7 @@ model Yacht {
   weekSlots           WeekSlot[]
   extraServiceHistory ExtraServiceHistory[]
   competitorPrices    CompetitorPrice[]
+  competitorSnapshots CompetitorSnapshot[] 
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -125,7 +126,7 @@ model CompetitorPrice {
   // неделя чартерная (суббота)
   weekStart       DateTime
   source          ScrapeSource
-
+ 
   // кто и что: базовые поля
   competitorYacht String
   price           Decimal
@@ -165,4 +166,53 @@ model ScrapeJob {
 
   // 👇 связь к результатам
   results     CompetitorPrice[]
+}
+
+enum DecisionStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model CompetitorSnapshot {
+  id          String       @id @default(uuid())
+
+  yacht       Yacht        @relation(fields: [yachtId], references: [id])
+  yachtId     String
+
+  weekStart   DateTime
+  source      ScrapeSource
+  top1Price   Decimal
+  top3Avg     Decimal
+  currency    String
+  sampleSize  Int
+  rawStats    Json?
+  collectedAt DateTime     @default(now())
+  createdAt   DateTime     @default(now())
+
+  @@unique([yachtId, weekStart, source])
+  @@index([yachtId, weekStart])
+}
+
+model PricingDecision {
+  id          String         @id @default(uuid())
+  yachtId     String
+  weekStart   DateTime
+  basePrice   Decimal
+  top1        Decimal?
+  top3        Decimal?
+  mlReco      Decimal?
+  discountPct Decimal?
+  finalPrice  Decimal?
+  status      DecisionStatus @default(DRAFT)
+  approvedBy  String?
+  approvedAt  DateTime?
+  notes       String?
+  auditJson   Json?
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([yachtId, weekStart])
 }

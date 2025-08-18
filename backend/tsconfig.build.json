@@ -1,4 +1,18 @@
+// backend/tsconfig.build.json
+
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "noEmit": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "**/*.spec.ts",
+    "src/prisma/**/*.ts"   // чтобы сиды/миграции не мешали сборке API
+  ]
 }

@@ -102,3 +102,15 @@ export class CompetitorsQueryDto {
   @IsISO8601({ strict: true })
   week?: string;
 }
+
+export class AggregateDto {
+  @IsString()
+  yachtId!: string;
+
+  @IsISO8601()
+  week!: string; // любая дата внутри недели
+
+  @IsOptional()
+  @IsEnum(ScrapeSource)
+  source?: ScrapeSourceLiteral; // по умолчанию BOATAROUND
+}

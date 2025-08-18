@@ -15,6 +15,7 @@ import {
   StartScrapeDto,
   ScrapeStatusQueryDto,
   CompetitorsQueryDto,
+  AggregateDto,
 } from './scraper.dto';
 
 @Controller('scrape')
@@ -41,6 +42,11 @@ export class ScraperController {
       source: dto.source,
     });
     return this.svc.start(dto);
+  }
+
+  @Post('aggregate')
+  aggregate(@Body() dto: AggregateDto) {
+    return this.svc.aggregate(dto);
   }
 
   /**

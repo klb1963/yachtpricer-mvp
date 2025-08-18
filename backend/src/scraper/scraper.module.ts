@@ -1,7 +1,7 @@
 // backend/src/scraper/scraper.module.ts
 
 import { Module } from '@nestjs/common';
-import { PrismaModule } from '../../prisma/prisma.module';
+import { PrismaModule } from '../prisma/prisma.module';
 import { ScraperController } from './scraper.controller';
 import { ScraperService } from './scraper.service';
 
