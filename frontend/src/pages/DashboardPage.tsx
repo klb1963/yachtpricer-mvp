@@ -273,38 +273,50 @@ export default function DashboardPage() {
         <div className="overflow-x-auto rounded-lg border">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">
-              <tr className="[&>th]:px-4 [&>th]:py-2 text-left">
+              <tr className="[&>th]:px-4 [&>th]:py-2 [&>th]:font-semibold [&>th]:text-gray-800 text-left">
                 <th>Name</th>
                 <th>Model</th>
                 <th>Type</th>
                 <th>Length</th>
-                <th>
-                  <button
-                    type="button"
-                    onClick={() => onSortBy('year')}
-                    className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-gray-100"
-                    title="Sort by year"
-                  >
-                    Year
-                    <span className="text-gray-400">
-                      {sort === 'yearAsc' ? '↑' : sort === 'yearDesc' ? '↓' : ''}
-                    </span>
-                  </button>
-                </th>
-                <th>Location</th>
-                <th>
-                  <button
-                    type="button"
-                    onClick={() => onSortBy('price')}
-                    className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-gray-100"
-                    title="Sort by price"
-                  >
-                    Price (base)
-                    <span className="text-gray-400">
-                      {sort === 'priceAsc' ? '↑' : sort === 'priceDesc' ? '↓' : ''}
-                    </span>
-                  </button>
-                </th>
+                  <th>
+                    <button
+                      type="button"
+                      onClick={() => onSortBy('year')}
+                      className="inline-flex items-center gap-1 rounded px-1 py-0.5 !text-gray-900 hover:!text-gray-900 hover:bg-gray-100"
+                      title="Sort by year"
+                    >
+                      Year
+                      <span
+                        className={
+                          sort.startsWith('year')
+                            ? 'text-blue-600 font-bold'
+                            : 'text-gray-400'
+                        }
+                      >
+                        {sort === 'yearAsc' ? '↑' : sort === 'yearDesc' ? '↓' : ''}
+                      </span>
+                    </button>
+                  </th>
+                  <th>Location</th>
+                  <th>
+                    <button
+                      type="button"
+                      onClick={() => onSortBy('price')}
+                      className="inline-flex items-center gap-1 rounded px-1 py-0.5 !text-gray-900 hover:!text-gray-900 hover:bg-gray-100"
+                      title="Sort by price"
+                    >
+                      Price (base)
+                      <span
+                        className={
+                          sort.startsWith('price')
+                            ? 'text-blue-600 font-bold'
+                            : 'text-gray-400'
+                        }
+                      >
+                        {sort === 'priceAsc' ? '↑' : sort === 'priceDesc' ? '↓' : ''}
+                      </span>
+                    </button>
+                  </th>
                 <th className="px-4 py-2 text-left">Owner</th>
               </tr>
             </thead>
