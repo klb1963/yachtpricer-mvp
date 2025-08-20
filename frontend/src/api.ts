@@ -117,3 +117,128 @@ export async function deleteYacht(id: string): Promise<{ success: boolean }> {
   if (!res.ok) throw new Error('Failed to delete yacht');
   return res.json();
 }
+
+// ============================
+// Scraper API (mock backend)
+// ============================
+
+export type ScrapeSource = 'BOATAROUND' | 'SEARADAR';
+
+// Статус джобы и тип ответа /scrape/status
+export type JobStatus = 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED';
+
+export type ScrapeJobDTO = {
+  id: string;
+  status: JobStatus;
+  error?: string | null;
+};
+
+// Параметры 1:1 с backend StartScrapeDto (всё опционально)
+export type StartScrapePayload = {
+  source?: ScrapeSource;
+  yachtId?: string;
+  weekStart?: string;   // ISO YYYY-MM-DD (любой день той недели)
+  location?: string;
+  type?: string;
+  minYear?: number;
+  maxYear?: number;
+  minLength?: number;   // метры
+  maxLength?: number;   // метры
+  people?: number;
+  cabins?: number;
+  heads?: number;
+};
+
+export type StartScrapeResult = {
+  jobId: string;
+  status: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED';
+};
+
+/**
+ * POST /scrape/start
+ * Старт скрейпа (мок). Возвращает jobId.
+ */
+export async function startScrape(payload: StartScrapePayload): Promise<StartScrapeResult> {
+  const res = await fetch(`${API}/scrape/start`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`startScrape failed: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * GET /scrape/status?jobId=...
+ * Бэкенд возвращает запись ScrapeJob из Prisma; нас интересует status.
+ */
+export async function getScrapeStatus(jobId: string): Promise<ScrapeJobDTO> {
+  const res = await fetch(`${API}/scrape/status?jobId=${encodeURIComponent(jobId)}`);
+  if (!res.ok) throw new Error(`status failed: ${res.status}`);
+  const job = await res.json();
+  return {
+    id: job?.id ?? jobId,
+    status: (job?.status ?? 'FAILED') as JobStatus,
+    error: job?.error ?? null,
+  };
+}
+
+// Ответ агрегата CompetitorSnapshot (Prisma.Decimal -> string)
+export type Snapshot = {
+  id: string;
+  yachtId: string;
+  weekStart: string;       // ISO
+  source: ScrapeSource;
+  top1Price: string;       // строка
+  top3Avg: string;         // строка
+  currency: string;
+  sampleSize: number;
+  rawStats?: unknown;      // JSON со срезом карточек
+};
+
+/**
+ * POST /scrape/aggregate
+ * Агрегирует сохранённые цены в снапшот (TOP1/AVG).
+ * Возвращает Snapshot или null, если данных нет.
+ */
+export async function aggregateSnapshot(args: { yachtId: string; week: string; source?: ScrapeSource }): Promise<Snapshot | null> {
+  const res = await fetch(`${API}/scrape/aggregate`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(args),
+  });
+  if (!res.ok) throw new Error(`aggregate failed: ${res.status}`);
+  return res.json();
+}
+
+// Сырые цены конкурентов — удобно показывать в «Details»
+export type CompetitorPrice = {
+  id: string;
+  yachtId: string | null;
+  weekStart: string;     // ISO
+  source: ScrapeSource;
+  competitorYacht: string | null;
+  price: string;         // строка
+  currency: string | null;
+  link: string | null;
+  scrapedAt: string;     // ISO
+  lengthFt?: number | null;
+  cabins?: number | null;
+  heads?: number | null;
+  year?: number | null;
+  marina?: string | null;
+};
+
+/**
+ * GET /scrape/competitors-prices?yachtId=&week=
+ * Возвращает массив карточек конкурентов (последние 50).
+ * Параметр week — любой день нужной недели; бэкенд нормализует к субботе.
+ */
+export async function listCompetitorPrices(params: { yachtId?: string; week?: string }) {
+  const qs = new URLSearchParams();
+  if (params.yachtId) qs.set('yachtId', params.yachtId);
+  if (params.week) qs.set('week', params.week);
+  const res = await fetch(`${API}/scrape/competitors-prices?${qs.toString()}`);
+  if (!res.ok) throw new Error(`competitors failed: ${res.status}`);
+  return res.json() as Promise<CompetitorPrice[]>;
+}

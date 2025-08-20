@@ -1,22 +1,27 @@
-// frontend/src/pages/DashboardPage.tsx
-
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Yacht, YachtListParams, YachtListResponse } from '../api';
 import { listYachts } from '../api';
 import YachtCard from '../components/YachtCard';
 
-// Значения value должны совпадать с тем, как хранится в БД (см. backend):
-//  - "Sailing yacht" — монокорпус (Monohull)
-//  - "Catamaran"
-//  - (опционально) другие типы, если появятся в БД
+// API скрапера и типы
+import {
+  startScrape,
+  getScrapeStatus,
+  aggregateSnapshot,
+  listCompetitorPrices,
+} from '../api';
+import type { CompetitorPrice } from '../api';
+import { weekIso } from '../utils/date';
+
+// Значения value должны совпадать с тем, как хранится в БД (см. backend)
 const TYPE_OPTIONS = [
-    { value: '',              label: 'Any type' },
-    { value: 'Sailing yacht', label: 'Monohull' },
-    { value: 'Catamaran',     label: 'Catamaran' },
-    { value: 'Trimaran',      label: 'Trimaran' },
-    { value: 'Compromis',     label: 'Compromis' },
-  ] as const;
+  { value: '',              label: 'Any type' },
+  { value: 'Sailing yacht', label: 'Monohull' },
+  { value: 'Catamaran',     label: 'Catamaran' },
+  { value: 'Trimaran',      label: 'Trimaran' },
+  { value: 'Compromis',     label: 'Compromis' },
+] as const;
 
 const SORT_OPTIONS = [
   { value: 'createdDesc', label: 'Newest' },
@@ -51,7 +56,6 @@ const useViewMode = () => {
 };
 
 export default function DashboardPage() {
-
   const { view, setView } = useViewMode();
   const location = useLocation();
 
@@ -118,7 +122,7 @@ export default function DashboardPage() {
     setPage(1);
   };
 
-  // сорт по клику на заголовок (как сделали ранее — оставляю)
+  // сорт по клику на заголовок
   const onSortBy = (field: 'price' | 'year') => {
     setSort((prev) => {
       if (field === 'price') return prev === 'priceAsc' ? 'priceDesc' : 'priceAsc';
@@ -127,6 +131,53 @@ export default function DashboardPage() {
     setPage(1);
   };
 
+  // ============================
+  // состояние и логика сканера
+  // ============================
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [aggByYacht, setAggByYacht] = useState<Record<string, { top1: string; avg: string; cur: string; n: number }>>({});
+  const [rowsOpen, setRowsOpen] = useState<Record<string, boolean>>({});
+  const [rawByYacht, setRawByYacht] = useState<Record<string, { prices: CompetitorPrice[] }>>({});
+
+  async function handleScan(y: Yacht) {
+    try {
+      setBusyId(y.id);
+      const week = weekIso(); // суббота этой недели (UTC, как на бэке)
+
+      // 1) старт мок-скрапера
+      const { jobId } = await startScrape({ yachtId: y.id, weekStart: week, source: 'BOATAROUND' });
+
+      // 2) поллинг статуса (до ~15 секунд)
+      let status: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED' = 'PENDING';
+      for (let i = 0; i < 30; i++) {
+        const { status: s } = await getScrapeStatus(jobId);
+        status = s;
+        if (status === 'DONE' || status === 'FAILED') break;
+        await new Promise((res) => setTimeout(res, 500));
+      }
+      if (status !== 'DONE') throw new Error(`Scrape status: ${status}`);
+
+      // 3) агрегаты
+      const snap = await aggregateSnapshot({ yachtId: y.id, week, source: 'BOATAROUND' });
+      if (snap) {
+        setAggByYacht((prev) => ({
+          ...prev,
+          [y.id]: { top1: snap.top1Price, avg: snap.top3Avg, cur: snap.currency, n: snap.sampleSize },
+        }));
+      }
+
+      // 4) сырые карточки конкурентов — для Details
+      const raw = await listCompetitorPrices({ yachtId: y.id, week });
+      setRawByYacht((prev) => ({ ...prev, [y.id]: { prices: raw } }));
+      setRowsOpen((prev) => ({ ...prev, [y.id]: true }));
+    } catch (e) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : 'Scan failed');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl p-6">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -134,25 +185,26 @@ export default function DashboardPage() {
 
         {/* Переключатель вида */}
         <div className="flex items-center gap-2">
-
           <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">
             <button
               type="button"
               onClick={() => setView('table')}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === 'table'
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                view === 'table'
                   ? 'bg-gray-900 text-white'
-                  : '!text-gray-800 hover:bg-gray-100'   // <- добавили !text-gray-800
-                }`}
+                  : '!text-gray-800 hover:bg-gray-100'
+              }`}
             >
               Table
             </button>
             <button
               type="button"
               onClick={() => setView('cards')}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === 'cards'
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                view === 'cards'
                   ? 'bg-gray-900 text-white'
-                  : '!text-gray-800 hover:bg-gray-100'   // <- добавили !text-gray-800
-                }`}
+                  : '!text-gray-800 hover:bg-gray-100'
+              }`}
             >
               Cards
             </button>
@@ -259,17 +311,29 @@ export default function DashboardPage() {
       ) : err ? (
         <div className="mt-10 text-center text-red-600">{err}</div>
       ) : view === 'cards' ? (
-        // ✨ Карточная сетка: от 1 до 5 колонок
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {items.map((y) => (
-           <YachtCard key={y.id} y={y} search={location.search} /> 
-          ))}
+            // ✨ Карточная сетка (добавили кнопку Scan на карточки)
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
+              {items.map((y) => (
+                <YachtCard
+                  key={y.id}
+                  y={y}
+                  search={location.search}
+                  onScan={() => handleScan(y)}
+                  scanning={busyId === y.id}
+                  agg={aggByYacht[y.id]}
+                  details={rawByYacht[y.id]?.prices ?? []}
+                  open={!!rowsOpen[y.id]}
+                  onToggleDetails={() =>
+                    setRowsOpen((p) => ({ ...p, [y.id]: !p[y.id] }))
+                  }
+                />
+              ))}
           {items.length === 0 && (
             <div className="col-span-full py-10 text-center text-gray-500">No results</div>
           )}
         </div>
       ) : (
-        // Таблица (как было), с кликом по заголовкам для сортировки части полей
+        // Таблица
         <div className="overflow-x-auto rounded-lg border">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">
@@ -278,61 +342,63 @@ export default function DashboardPage() {
                 <th>Model</th>
                 <th>Type</th>
                 <th>Length</th>
-                  <th>
-                    <button
-                      type="button"
-                      onClick={() => onSortBy('year')}
-                      className="inline-flex items-center gap-1 rounded px-1 py-0.5 !text-gray-900 hover:!text-gray-900 hover:bg-gray-100"
-                      title="Sort by year"
+                <th>
+                  <button
+                    type="button"
+                    onClick={() => onSortBy('year')}
+                    className="inline-flex items-center gap-1 rounded px-1 py-0.5 !text-gray-900 hover:!text-gray-900 hover:bg-gray-100"
+                    title="Sort by year"
+                  >
+                    Year
+                    <span
+                      className={
+                        sort.startsWith('year')
+                          ? 'text-blue-600 font-bold'
+                          : 'text-gray-400'
+                      }
                     >
-                      Year
-                      <span
-                        className={
-                          sort.startsWith('year')
-                            ? 'text-blue-600 font-bold'
-                            : 'text-gray-400'
-                        }
-                      >
-                        {sort === 'yearAsc' ? '↑' : sort === 'yearDesc' ? '↓' : ''}
-                      </span>
-                    </button>
-                  </th>
-                  <th>Location</th>
-                  <th>
-                    <button
-                      type="button"
-                      onClick={() => onSortBy('price')}
-                      className="inline-flex items-center gap-1 rounded px-1 py-0.5 !text-gray-900 hover:!text-gray-900 hover:bg-gray-100"
-                      title="Sort by price"
+                      {sort === 'yearAsc' ? '↑' : sort === 'yearDesc' ? '↓' : ''}
+                    </span>
+                  </button>
+                </th>
+                <th>Location</th>
+                <th>
+                  <button
+                    type="button"
+                    onClick={() => onSortBy('price')}
+                    className="inline-flex items-center gap-1 rounded px-1 py-0.5 !text-gray-900 hover:!text-gray-900 hover:bg-gray-100"
+                    title="Sort by price"
+                  >
+                    Price (base)
+                    <span
+                      className={
+                        sort.startsWith('price')
+                          ? 'text-blue-600 font-bold'
+                          : 'text-gray-400'
+                      }
                     >
-                      Price (base)
-                      <span
-                        className={
-                          sort.startsWith('price')
-                            ? 'text-blue-600 font-bold'
-                            : 'text-gray-400'
-                        }
-                      >
-                        {sort === 'priceAsc' ? '↑' : sort === 'priceDesc' ? '↓' : ''}
-                      </span>
-                    </button>
-                  </th>
+                      {sort === 'priceAsc' ? '↑' : sort === 'priceDesc' ? '↓' : ''}
+                    </span>
+                  </button>
+                </th>
+
+                {/* добавили колонку Competitors */}
+                <th>Competitors</th>
+
                 <th className="px-4 py-2 text-left">Owner</th>
               </tr>
             </thead>
             <tbody>
-                    {items.map((y) => (
-                      <tr key={y.id} className="border-t [&>td]:px-4 [&>td]:py-2">
-                        <td>
-
-                          <Link
-                            className="text-blue-600 hover:underline"
-                            to={{ pathname: `/yacht/${y.id}`, search: location.search }}
-                          >
-
-                            {y.name}
-                          </Link>
-                        </td>
+              {items.map((y) => (
+                <tr key={y.id} className="border-t [&>td]:px-4 [&>td]:py-2">
+                  <td>
+                    <Link
+                      className="text-blue-600 hover:underline"
+                      to={{ pathname: `/yacht/${y.id}`, search: location.search }}
+                    >
+                      {y.name}
+                    </Link>
+                  </td>
                   <td>
                     {y.manufacturer} {y.model}
                   </td>
@@ -347,12 +413,73 @@ export default function DashboardPage() {
                       ? String(Math.round(Number(y.basePrice)))
                       : '—'}
                   </td>
+
+                  {/* ячейка Competitors */}
+                  <td className="whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleScan(y)}
+                        disabled={busyId === y.id}
+                        className={`rounded px-3 py-1 text-sm font-medium ${
+                          busyId === y.id
+                            ? 'bg-gray-400 text-white cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                        title="Fetch competitors and aggregate"
+                      >
+                        {busyId === y.id ? 'Scanning…' : 'Scan'}
+                      </button>
+
+                      {aggByYacht[y.id] ? (
+                        <span className="text-xs text-gray-800">
+                          TOP1: <b>{aggByYacht[y.id].top1} {aggByYacht[y.id].cur}</b>,&nbsp;
+                          AVG(Top3): <b>{aggByYacht[y.id].avg}</b>&nbsp;({aggByYacht[y.id].n})
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+
+                      {rawByYacht[y.id]?.prices?.length ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRowsOpen((p) => ({ ...p, [y.id]: !p[y.id] }))
+                          }
+                          className="rounded border px-1.5 py-0.5 text-xs hover:bg-gray-100"
+                          title="Show raw competitor cards"
+                        >
+                          {rowsOpen[y.id] ? 'Hide' : 'Details'}
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {rowsOpen[y.id] && rawByYacht[y.id]?.prices ? (
+                      <div className="mt-2 rounded border p-2">
+                        <div className="mb-1 text-[11px] text-gray-600">
+                          {rawByYacht[y.id].prices.length} offers:
+                        </div>
+                        <ul className="max-h-40 space-y-1 overflow-auto pr-1">
+                          {rawByYacht[y.id].prices.map((p) => (
+                            <li key={p.id} className="flex justify-between gap-2 text-[11px]">
+                              <span className="truncate">
+                                {p.competitorYacht ?? '—'} {p.year ? `(${p.year})` : ''} · {p.marina ?? '—'}
+                                {p.cabins != null ? ` · ${p.cabins}c` : ''}{p.heads != null ? `/${p.heads}h` : ''}
+                              </span>
+                              <span className="shrink-0">{p.price} {p.currency ?? ''}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </td>
+
                   <td className="px-4 py-2">{y.ownerName ?? '—'}</td>
                 </tr>
               ))}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan={9} className="px-4 py-6 text-center text-gray-500">
                     No results
                   </td>
                 </tr>
