@@ -20,11 +20,9 @@ services:
     build:
       context: ./backend
     working_dir: /app
-    entrypoint: ["sh", "/app/entrypoint.dev.sh"]
-    # команду НЕ указываем — всё внутри entrypoint.dev.sh
+    entrypoint: ["sh", "/app/entrypoint.dev.sh"]  # здесь и tsc --watch, и nest
     ports:
       - "8000:8000"
-      - "5555:5555"   # Prisma Studio (если понадобиться)
     environment:
       NODE_ENV: development
       DATABASE_URL: postgres://postgres:postgres@db:5432/yachtpricer
@@ -32,9 +30,11 @@ services:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
-    - yachtpricer-net
+      - yachtpricer-net
 
   db:
     image: postgres:14
@@ -47,6 +47,27 @@ services:
       - ./db-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d yachtpricer"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      - yachtpricer-net
+
+  prisma-studio:
+    build:
+      context: ./backend
+    working_dir: /app
+    command: npx prisma studio --port 5555
+    ports:
+      - "5556:5555"                   # снаружи 5556, внутри 5555
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://postgres:postgres@db:5432/yachtpricer
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - yachtpricer-net
 

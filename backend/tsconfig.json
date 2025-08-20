@@ -1,3 +1,5 @@
+// /workspace/yachtpricer-mvp/backend/tsconfig.json
+
 {
   "compilerOptions": {
     "target": "ES2023",
