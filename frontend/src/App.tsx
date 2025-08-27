@@ -6,6 +6,7 @@ import SignUpPage from './pages/SignUpPage'
 import DashboardPage from './pages/DashboardPage'
 import YachtDetailsPage from './pages/YachtDetailsPage'
 import YachtEditPage from './pages/YachtEditPage'
+import PricingPage from './pages/PricingPage';
 
 import './App.css'
 
@@ -66,6 +67,20 @@ function App() {
             <>
               <SignedIn>
                 <YachtEditPage />
+              </SignedIn>
+              <SignedOut>
+                <RedirectToSignIn />
+              </SignedOut>
+            </>
+          }
+        />
+
+        <Route
+          path="/pricing"
+          element={
+            <>
+              <SignedIn>
+                <PricingPage />
               </SignedIn>
               <SignedOut>
                 <RedirectToSignIn />
