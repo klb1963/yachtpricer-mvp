@@ -5,6 +5,9 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20 <21"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -20,7 +23,9 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed": "ts-node prisma/seed.ts",
     "rebuild": "npm run build && npm run start:dev",
-    "routes": "nest build && node dist/main.js"
+    "routes": "nest build && node dist/main.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -68,9 +73,5 @@
     "collectCoverageFrom": ["**/*.(t|j)s"],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
-  },
-  "prisma": {
-    "schema": "src/prisma/schema.prisma",
-    "seed": "node -r ts-node/register src/prisma/seed.ts"
   }
 }

@@ -25,13 +25,10 @@
     "lib": ["ES2023"],
 
     "skipLibCheck": true,
-    "strictNullChecks": true,
+    "strict": true,
     "forceConsistentCasingInFileNames": true,
-    "noImplicitAny": false,
-    "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
+    "noFallthroughCasesInSwitch": true
   },
-  "rootDir": "./src",
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "src/**/*.spec.ts"]
 }

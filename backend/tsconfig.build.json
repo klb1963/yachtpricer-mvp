@@ -3,9 +3,10 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "rootDir": "./src",
     "outDir": "./dist",
-    "noEmit": false
+    "rootDir": "./src",
+    "noEmit": false,
+    "declaration": false
   },
   "include": ["src/**/*.ts"],
   "exclude": [
@@ -13,6 +14,7 @@
     "test",
     "dist",
     "**/*.spec.ts",
-    "src/prisma/**/*.ts"   // чтобы сиды/миграции не мешали сборке API
+    "prisma/migrations",
+    "prisma/seed.ts"
   ]
 }

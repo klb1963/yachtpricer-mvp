@@ -1,23 +1,42 @@
-FROM node:20-alpine
-WORKDIR /app
-
-# 1. Устанавливаем зависимости
-COPY package*.json ./
-RUN npm ci
-
-# 2. Копируем исходники и Prisma-схему (и миграции)
-COPY . .
-
-# 3. Генерируем Prisma Client (жёстко указываем путь к схеме)
-RUN npx prisma generate --schema=src/prisma/schema.prisma
-
-# 4. Собираем проект
-RUN npm run build
-
-# 5. Чистим dev-зависимости (продолжит работать, если @prisma/client в dependencies)
-RUN npm prune --omit=dev
-
-EXPOSE 8000
-
-# 6. Запуск (Nest по умолчанию кладёт main.js в dist/)
-CMD ["node", "dist/main.js"]
+# ---------- base ----------
+    FROM node:20-alpine AS base
+    WORKDIR /app
+    RUN apk add --no-cache libc6-compat openssl
+    
+    # ---------- deps (все зависимости, включая dev) ----------
+    FROM base AS deps
+    COPY package*.json ./
+    RUN npm ci
+    
+    # ---------- build ----------
+    FROM deps AS build
+    # Копируем prisma на уровень /app/prisma (а не src/prisma!)
+    COPY prisma ./prisma
+    # Генерируем клиент (берёт schema из /app/prisma/schema.prisma)
+    RUN npx prisma generate
+    
+    # Копируем исходники и собираем
+    COPY tsconfig*.json ./
+    COPY src ./src
+    RUN npm run build
+    
+    # ---------- runner ----------
+    FROM base AS runner
+    ENV NODE_ENV=production
+    WORKDIR /app
+    
+    # Копируем node_modules (оставим dev-зависимости, чтобы был доступен npx prisma для миграций)
+    COPY --from=deps /app/node_modules ./node_modules
+    
+    # Копируем собранный билд и prisma (для миграций в рантайме)
+    COPY --from=build /app/dist ./dist
+    COPY --from=build /app/prisma ./prisma
+    COPY package*.json ./
+    
+    EXPOSE 8000
+    # Перед стартом приложения применяем миграции
+    CMD sh -c "npx prisma migrate deploy && node dist/main.js"
+    
+    # ---------- devtools (опционально, для prisma studio) ----------
+    FROM build AS devtools
+    CMD ["npx", "prisma", "studio", "--port", "5555"]
