@@ -64,21 +64,25 @@ function passesBusinessFilters(
     marina?: string | null;
   },
   ctx: {
-    targetLenFt?: number;
+    targetLenFt?: number; // больше НЕ используем для отсечения по длине
     dto: StartScrapeDto;
   },
 ) {
-  const { targetLenFt, dto } = ctx;
+  const { dto } = ctx;
 
-  // 1) Длина (ft ± tol)
-  if (targetLenFt && candidate.lengthFt != null) {
-    const tol = lengthFtTolerance(targetLenFt);
-    const minFt = targetLenFt - tol;
-    const maxFt = targetLenFt + tol;
+  // 1) Длина (ft) — фильтруем только если dto.minLength/maxLength заданы (в метрах)
+  if (
+    (typeof dto.minLength === 'number' || typeof dto.maxLength === 'number') &&
+    candidate.lengthFt != null
+  ) {
+    const minFt =
+      typeof dto.minLength === 'number' ? dto.minLength * M_TO_FT : -Infinity;
+    const maxFt =
+      typeof dto.maxLength === 'number' ? dto.maxLength * M_TO_FT : Infinity;
     if (candidate.lengthFt < minFt || candidate.lengthFt > maxFt) return false;
   }
 
-  // 2) Cabins (если заданы)
+  // 2) Cabins (если заданы — точное совпадение)
   if (typeof dto.cabins === 'number' && candidate.cabins != null) {
     if (candidate.cabins !== dto.cabins) return false;
   }
@@ -116,8 +120,6 @@ export class ScraperService {
   async start(
     dto: StartScrapeDto,
   ): Promise<{ jobId: string; status: JobStatus }> {
-    // const job: ScrapeJob = await this.prisma.scrapeJob.create({
-    // Приводим строковый литерал к Prisma enum один раз
     const sourceEnum =
       PrismaScrapeSource[
         (dto.source ?? 'BOATAROUND') as keyof typeof PrismaScrapeSource
@@ -141,7 +143,7 @@ export class ScraperService {
       const base = dto.weekStart ? new Date(dto.weekStart) : new Date();
       const weekStart = getCharterWeekStartSaturdayUTC(base);
 
-      // FK и целевая длина
+      // FK и целевая длина (targetLenFt оставлен, но не участвует в фильтре длины по умолчанию)
       let yachtIdForInsert: string | undefined;
       let targetLenFt: number | undefined;
       if (dto.yachtId) {
@@ -197,35 +199,62 @@ export class ScraperService {
         ),
       );
 
-      const dataToInsert = filtered.map((c) => ({
-        ...(yachtIdForInsert ? { yachtId: yachtIdForInsert } : {}),
-        weekStart,
-        source: sourceEnum,
-        competitorYacht: c.competitorYacht,
-        price: c.price,
-        currency: c.currency,
-        link: c.link,
-        scrapedAt: new Date(),
-        lengthFt: c.lengthFt,
-        cabins: c.cabins,
-        heads: c.heads,
-        year: c.year,
-        marina: c.marina,
-        scrapeJobId: job.id,
-      })) satisfies Prisma.CompetitorPriceCreateManyInput[];
-
       this.logger.log(
-        `[${job.id}] candidates=${rawCandidates.length} filtered=${dataToInsert.length} (${weekStart.toISOString()})`,
+        `[${job.id}] candidates=${rawCandidates.length} filtered=${filtered.length} (${weekStart.toISOString()})`,
       );
 
-      if (dataToInsert.length > 0) {
-        await this.prisma.competitorPrice.createMany({
-          data: dataToInsert,
-          skipDuplicates: true,
+      // ===== устойчивые вставки: upsert по @@unique([source, link, weekStart])
+      const yachtIdToWrite = yachtIdForInsert ?? dto.yachtId ?? null;
+      let upserts = 0;
+
+      for (const c of filtered) {
+        await this.prisma.competitorPrice.upsert({
+          where: {
+            // имя составного unique-ключа генерится Prisma как <field1>_<field2>_<field3>
+            source_link_weekStart: {
+              source: sourceEnum,
+              link: c.link,
+              weekStart,
+            },
+          },
+          create: {
+            yachtId: yachtIdToWrite,
+            weekStart,
+            source: sourceEnum,
+            competitorYacht: c.competitorYacht,
+            price: c.price,
+            currency: c.currency,
+            link: c.link,
+            scrapedAt: new Date(),
+            lengthFt: c.lengthFt,
+            cabins: c.cabins,
+            heads: c.heads,
+            year: c.year,
+            marina: c.marina,
+            scrapeJobId: job.id,
+          },
+          update: {
+            yachtId: yachtIdToWrite ?? undefined, // если раньше был NULL — пришьём к лодке
+            price: c.price,
+            currency: c.currency,
+            scrapedAt: new Date(),
+            lengthFt: c.lengthFt,
+            cabins: c.cabins,
+            heads: c.heads,
+            year: c.year,
+            marina: c.marina,
+            scrapeJobId: job.id,
+          },
         });
-      } else {
-        this.logger.warn(`[${job.id}] no candidates passed filters`);
+        upserts++;
       }
+
+      if (upserts === 0) {
+        this.logger.warn(`[${job.id}] no candidates passed filters`);
+      } else {
+        this.logger.log(`[${job.id}] upserted competitorPrice rows: ${upserts}`);
+      }
+      // ===== конец устойчивых вставок
 
       await this.prisma.scrapeJob.update({
         where: { id: job.id },
@@ -312,7 +341,7 @@ export class ScraperService {
       heads: p.heads ?? null,
       year: p.year ?? null,
       marina: p.marina ?? null,
-      scrapedAt: p.scrapedAt ? p.scrapedAt.toISOString() : null, // строка вместо Date
+      scrapedAt: p.scrapedAt ? p.scrapedAt.toISOString() : null,
     })) as Prisma.InputJsonValue;
 
     // 5) Upsert снапшота
@@ -324,11 +353,11 @@ export class ScraperService {
         yachtId: dto.yachtId,
         weekStart,
         source,
-        top1Price: top1, // Prisma.Decimal
-        top3Avg, // Prisma.Decimal
+        top1Price: top1,
+        top3Avg,
         currency: prices[0].currency,
         sampleSize: prices.length,
-        rawStats, // JSON
+        rawStats,
       },
       update: {
         top1Price: top1,

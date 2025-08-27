@@ -63,6 +63,7 @@ model WeekSlot {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  @@unique([yachtId, startDate])
 }
 
 model PriceHistory {
