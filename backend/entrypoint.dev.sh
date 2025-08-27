@@ -1,11 +1,11 @@
 #!/bin/sh
 set -e
 
-# зависимости ставятся на этапе сборки образа deps
-# npm ci
+# 1) deps — если volume пустой
+[ -d node_modules ] || npm ci
 
-# сгенерировать Prisma client (ищет prisma/schema.prisma)
+# 2) prisma client
 npx prisma generate
 
-# запустить Nest в watch-режиме
-npm run start:dev
+# 3) запускаем из src через ts-node
+exec npm run start:dev

@@ -32,7 +32,8 @@ model Yacht {
   weekSlots           WeekSlot[]
   extraServiceHistory ExtraServiceHistory[]
   competitorPrices    CompetitorPrice[]
-  competitorSnapshots CompetitorSnapshot[] 
+  competitorSnapshots CompetitorSnapshot[]
+  pricingDecisions    PricingDecision[]   
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -199,6 +200,7 @@ model CompetitorSnapshot {
 model PricingDecision {
   id          String         @id @default(uuid())
   yachtId     String
+  yacht       Yacht?         @relation(fields: [yachtId], references: [id]) 
   weekStart   DateTime
   basePrice   Decimal
   top1        Decimal?
