@@ -1,8 +1,20 @@
 // backend/src/pricing/pricing.controller.ts
 
-import { Body, Controller, Get, Post, Query, UsePipes, ValidationPipe } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
 import { PricingService } from './pricing.service';
-import { PricingRowsQueryDto, UpsertDecisionDto, ChangeStatusDto } from './pricing.dto';
+import {
+  PricingRowsQueryDto,
+  UpsertDecisionDto,
+  ChangeStatusDto,
+} from './pricing.dto';
 
 @Controller('pricing')
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))

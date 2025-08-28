@@ -2,11 +2,17 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, DecisionStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { PricingRowsQueryDto, UpsertDecisionDto, ChangeStatusDto } from './pricing.dto';
+import {
+  PricingRowsQueryDto,
+  UpsertDecisionDto,
+  ChangeStatusDto,
+} from './pricing.dto';
 
 /** Суббота 00:00 UTC для заданной даты */
 function weekStartUTC(d: Date) {
-  const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const x = new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
+  );
   const day = x.getUTCDay(); // 0..6 (вск..сб)
   const diff = (day - 6 + 7) % 7; // до субботы
   x.setUTCDate(x.getUTCDate() - diff);
@@ -62,7 +68,9 @@ export class PricingService {
       let finalPrice = d?.finalPrice ?? null;
       if (finalPrice == null && d?.discountPct != null) {
         // Decimal-арифметика
-        finalPrice = y.basePrice.mul(new Prisma.Decimal(1).sub(d.discountPct.div(100)));
+        finalPrice = y.basePrice.mul(
+          new Prisma.Decimal(1).sub(d.discountPct.div(100)),
+        );
       }
 
       return {

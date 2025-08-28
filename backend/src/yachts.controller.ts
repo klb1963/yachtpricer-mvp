@@ -12,7 +12,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, YachtType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -28,6 +28,25 @@ const toNum = (v: unknown): number | undefined => {
   return Number.isFinite(n) ? n : undefined;
 };
 const clamp = (n: number, a: number, b: number) => Math.min(Math.max(n, a), b);
+
+/** Хелпер для конвертации строки в enum YachtType */
+function parseYachtType(s?: string): YachtType | undefined {
+  if (!s) return undefined;
+  switch (s.toLowerCase()) {
+    case 'monohull':
+    case 'sailing':
+    case 'sail':
+      return YachtType.monohull;
+    case 'catamaran':
+      return YachtType.catamaran;
+    case 'trimaran':
+      return YachtType.trimaran;
+    case 'compromis':
+      return YachtType.compromis;
+    default:
+      return undefined;
+  }
+}
 
 @Controller('yachts')
 export class YachtsController {
@@ -229,7 +248,7 @@ export class YachtsController {
       name: this.reqStr(body, 'name'),
       manufacturer: this.reqStr(body, 'manufacturer'),
       model: this.reqStr(body, 'model'),
-      type: this.reqStr(body, 'type'),
+      type: parseYachtType(this.reqStr(body, 'type')) ?? YachtType.monohull,
       location: this.reqStr(body, 'location'),
       fleet: this.reqStr(body, 'fleet'),
       charterCompany: this.reqStr(body, 'charterCompany'),
@@ -281,7 +300,7 @@ export class YachtsController {
       name: asStr('name'),
       manufacturer: asStr('manufacturer'),
       model: asStr('model'),
-      type: asStr('type'),
+      type: parseYachtType(asStr('type')),
       location: asStr('location'),
       fleet: asStr('fleet'),
       charterCompany: asStr('charterCompany'),

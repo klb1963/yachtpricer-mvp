@@ -1,6 +1,14 @@
 // /yachtpricer-mvp/backend/src/pricing/pricing.dto.ts
 
-import { IsISO8601, IsNumber, IsOptional, IsString, IsEnum, Min, Max } from 'class-validator';
+import {
+  IsISO8601,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsEnum,
+  Min,
+  Max,
+} from 'class-validator';
 import { DecisionStatus } from '@prisma/client';
 
 export class PricingRowsQueryDto {

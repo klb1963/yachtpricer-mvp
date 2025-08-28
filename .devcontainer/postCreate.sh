@@ -1,17 +1,27 @@
 #!/usr/bin/env bash
-set -e
+set -Eeuo pipefail
 
-FRONT=/workspace/yachtpricer-mvp/frontend
-BACK=/workspace/yachtpricer-mvp/backend
+echo "[postCreate] start"
 
-echo "→ Fixing ownership on volumes…"
-mkdir -p "$FRONT/node_modules" "$BACK/node_modules"
-chown -R node:node "$FRONT" "$BACK"
+# Идём из корня воркспейса — devcontainer.json.workspaceFolder=/workspace
+cd /workspace
 
-echo "→ Installing frontend deps…"
-su node -c "cd $FRONT && (npm ci || npm install)"
+# Backend deps + Prisma
+if [ -d backend ]; then
+  echo "[postCreate] backend deps"
+  cd backend
+  npm ci || true
+  npx prisma generate || true
+  cd ..
+fi
 
-echo "→ Installing backend deps…"
-su node -c "cd $BACK && (npm ci || npm install)"
+# Frontend deps
+if [ -d frontend ]; then
+  echo "[postCreate] frontend deps"
+  cd frontend
+  npm ci || true
+  cd ..
+fi
 
-echo "✓ postCreate done."
+echo "[postCreate] done"
+exit 0

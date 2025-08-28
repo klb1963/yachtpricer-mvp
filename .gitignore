@@ -1,36 +1,60 @@
-# Node
+# === Node.js ===
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
-# Build
+# === Build outputs ===
 dist/
-coverage/
-*.tsbuildinfo
+build/
+.next/
+.turbo/
 
-# Env
+# === Local environment ===
 .env
 .env.local
-.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Prisma
-prisma/migrations/
-!src/prisma/          # храним только новую папку
-prisma/dev.db
-prisma/test.db
-
-# Docker
-db-data/
-
-# VSCode
-.vscode/
-*.code-workspace
-
-# OS
+# === OS ===
 .DS_Store
 Thumbs.db
 
-# Temp
-*.tmp
+# === IDEs ===
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.sublime-workspace
+
+# === Coverage / Tests ===
+coverage/
+.nyc_output/
+
+# === Prisma ===
+.prisma/
+*.db
+
+# === Devcontainer / Docker ===
+.devcontainer/postCreate.sh
+
+# === Project-specific junk ===
+backend@0.0.1
+ts-node
+
+# === Logs ===
+logs/
+*.log
+
+# === Runtime ===
+pids
+*.pid
+*.seed
+*.pid.lock
+
+db-data/
