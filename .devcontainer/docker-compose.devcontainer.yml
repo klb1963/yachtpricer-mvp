@@ -3,12 +3,12 @@ services:
     image: mcr.microsoft.com/devcontainers/typescript-node:20
     volumes:
       - ..:/workspace:cached
-      - workspace-frontend-node_modules:/workspace/yachtpricer-mvp/frontend/node_modules
-      - workspace-backend-node_modules:/workspace/yachtpricer-mvp/backend/node_modules
-    working_dir: /workspace/yachtpricer-mvp
+      - workspace-frontend-node_modules:/workspace/frontend/node_modules
+      - workspace-backend-node_modules:/workspace/backend/node_modules
+    working_dir: /workspace
     command: sleep infinity
-    networks:
-      - yachtpricer-net
+    # networks:  # можно вообще убрать — devcontainer подключится к default сети проекта
+    #   - yachtpricer-net
     environment:
       VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-pk_test_dummy}
 
@@ -16,6 +16,6 @@ volumes:
   workspace-frontend-node_modules:
   workspace-backend-node_modules:
 
-networks:
-  yachtpricer-net:
-    external: false
+# networks:
+#   yachtpricer-net:
+#     external: false
