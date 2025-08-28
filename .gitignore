@@ -56,3 +56,5 @@ pids
 *.pid
 *.seed
 *.pid.lock
+
+db-data/
