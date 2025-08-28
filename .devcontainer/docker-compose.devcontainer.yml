@@ -1,21 +1,38 @@
+version: "3.9"
+
 services:
   workspace:
     image: mcr.microsoft.com/devcontainers/typescript-node:20
     volumes:
-      - ..:/workspace:cached
+      - .:/workspace:cached   # 👈 вместо ..
       - workspace-frontend-node_modules:/workspace/frontend/node_modules
       - workspace-backend-node_modules:/workspace/backend/node_modules
     working_dir: /workspace
     command: sleep infinity
-    # networks:  # можно вообще убрать — devcontainer подключится к default сети проекта
-    #   - yachtpricer-net
     environment:
       VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-pk_test_dummy}
+
+  prisma-studio:
+    image: node:20-alpine
+    working_dir: /workspace/backend
+    # ВАЖНО: пинуем версию CLI = 6.14.0 (как у Prisma Client),
+    # и указываем абсолютный путь к schema.prisma
+    command: >
+      sh -lc '
+        echo "Using Prisma 6.14.0";
+        npx -y prisma@6.14.0 studio
+          --port 5555
+          --schema=/workspace/backend/prisma/schema.prisma
+      '
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/yachtpricer?schema=public
+    volumes:
+      - /Users/leonidk/Developer/YachPricer/yachtpricer-mvp:/workspace:cached
+    ports:
+      - "5556:5555"
+    depends_on:
+      - db
 
 volumes:
   workspace-frontend-node_modules:
   workspace-backend-node_modules:
-
-# networks:
-#   yachtpricer-net:
-#     external: false

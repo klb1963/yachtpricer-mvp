@@ -34,4 +34,14 @@ export class NausysController {
     }
     return this.nausys.getYachts(token);
   }
+
+  @Get('yachts-auto')
+  async yachtsAuto(): Promise<NausysGetYachtsResponse> {
+    return this.nausys.getYachtsAuto();
+  }
+
+  @Post('sync')
+  async sync() {
+    return this.nausys.syncYachts();
+  }
 }

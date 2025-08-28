@@ -252,7 +252,9 @@ export class ScraperService {
       if (upserts === 0) {
         this.logger.warn(`[${job.id}] no candidates passed filters`);
       } else {
-        this.logger.log(`[${job.id}] upserted competitorPrice rows: ${upserts}`);
+        this.logger.log(
+          `[${job.id}] upserted competitorPrice rows: ${upserts}`,
+        );
       }
       // ===== конец устойчивых вставок
 
