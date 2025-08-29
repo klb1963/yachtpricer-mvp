@@ -70,16 +70,13 @@ services:
 
   prisma-studio:
     image: node:20-alpine
-    working_dir: /studio
-    restart: unless-stopped
+    working_dir: /workspace/backend
     command: >
       sh -lc '
-        set -e
-        npm init -y >/dev/null 2>&1
-        npm i prisma@6.14.0 @prisma/client@6.14.0 --no-audit --no-fund
-        npx prisma generate --schema=/workspace/backend/prisma/schema.prisma
-        npx prisma studio --port 5555 --browser none \
-          --schema=/workspace/backend/prisma/schema.prisma
+        npx -y prisma@6.14.0 studio
+          --port 5555
+          --browser none
+          --schema=./prisma/schema.prisma
       '
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/yachtpricer?schema=public
