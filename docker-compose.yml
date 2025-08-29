@@ -70,12 +70,11 @@ services:
 
   prisma-studio:
     image: node:20-alpine
-    working_dir: /workspace
+    working_dir: /studio
     restart: unless-stopped
     command: >
       sh -lc '
         set -e
-        mkdir -p /studio && cd /studio
         npm init -y >/dev/null 2>&1
         npm i prisma@6.14.0 @prisma/client@6.14.0 --no-audit --no-fund
         npx prisma generate --schema=/workspace/backend/prisma/schema.prisma
