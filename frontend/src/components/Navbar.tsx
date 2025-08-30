@@ -18,7 +18,6 @@ export default function Navbar() {
         alignItems: 'center',
         padding: '0.5rem 1rem',
         backgroundColor: '#1976d2',
-        color: 'white',
         position: 'sticky',
         top: 0,
         zIndex: 10,
@@ -60,6 +59,35 @@ export default function Navbar() {
         appearance={{
           elements: {
             avatarBox: { width: '60px', height: '60px' },
+
+            // Карточка поповера: задаём общий цвет текста и фон
+            userButtonPopoverCard: {
+              backgroundColor: '#ffffff',
+              color: '#111827',      // <- главный фикс: тёмный базовый цвет внутри поповера
+              boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+              borderRadius: 12,
+              zIndex: 9999,
+            },
+
+            // Иконки строк
+            userButtonPopoverActionButtonIcon: { color: '#374151' },
+
+            // Текст строк
+            userButtonPopoverActionButtonText: {
+              color: '#111827',      // <- принудительно тёмный текст
+              fontWeight: 500,
+            },
+
+            // Ховер строки
+            userButtonPopoverActionButton: {
+              backgroundColor: 'transparent',
+            },
+            userButtonPopoverActionButton__hover: {
+              backgroundColor: '#f3f4f6',
+            },
+
+            // Футер
+            userButtonPopoverFooter: { color: '#6b7280' },
           },
         }}
       />

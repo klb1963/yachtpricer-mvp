@@ -6,8 +6,6 @@
   font-weight: 400;
 
   color-scheme: light dark;
-  /* color: rgba(255, 255, 255, 0.87); */
-  /* background-color: #242424; */
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -37,30 +35,43 @@ h1 {
   line-height: 1.1;
 }
 
-button, 
-a.bg-blue-600, 
+/* ссылки с синим фоном — белый текст (например, кнопка +Add) */
+button.bg-blue-600,
+button.bg-blue-700,
+a.bg-blue-600,
 a.bg-blue-700 {
-  color: #fff !important;
+  color: white !important;
 }
 
-/* button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
+/* ================= Clerk overrides ================= */
+
+/* Глобальные токены Clerk */
+.cl, .cl-root {
+  --clerk-color-text: #111827 !important;        /* базовый текст */
+  --clerk-color-neutral: #111827 !important;     /* текст у ghost/neutral-кнопок */
+  --clerk-color-background: #ffffff !important;
+  --clerk-color-primary: #1976d2 !important;
+  --clerk-color-border: #e5e7eb !important;
 }
-button:hover {
-  border-color: #646cff;
+
+/* Сам поповер (фон + текст) */
+.cl-userButtonPopoverCard { 
+  color: var(--clerk-color-text) !important; 
+  background: #fff !important; 
 }
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-} */
+
+/* Текст строк меню */
+.cl-userButtonPopoverActionButtonText { 
+  color: var(--clerk-color-neutral) !important; 
+  font-weight: 500; 
+}
+
+/* Иконки строк меню */
+.cl-userButtonPopoverActionButtonIcon { 
+  color: #374151 !important; 
+}
+
+/* ================================================== */
 
 @media (prefers-color-scheme: light) {
   :root {
@@ -70,9 +81,6 @@ button:focus-visible {
   a:hover {
     color: #747bff;
   }
-  /* button {
-    background-color: #f9f9f9;
-  } */
 }
 
 /* Переключатель Table/Cards — стиль для неактивных кнопок */
