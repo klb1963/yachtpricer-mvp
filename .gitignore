@@ -58,3 +58,4 @@ pids
 *.pid.lock
 
 db-data/
+yachtpricer-db-data.tgz
