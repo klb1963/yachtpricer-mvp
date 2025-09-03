@@ -77,7 +77,7 @@ services:
           --schema=./prisma/schema.prisma
       '
     environment:
-      DATABASE_URL: postgres://postgres:postgres@db:5432/yachtpricer?schema=public
+      DATABASE_URL: postgres://postgres:Kogan1963@db:5432/yachtpricer?schema=public
     volumes:
       - ./:/workspace:cached
     ports:
