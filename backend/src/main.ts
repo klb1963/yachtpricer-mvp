@@ -14,7 +14,8 @@ async function bootstrap() {
   // 👇 читаем CORS_ORIGINS из env, по умолчанию localhost и sandbox
   const corsOrigins = (
     process.env.CORS_ORIGINS ??
-    'http://localhost:3000,https://sandbox.leonidk.de')
+    'http://localhost:3000,https://sandbox.leonidk.de'
+  )
     .split(',')
     .map((s) => s.trim());
 

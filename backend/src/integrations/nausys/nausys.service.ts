@@ -1,4 +1,5 @@
 // backend/src/integrations/nausys/nausys.service.ts
+
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
@@ -11,10 +12,25 @@ import {
   NausysYacht,
 } from './nausys.dto';
 
-// 👇 ДОБАВЛЕНО: Prisma типы (Decimal, InputJsonValue)
 import { Prisma, YachtType } from '@prisma/client';
-// 👇 ДОБАВЛЕНО: DI PrismaService
 import { PrismaService } from '../../prisma/prisma.service';
+
+// ── helper: определяем тип яхты по названию/модели/производителю/ширине
+function detectType(y: NausysYacht): YachtType {
+  const text =
+    `${y.Name ?? ''} ${y.Model ?? ''} ${y.Manufacturer ?? ''}`.toLowerCase();
+  if (
+    text.includes('cat') ||
+    text.includes('lagoon') ||
+    text.includes('bali') ||
+    text.includes('leopard') ||
+    text.includes('fountaine') ||
+    (typeof y.Beam === 'number' && y.Beam >= 6.5)
+  ) {
+    return YachtType.catamaran;
+  }
+  return YachtType.monohull;
+}
 
 @Injectable()
 export class NausysService {
@@ -35,7 +51,6 @@ export class NausysService {
   private token: string | null = null;
   private tokenExp?: Date;
 
-  // 👇 ДОБАВЛЕНО: внедряем PrismaService через DI
   constructor(
     private readonly http: HttpService,
     private readonly prisma: PrismaService,
@@ -102,6 +117,42 @@ export class NausysService {
         Currency: 'EUR',
         Price: 4200,
       },
+      // ▶ новый МОНОХАЛЛ
+      {
+        Id: 'Y4',
+        Name: 'Mock Yacht Three',
+        Model: 'Jeanneau Sun Odyssey 519',
+        Manufacturer: 'Jeanneau',
+        Year: 2017,
+        Cabins: 5,
+        Berths: 10,
+        Toilets: 3,
+        Length: 15.75,
+        Beam: 4.69,
+        Draft: 2.28,
+        BaseId: 'B4',
+        BaseName: 'Trogir Marina',
+        Currency: 'EUR',
+        Price: 3100,
+      },
+      // ▶ новый КАТАМАРАН
+      {
+        Id: 'Y5',
+        Name: 'Mock Catamaran Two',
+        Model: 'Bali 4.2',
+        Manufacturer: 'Bali',
+        Year: 2021,
+        Cabins: 4,
+        Berths: 10,
+        Toilets: 4,
+        Length: 12.85,
+        Beam: 7.08,
+        Draft: 1.12,
+        BaseId: 'B5',
+        BaseName: 'Corfu Marina',
+        Currency: 'EUR',
+        Price: 4500,
+      },
     ];
     return { Yachts: yachts };
   }
@@ -127,7 +178,6 @@ export class NausysService {
     }
 
     this.logger.log('Logging in to NauSYS API…');
-
     const res = await firstValueFrom(
       this.http.post<NausysLoginResponse>(`${this.apiUrl}/Login`, body, {
         headers: { 'Content-Type': 'application/json' },
@@ -154,7 +204,7 @@ export class NausysService {
     const { Token, Expiration } = await this.login();
     this.token = Token;
     this.tokenExp = Expiration ? new Date(Expiration) : undefined;
-    return this.token; // 👈 non-null
+    return this.token;
   }
 
   private async authedPost<T>(path: string, body: unknown = {}): Promise<T> {
@@ -223,13 +273,13 @@ export class NausysService {
 
     for (const y of resp.Yachts) {
       await this.prisma.yacht.upsert({
-        where: { nausysId: y.Id }, // 👈 поле есть в схеме (String? @unique)
+        where: { nausysId: y.Id },
         create: {
           nausysId: y.Id,
           name: y.Name,
           manufacturer: y.Manufacturer ?? 'Unknown',
           model: y.Model ?? '',
-          type: YachtType.monohull, // 👈 enum, вместо строки
+          type: detectType(y), // 👈 авто-детект
           length: y.Length ?? 0,
           builtYear: y.Year ?? 0,
           cabins: y.Cabins ?? 0,
@@ -245,7 +295,7 @@ export class NausysService {
           name: y.Name,
           manufacturer: y.Manufacturer ?? 'Unknown',
           model: y.Model ?? '',
-          type: YachtType.monohull, // 👈 enum, вместо строки
+          type: detectType(y), // 👈 авто-детект
           length: y.Length ?? 0,
           builtYear: y.Year ?? 0,
           cabins: y.Cabins ?? 0,
