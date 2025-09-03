@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   frontend:
     build:
@@ -28,7 +26,7 @@ services:
       - "8000:8000"
     environment:
       NODE_ENV: development
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/yachtpricer?schema=public
+      DATABASE_URL: postgresql://postgres:Kogan1963%25@db:5432/yachtpricer?schema=public
       CHOKIDAR_USEPOLLING: "1"
       NAUSYS_USE_MOCK: "true"
     volumes:
