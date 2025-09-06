@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage'
 import YachtDetailsPage from './pages/YachtDetailsPage'
 import YachtEditPage from './pages/YachtEditPage'
 import PricingPage from './pages/PricingPage';
+import OrganizationPage from "./pages/OrganizationPage";
 
 import './App.css'
 
@@ -88,6 +89,8 @@ function App() {
             </>
           }
         />
+
+        <Route path="/organization" element={<OrganizationPage />} />
 
       </Routes>
     </BrowserRouter>

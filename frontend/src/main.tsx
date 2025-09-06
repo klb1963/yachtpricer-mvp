@@ -1,16 +1,19 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.tsx'
-import './index.css'
-import './i18n'
+// /workspace/frontend/src/main.tsx
 
-import { ClerkProvider } from '@clerk/clerk-react'
+// /workspace/frontend/src/main.tsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
 
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+import './index.css';   // <-- ВАЖНО: Tailwind (base/components/utilities)
+import './App.css';     // <-- твои доп. стили (если есть)
+import './i18n';
 
-if (!PUBLISHABLE_KEY) {
-  throw new Error('Missing Clerk publishable key')
-}
+import App from './App.tsx';
+
+import { ClerkProvider } from '@clerk/clerk-react';
+
+const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+if (!PUBLISHABLE_KEY) throw new Error('Missing Clerk publishable key');
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -20,9 +23,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         variables: {
           colorPrimary: '#1976d2',
           colorBackground: '#ffffff',
-          colorText: '#111827',                 // базовый текст
-          colorTextSecondary: '#374151',        // вторичный
-          colorNeutral: '#111827',              // для ghost/neutral кнопок
+          colorText: '#111827',
+          colorTextSecondary: '#374151',
+          colorNeutral: '#111827',
           colorTextOnPrimaryBackground: '#ffffff',
         },
         elements: {
@@ -33,20 +36,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             borderRadius: '12px',
             zIndex: 9999,
           },
-          userButtonPopoverActionButtonText: {
-            color: '#111827',
-            fontWeight: 500,
-          },
-          userButtonPopoverActionButtonIcon: {
-            color: '#374151',
-          },
-          userButtonPopoverFooter: {
-            color: '#6b7280',
-          },
+          userButtonPopoverActionButtonText: { color: '#111827', fontWeight: 500 },
+          userButtonPopoverActionButtonIcon: { color: '#374151' },
+          userButtonPopoverFooter: { color: '#6b7280' },
         },
       }}
     >
       <App />
     </ClerkProvider>
   </React.StrictMode>
-)
+);

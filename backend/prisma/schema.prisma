@@ -7,6 +7,36 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Organization {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+
+  // контакты
+  contactName   String?
+  contactPhone  String?
+  contactEmail  String?
+  websiteUrl    String?
+
+  yachts        Yacht[]
+  subscription  Subscription?
+  createdAt     DateTime @default(now())
+}
+
+
+model Subscription {
+  id             String   @id @default(cuid())
+  orgId          String   @unique
+  org            Organization @relation(fields: [orgId], references: [id])
+
+  plan           String   @default("PRO") // можно заменить на enum позже
+  status         String   @default("active")
+  currentPeriodEnd DateTime?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 model Yacht {
   id                   String  @id @default(uuid())
   nausysId             String? @unique // 👈 внешний ID NauSYS
@@ -26,6 +56,9 @@ model Yacht {
   currentExtraServices Json
 
   imageUrl             String? 
+
+  orgId String?
+  org   Organization? @relation(fields: [orgId], references: [id])
 
   ownerId   String?
   ownerName String?

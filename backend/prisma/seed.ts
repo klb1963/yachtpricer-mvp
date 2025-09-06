@@ -1,10 +1,12 @@
 // backend/prisma/seed.ts
 
+/// <reference types="node" />
+
 /* eslint-disable no-console */
 /* eslint-disable no-process-exit */
 /* eslint-disable @typescript-eslint/no-floating-promises */
 
-import { PrismaClient, WeekSlotStatus } from '@prisma/client';
+import { PrismaClient, WeekSlotStatus, YachtType, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -14,6 +16,25 @@ const YACHT_ID_B = 'acafec2e-7228-4bdb-8aff-9312eac2f3fa';
 const YACHT_ID_LEGACY = '1'; // допустим, фронт где-то шлёт "1"
 
 async function main() {
+  console.log('🏢 Seeding organization Aquatoria Group…');
+
+  const org = await prisma.organization.upsert({
+    where: { slug: 'aquatoria' },
+    update: {},
+    create: {
+      slug: 'aquatoria',
+      name: 'Aquatoria Group',
+      contactEmail: 'info@aquatoria-group.com',
+      websiteUrl: 'https://aquatoria-group.com/',
+    },
+  });
+
+  await prisma.subscription.upsert({
+    where: { orgId: org.id },
+    update: { status: 'active', plan: 'PRO' },
+    create: { orgId: org.id, status: 'active', plan: 'PRO' },
+  });
+
   console.log('👤 Seeding owners…');
   const owner1 = await prisma.owner.upsert({
     where: { email: 'john.doe@example.com' },
@@ -34,15 +55,16 @@ async function main() {
     update: {},
     create: {
       id: YACHT_ID_A,
+      orgId: org.id, // 👈 привязка к Aquatoria
       name: 'Bavaria Cruiser 41',
       manufacturer: 'Bavaria',
       model: 'Cruiser',
-      type: 'Sailing yacht',
-      length: 12.35,       // метры
+      type: YachtType.monohull,
+      length: 12.35,
       builtYear: 2018,
       cabins: 3,
       heads: 2,
-      basePrice: 3200,
+      basePrice: new Prisma.Decimal(3200),
       location: 'Marina Split',
       fleet: 'EN',
       charterCompany: 'Split Charter',
@@ -51,7 +73,7 @@ async function main() {
       currentExtraServices: [
         { name: 'Outboard engine', price: 80 },
         { name: 'WiFi', price: 50 },
-      ],
+      ] as Prisma.InputJsonValue,
       imageUrl: '/images/yachts/monohull.jpg',
     },
   });
@@ -61,15 +83,16 @@ async function main() {
     update: {},
     create: {
       id: YACHT_ID_B,
+      orgId: org.id,
       name: 'Lagoon 42',
       manufacturer: 'Lagoon',
       model: '42',
-      type: 'Catamaran',
+      type: YachtType.catamaran,
       length: 12.8,
       builtYear: 2020,
       cabins: 4,
       heads: 4,
-      basePrice: 5200,
+      basePrice: new Prisma.Decimal(5200),
       location: 'Marina Dubrovnik',
       fleet: 'EN',
       charterCompany: 'Dubrovnik Sailing',
@@ -78,7 +101,7 @@ async function main() {
       currentExtraServices: [
         { name: 'Skipper', price: 180 },
         { name: 'Final cleaning', price: 150 },
-      ],
+      ] as Prisma.InputJsonValue,
       imageUrl: '/images/yachts/catamaran.jpg',
     },
   });
@@ -88,15 +111,16 @@ async function main() {
     update: {},
     create: {
       id: YACHT_ID_LEGACY,
+      orgId: org.id,
       name: 'Sun Odyssey 45',
       manufacturer: 'Jeanneau',
       model: 'Sun Odyssey',
-      type: 'Sailing yacht',
+      type: YachtType.monohull,
       length: 13.72,
       builtYear: 2015,
       cabins: 4,
       heads: 2,
-      basePrice: 3500,
+      basePrice: new Prisma.Decimal(3500),
       location: 'Marina Kastela',
       fleet: 'EN',
       charterCompany: 'Adriatic Charter',
@@ -105,7 +129,7 @@ async function main() {
       currentExtraServices: [
         { name: 'Transit log', price: 150 },
         { name: 'Final cleaning', price: 100 },
-      ],
+      ] as Prisma.InputJsonValue,
       imageUrl: '/images/yachts/monohull.jpg',
     },
   });

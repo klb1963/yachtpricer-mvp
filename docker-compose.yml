@@ -24,9 +24,10 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    env_file:
+      - ./backend/.env
     environment:
       NODE_ENV: development
-      DATABASE_URL: postgresql://postgres:Kogan1963@db:5432/yachtpricer?schema=public
       CHOKIDAR_USEPOLLING: "1"
       NAUSYS_USE_MOCK: "true"
     volumes:
@@ -76,8 +77,8 @@ services:
           --browser none
           --schema=./prisma/schema.prisma
       '
-    environment:
-      DATABASE_URL: postgres://postgres:Kogan1963@db:5432/yachtpricer?schema=public
+    env_file:
+    - ./backend/.env
     volumes:
       - ./:/workspace:cached
     ports:
