@@ -15,3 +15,5 @@ declare module 'express-serve-static-core' {
     user?: { id: string; email?: string; role?: OrgRole }; // подправь под свой auth
   }
 }
+
+export {};

@@ -11,6 +11,8 @@ async function bootstrap() {
   // самый широкий уровень логов
   app.useLogger(['log', 'error', 'warn', 'debug', 'verbose']);
 
+  app.setGlobalPrefix('api');
+
   // 👇 читаем CORS_ORIGINS из env, по умолчанию localhost и sandbox
   const corsOrigins = (
     process.env.CORS_ORIGINS ??

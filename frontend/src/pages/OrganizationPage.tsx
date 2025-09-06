@@ -1,3 +1,5 @@
+// /frontend/src/pages/OrganizationPage.tsx
+
 import { useEffect, useMemo, useState } from "react";
 
 type Org = {
@@ -10,6 +12,16 @@ type Org = {
   websiteUrl?: string | null;
 };
 
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return "Unknown error";
+  }
+}
+
 export default function OrganizationPage() {
   const [org, setOrg] = useState<Org | null>(null);
   const [form, setForm] = useState<Partial<Org>>({});
@@ -20,7 +32,6 @@ export default function OrganizationPage() {
 
   // ⚠️ Временная логика "кто Admin" (замени на свою /api/me, когда подключишь роли)
   const isAdmin = useMemo(() => {
-    // например, в dev можно класть role в localStorage
     const role = window.localStorage.getItem("role") || "ADMIN"; // <-- пока по-умолчанию ADMIN
     return role.toUpperCase() === "ADMIN";
   }, []);
@@ -40,8 +51,8 @@ export default function OrganizationPage() {
           contactEmail: data.contactEmail || "",
           websiteUrl: data.websiteUrl || "",
         });
-      } catch (e: any) {
-        setError(e?.message ?? "Failed to load organization");
+      } catch (e: unknown) {
+        setError(getErrorMessage(e) || "Failed to load organization");
       } finally {
         setLoading(false);
       }
@@ -66,11 +77,11 @@ export default function OrganizationPage() {
       const data: Org = await r.json();
       setOrg(data);
       setSaved(true);
-    } catch (e: any) {
-      setError(e?.message ?? "Save failed");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) || "Save failed");
     } finally {
       setSaving(false);
-      setTimeout(() => setSaved(false), 2000);
+      window.setTimeout(() => setSaved(false), 2000);
     }
   };
 

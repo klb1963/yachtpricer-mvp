@@ -8,11 +8,11 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000,
     proxy: {
-      // всё, что начинается с /api на фронте → уходит на backend
+      // Всё, что начинается с /api на фронте → уходит на backend
       '/api': {
         target: 'http://backend:8000', // имя сервиса из docker-compose
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        // rewrite убрали — backend сам ждёт /api/*
       },
     },
   },

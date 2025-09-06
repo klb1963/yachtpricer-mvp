@@ -1,10 +1,10 @@
 // frontend/src/pages/PricingPage.tsx
-
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { changeStatus, fetchRows, upsertDecision } from '../api/pricing';
 import type { PricingRow } from '../api/pricing';
-import { fmtISO, toYMD, nextSaturday, prevSaturday, toSaturdayUTC } from '../utils/week';
+import { toYMD, nextSaturday, prevSaturday, toSaturdayUTC } from '../utils/week';
 
+// ─ helpers ─
 function asMoney(n: number | null | undefined) {
   if (n == null) return '—';
   return `€ ${n.toLocaleString('en-EN', { maximumFractionDigits: 0 })}`;
@@ -28,29 +28,39 @@ function calcFinal(base: number, discountPct: number | null | undefined) {
 type DecisionStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
 
 export default function PricingPage() {
-  const [week, setWeek] = useState(() => fmtISO(toSaturdayUTC(new Date())));
+  // ────────────────────────────────────────────────────────────
+  // 1) Неделя всегда в формате YYYY-MM-DD (plain date)
+  // ────────────────────────────────────────────────────────────
+  const [week, setWeek] = useState(() => toYMD(toSaturdayUTC(new Date())));
   const [rows, setRows] = useState<PricingRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [error, setError] = useState<string | null>(null);
 
-  const weekDate = useMemo(() => new Date(week), [week]);
+  const weekDate = useMemo(() => new Date(`${week}T00:00:00Z`), [week]);
   const weekLabel = useMemo(() => toYMD(weekDate), [weekDate]);
 
+  // ─ загрузка ─
   useEffect(() => {
     (async () => {
       setLoading(true);
+      setError(null);
       try {
         const data = await fetchRows(week);
         setRows(data);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Failed to load pricing rows';
+        setError(msg);
+        setRows([]);
       } finally {
         setLoading(false);
       }
     })();
   }, [week]);
 
-  // --- Локальный драфт: меняем state по мере ввода, без похода на бэк
-  function onDraftDiscountChange(yachtId: string, valueStr: string) {
+  // ─ локальный драфт ─
+  const onDraftDiscountChange = useCallback((yachtId: string, valueStr: string) => {
     const discount = toNumberOrNull(valueStr);
     setRows(prev =>
       prev.map(r => {
@@ -58,7 +68,7 @@ export default function PricingPage() {
         const newFinal = calcFinal(r.basePrice, discount);
         return {
           ...r,
-          finalPrice: newFinal, // для "Calculated"
+          finalPrice: newFinal,
           decision: {
             status: r.decision?.status ?? 'DRAFT',
             discountPct: discount,
@@ -67,9 +77,9 @@ export default function PricingPage() {
         };
       }),
     );
-  }
+  }, []);
 
-  function onDraftFinalChange(yachtId: string, valueStr: string) {
+  const onDraftFinalChange = useCallback((yachtId: string, valueStr: string) => {
     const finalPrice = toNumberOrNull(valueStr);
     setRows(prev =>
       prev.map(r => {
@@ -77,18 +87,18 @@ export default function PricingPage() {
         const newDiscount = calcDiscountPct(r.basePrice, finalPrice);
         return {
           ...r,
-          finalPrice: finalPrice, // для "Calculated"
+          finalPrice,
           decision: {
             status: r.decision?.status ?? 'DRAFT',
             discountPct: newDiscount,
-            finalPrice: finalPrice,
+            finalPrice,
           },
         };
       }),
     );
-  }
+  }, []);
 
-  // --- Сохранение на бэкенд по blur
+  // ─ сохранение на бэкенд ─
   async function onChangeDiscount(yachtId: string) {
     const row = rows.find(x => x.yachtId === yachtId);
     if (!row) return;
@@ -131,15 +141,15 @@ export default function PricingPage() {
     if (!value) return;
     const picked = new Date(`${value}T00:00:00Z`);
     const sat = toSaturdayUTC(picked);
-    setWeek(fmtISO(sat));
+    setWeek(toYMD(sat)); // ← единый формат YYYY-MM-DD
   }
 
-  // Рендер одного ряда (чтобы не дублировать в Таблице/Карточке)
+  // ────────────────────────────────────────────────────────────
+  // 2) renderEditors — обратно внутри компонента и ДО использования
+  // ────────────────────────────────────────────────────────────
   function renderEditors(r: PricingRow) {
-    const discountValue =
-      r.decision?.discountPct ?? ''; // string | number для контролируемого инпута
-    const finalValue =
-      r.decision?.finalPrice ?? '';
+    const discountValue = r.decision?.discountPct ?? '';
+    const finalValue = r.decision?.finalPrice ?? '';
 
     return (
       <>
@@ -156,7 +166,6 @@ export default function PricingPage() {
         />
         <span className="ml-1 text-gray-600">%</span>
         <div className="h-2" />
-
         <input
           className="w-28 px-2 py-1 border rounded"
           type="number"
@@ -182,7 +191,6 @@ export default function PricingPage() {
         <h1 className="text-3xl font-bold">Pricing</h1>
 
         <div className="flex flex-wrap items-center gap-2">
-
           {/* Переключатель вида */}
           <div className="flex items-center gap-2">
             <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">
@@ -190,9 +198,8 @@ export default function PricingPage() {
                 type="button"
                 onClick={() => setViewMode('table')}
                 className={`rounded-md px-3 py-1.5 text-sm font-medium ${viewMode === 'table'
-                    ? 'bg-gray-900 text-white'
-                    : '!text-gray-800 hover:bg-gray-100'
-                  }`}
+                  ? 'bg-gray-900 text-white'
+                  : '!text-gray-800 hover:bg-gray-100'}`}
               >
                 Table
               </button>
@@ -200,9 +207,8 @@ export default function PricingPage() {
                 type="button"
                 onClick={() => setViewMode('cards')}
                 className={`rounded-md px-3 py-1.5 text-sm font-medium ${viewMode === 'cards'
-                    ? 'bg-gray-900 text-white'
-                    : '!text-gray-800 hover:bg-gray-100'
-                  }`}
+                  ? 'bg-gray-900 text-white'
+                  : '!text-gray-800 hover:bg-gray-100'}`}
               >
                 Cards
               </button>
@@ -211,7 +217,7 @@ export default function PricingPage() {
 
           <button
             className="px-3 py-2 rounded border"
-            onClick={() => setWeek(fmtISO(prevSaturday(weekDate)))}
+            onClick={() => setWeek(toYMD(prevSaturday(weekDate)))}
             disabled={loading}
           >
             ◀ Prev week
@@ -227,13 +233,15 @@ export default function PricingPage() {
 
           <button
             className="px-3 py-2 rounded border"
-            onClick={() => setWeek(fmtISO(nextSaturday(weekDate)))}
+            onClick={() => setWeek(toYMD(nextSaturday(weekDate)))}
             disabled={loading}
           >
             Next week ▶
           </button>
         </div>
       </div>
+
+      {error && <div className="text-red-600 mb-3">{error}</div>}
 
       {loading ? (
         <div className="text-gray-500">Loading…</div>
@@ -265,9 +273,7 @@ export default function PricingPage() {
                   <td className="p-3">{asMoney(r.snapshot?.top1Price)}</td>
                   <td className="p-3">{asMoney(r.snapshot?.top3Avg)}</td>
                   <td className="p-3">{asMoney(r.mlReco)}</td>
-                  <td className="p-3">
-                    {renderEditors(r)}
-                  </td>
+                  <td className="p-3">{renderEditors(r)}</td>
                   <td className="p-3">
                     <span className="px-2 py-1 text-xs rounded bg-gray-100">
                       {r.decision?.status ?? 'DRAFT'}
@@ -306,7 +312,6 @@ export default function PricingPage() {
 
               <div className="mt-3">
                 <label className="block text-xs mb-1">Discount</label>
-                {/* первый контролируемый */}
                 <input
                   className="w-24 px-2 py-1 border rounded"
                   type="number"
@@ -323,7 +328,6 @@ export default function PricingPage() {
 
               <div className="mt-3">
                 <label className="block text-xs mb-1">Final price</label>
-                {/* второй контролируемый */}
                 <input
                   className="w-32 px-2 py-1 border rounded"
                   type="number"
