@@ -61,3 +61,6 @@ pids
 
 db-data/
 yachtpricer-db-data.tgz
+
+# Vite local-only config
+frontend/vite.config.local.ts
