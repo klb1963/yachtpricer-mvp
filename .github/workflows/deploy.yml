@@ -2,21 +2,14 @@ name: Deploy to VPS
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    concurrency:
-      group: deploy-vps
-      cancel-in-progress: true
-    timeout-minutes: 20
 
     steps:
-      - name: Checkout (no artifacts needed)
-        uses: actions/checkout@v4
-
       - name: Deploy to VPS (git pull + docker compose up)
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -25,23 +18,48 @@ jobs:
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            set -euxo pipefail
-            cd /home/leonidk/yachtpricer/yachtpricer-mvp
+            set -euo pipefail
 
-            # Обновляем код
+            REPO_DIR=/home/leonidk/yachtpricer/yachtpricer-mvp
+            ORIGIN=https://github.com/klb1963/yachtpricer-mvp.git
+
+            # 1) Если репозиторий ещё не инициализирован — клонируем
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              mkdir -p "$REPO_DIR"
+              if [ -z "$(ls -A "$REPO_DIR")" ]; then
+                git clone --depth=1 "$ORIGIN" "$REPO_DIR"
+              else
+                cd "$REPO_DIR"
+                git init
+                git remote add origin "$ORIGIN" || true
+              fi
+            fi
+
+            cd "$REPO_DIR"
+
+            # 2) Разрешаем git работать в этой папке (исправляет 'dubious ownership')
+            git config --global --add safe.directory "$REPO_DIR"
+
+            # 3) Обновляем код
             git fetch --all --prune
             git reset --hard origin/main
 
-            # Пересобираем и поднимаем контейнеры
+            # 4) Пересобираем и поднимаем контейнеры
             docker compose pull || true
             docker compose up -d --build
 
-            # Ждём, пока бэкенд станет здоров
-            i=0
-            until curl -fsS http://localhost:8000/api/health >/dev/null || [ $i -gt 30 ]; do
-              i=$((i+1))
+            # 5) Ждём, пока backend станет здоров
+            for i in $(seq 1 30); do
+              if curl -fsS http://localhost:8000/api/health >/dev/null; then
+                echo "Backend is healthy."
+                break
+              fi
+              echo "Waiting for backend... ($i/30)"
               sleep 2
             done
 
-            docker compose ps
+            # 6) Немного уборки (необязательно)
             docker system prune -f || true
+
+            # 7) Показать статус
+            docker compose ps
