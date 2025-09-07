@@ -2,31 +2,22 @@ name: Deploy to VPS
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-vps
+      cancel-in-progress: true
+    timeout-minutes: 20
 
     steps:
-      - name: Checkout repository
+      - name: Checkout (no artifacts needed)
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies & build
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-        env:
-          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY_PROD }}
-
-      - name: Prepare server
+      - name: Deploy to VPS (git pull + docker compose up)
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: sandbox.leonidk.de
@@ -34,18 +25,23 @@ jobs:
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            cd ~/yachtpricer/frontend
-            git checkout main
-            git pull origin main
-            rm -rf dist
+            set -euxo pipefail
+            cd /home/leonidk/yachtpricer/yachtpricer-mvp
 
-      - name: Upload built dist
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: sandbox.leonidk.de
-          username: leonidk
-          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-          port: 22
-          source: ./frontend/dist/*
-          target: /home/leonidk/yachtpricer/frontend/dist/
-          strip_components: 2
+            # Обновляем код
+            git fetch --all --prune
+            git reset --hard origin/main
+
+            # Пересобираем и поднимаем контейнеры
+            docker compose pull || true
+            docker compose up -d --build
+
+            # Ждём, пока бэкенд станет здоров
+            i=0
+            until curl -fsS http://localhost:8000/api/health >/dev/null || [ $i -gt 30 ]; do
+              i=$((i+1))
+              sleep 2
+            done
+
+            docker compose ps
+            docker system prune -f || true
