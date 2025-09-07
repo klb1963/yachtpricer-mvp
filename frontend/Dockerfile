@@ -1,15 +1,15 @@
-FROM node:20-alpine
+# ---------- build ----------
+FROM node:20-alpine AS build
 WORKDIR /app
-
-# 1. Устанавливаем зависимости
 COPY package*.json ./
 RUN npm ci
-
-# 2. Копируем весь код (для первого билда)
 COPY . .
+RUN npm run build
 
-# 3. Открываем порт Vite
+# ---------- runtime ----------
+FROM node:20-alpine AS runtime
+WORKDIR /app
+COPY --from=build /app/dist ./dist
+RUN npm i -g serve
 EXPOSE 3000
-
-# 4. Запускаем dev-сервер
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+CMD ["serve", "-s", "dist", "-l", "3000"]
