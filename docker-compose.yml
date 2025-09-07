@@ -2,9 +2,7 @@ services:
   frontend:
     build:
       context: ./frontend
-    working_dir: /app
-    # один контейнер сам собирает и сервит статику
-    command: sh -lc "npm ci && npm run build && npx -y serve -s dist -l 3000"
+      dockerfile: Dockerfile
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -33,8 +31,12 @@ services:
         condition: service_healthy
     networks:
       - yachtpricer-net
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8000/api/health || exit 1"]
+    healthcheck:                # 👈 теперь внутри backend
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://localhost:8000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
