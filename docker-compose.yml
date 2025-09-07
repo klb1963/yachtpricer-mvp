@@ -16,7 +16,7 @@ services:
     build:
       context: ./backend
     working_dir: /app
-    command: ["sh", "/app/entrypoint.sh"]
+    command: ["sh", "-lc", "npx prisma migrate deploy && node dist/main.js"]
     restart: unless-stopped
     ports:
       - "8000:8000"
