@@ -3,7 +3,8 @@ services:
     build:
       context: ./frontend
     working_dir: /app
-    command: npm run build && npm run preview -- --host 0.0.0.0 --port 3000
+    # один контейнер сам собирает и сервит статику
+    command: sh -lc "npm ci && npm run build && npx -y serve -s dist -l 3000"
     restart: unless-stopped
     ports:
       - "3000:3000"
