@@ -42,6 +42,8 @@ coverage/
 
 # === Devcontainer / Docker ===
 .devcontainer/postCreate.sh
+docker-compose.override.yml
+docker-compose.override.*.yml
 
 # === Project-specific junk ===
 backend@0.0.1

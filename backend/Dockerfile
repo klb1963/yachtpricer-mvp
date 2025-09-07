@@ -13,7 +13,7 @@
     # Кладём prisma рядом с приложением (не в src/)
     COPY prisma ./prisma
     # Генерируем клиент (берёт schema из /app/prisma/schema.prisma)
-    RUN npx prisma generate
+    RUN npx prisma generate --schema=prisma/schema.prisma
     
     # Копируем исходники и собираем
     COPY tsconfig*.json ./

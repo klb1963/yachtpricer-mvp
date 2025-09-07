@@ -18,18 +18,15 @@ services:
   backend:
     build:
       context: ./backend
+      dockerfile: Dockerfile
     working_dir: /app
-    command: ["sh", "-lc", "npx prisma migrate deploy && node dist/main.js"]
     restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
       NODE_ENV: production
-      # 👉 переместили из .env в environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/yachtpricer
-      # домены, которым разрешаем CORS в проде
       CORS_ORIGINS: https://sandbox.leonidk.de
-      # если на проде пока ок с моками — оставь true; иначе поставь "false"
       NAUSYS_USE_MOCK: "true"
     depends_on:
       db:
