@@ -32,7 +32,7 @@ services:
         condition: service_healthy
     networks:
       - yachtpricer-net
-    healthcheck:                # 👈 теперь внутри backend
+    healthcheck:
       test:
         [
           "CMD-SHELL",
@@ -60,6 +60,28 @@ services:
       retries: 20
     networks:
       - yachtpricer-net
+
+  prisma-studio:
+    image: node:20-alpine
+    working_dir: /workspace/backend
+    command: >
+      sh -lc '
+        npx -y prisma@6.14.0 studio
+          --port 5555
+          --browser none
+          --schema=./prisma/schema.prisma
+      '
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/yachtpricer
+    volumes:
+      - ./:/workspace:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - yachtpricer-net
+    ports:
+      - "127.0.0.1:5556:5555"  # слушаем ТОЛЬКО на localhost VPS
 
 networks:
   yachtpricer-net:
