@@ -23,11 +23,9 @@ jobs:
             REPO_DIR=/home/leonidk/yachtpricer/yachtpricer-mvp
             ORIGIN=https://github.com/klb1963/yachtpricer-mvp.git
 
-            # 0) Страховка: выставить владельца на текущего пользователя (борется с "Permission denied"/dubious ownership")
             mkdir -p "$REPO_DIR"
             chown -R "$USER":"$USER" "$REPO_DIR" || true
 
-            # 1) Если репозиторий ещё не инициализирован — клонируем/инициализируем
             if [ ! -d "$REPO_DIR/.git" ]; then
               if [ -z "$(ls -A "$REPO_DIR")" ]; then
                 git clone --depth=1 "$ORIGIN" "$REPO_DIR"
@@ -39,19 +37,22 @@ jobs:
             fi
 
             cd "$REPO_DIR"
-
-            # 2) Разрешаем git работать в этой папке (исправляет 'dubious ownership')
             git config --global --add safe.directory "$REPO_DIR"
-
-            # 3) Обновляем код
             git fetch --all --prune
             git reset --hard origin/main
 
-            # 4) Пересобираем и поднимаем контейнеры
-            docker compose pull || true
-            docker compose up -d --build
+            # На всякий случай отключим override-файлы, если вдруг лежат на сервере
+            [ -f docker-compose.override.yml ] && mv -f docker-compose.override.yml docker-compose.local.yml || true
+            for f in docker-compose.override.*.yml; do
+              [ -f "$f" ] && mv -f "$f" "${f%.yml}.local.yml" || true
+            done
 
-            # 5) Ждём, пока backend станет здоров
+            # Используем ТОЛЬКО базовый compose-файл
+            docker compose -f docker-compose.yml down --remove-orphans || true
+            docker compose -f docker-compose.yml pull || true
+            docker compose -f docker-compose.yml up -d --build --remove-orphans
+
+            # Ждём, пока backend станет здоров
             for i in $(seq 1 30); do
               if curl -fsS http://localhost:8000/api/health >/dev/null; then
                 echo "Backend is healthy."
@@ -61,8 +62,4 @@ jobs:
               sleep 2
             done
 
-            # 6) Уборка (необязательно)
-            docker system prune -f || true
-
-            # 7) Показать статус
-            docker compose ps
+            docker compose -f docker-compose.yml ps
