@@ -3,20 +3,24 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// важное: base оставляем `/`
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: true,        // чтобы слушал 0.0.0.0 в контейнере
+    host: true,          // слушать 0.0.0.0 в контейнере
     port: 3000,
+    allowedHosts: ['sandbox.leonidk.de'], // <-- разрешаем домен (можно true, но лучше явно)
     proxy: {
-      // ВСЕ запросы /api/* на backend:8000
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
-        // без переписывания пути, т.к. у бекенда префикс уже /api
       },
+    },
+    // чтобы HMR работал через nginx/443
+    hmr: {
+      host: 'sandbox.leonidk.de',
+      clientPort: 443,
+      protocol: 'wss',   // TLS терминируется на nginx, к клиенту идём wss
     },
   },
 })
