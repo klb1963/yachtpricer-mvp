@@ -10,7 +10,7 @@
     
     # ---------- build ----------
     FROM deps AS build
-    # Копируем prisma на уровень /app/prisma (а не src/prisma!)
+    # Кладём prisma рядом с приложением (не в src/)
     COPY prisma ./prisma
     # Генерируем клиент (берёт schema из /app/prisma/schema.prisma)
     RUN npx prisma generate
@@ -25,17 +25,22 @@
     ENV NODE_ENV=production
     WORKDIR /app
     
-    # Копируем node_modules (оставим dev-зависимости, чтобы был доступен npx prisma для миграций)
+    # Копируем node_modules (оставляем dev-зависимости, чтобы был доступен npx prisma)
     COPY --from=deps /app/node_modules ./node_modules
     
-    # Копируем собранный билд и prisma (для миграций в рантайме)
+    # Копируем билд и prisma (нужна для миграций в рантайме)
     COPY --from=build /app/dist ./dist
     COPY --from=build /app/prisma ./prisma
     COPY package*.json ./
     
+    # 👇 добавили entrypoint.sh
+    COPY entrypoint.sh ./entrypoint.sh
+    RUN chmod +x ./entrypoint.sh
+    
     EXPOSE 8000
-    # Перед стартом приложения применяем миграции
-    CMD sh -c "npx prisma migrate deploy && node dist/main.js"
+    
+    # Запуск через наш entrypoint (внутри он делает migrate deploy и стартует app)
+    ENTRYPOINT ["sh", "./entrypoint.sh"]
     
     # ---------- devtools (опционально, для prisma studio) ----------
     FROM build AS devtools
