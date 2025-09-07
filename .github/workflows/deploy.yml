@@ -24,8 +24,8 @@ jobs:
             ORIGIN=https://github.com/klb1963/yachtpricer-mvp.git
 
             # 0) Страховка: выставить владельца на текущего пользователя (борется с "Permission denied"/dubious ownership")
-            sudo mkdir -p "$REPO_DIR"
-            sudo chown -R "$USER":"$USER" "$REPO_DIR" || true
+            mkdir -p "$REPO_DIR"
+            chown -R "$USER":"$USER" "$REPO_DIR" || true
 
             # 1) Если репозиторий ещё не инициализирован — клонируем/инициализируем
             if [ ! -d "$REPO_DIR/.git" ]; then
