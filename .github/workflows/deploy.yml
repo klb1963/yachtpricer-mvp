@@ -23,9 +23,12 @@ jobs:
             REPO_DIR=/home/leonidk/yachtpricer/yachtpricer-mvp
             ORIGIN=https://github.com/klb1963/yachtpricer-mvp.git
 
-            # 1) Если репозиторий ещё не инициализирован — клонируем
+            # 0) Страховка: выставить владельца на текущего пользователя (борется с "Permission denied"/dubious ownership")
+            sudo mkdir -p "$REPO_DIR"
+            sudo chown -R "$USER":"$USER" "$REPO_DIR" || true
+
+            # 1) Если репозиторий ещё не инициализирован — клонируем/инициализируем
             if [ ! -d "$REPO_DIR/.git" ]; then
-              mkdir -p "$REPO_DIR"
               if [ -z "$(ls -A "$REPO_DIR")" ]; then
                 git clone --depth=1 "$ORIGIN" "$REPO_DIR"
               else
@@ -58,7 +61,7 @@ jobs:
               sleep 2
             done
 
-            # 6) Немного уборки (необязательно)
+            # 6) Уборка (необязательно)
             docker system prune -f || true
 
             # 7) Показать статус
