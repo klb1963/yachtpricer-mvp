@@ -64,3 +64,5 @@ yachtpricer-db-data.tgz
 
 # Vite local-only config
 frontend/vite.config.local.ts
+*.tsbuildinfo
+frontend/.env.*

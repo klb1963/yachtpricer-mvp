@@ -1,27 +1,34 @@
-#!/usr/bin/env bash
+#!/bin/sh
 set -Eeuo pipefail
 
 echo "[postCreate] start"
 
-# Идём из корня воркспейса — devcontainer.json.workspaceFolder=/workspace
+# идём из корня воркспейса
 cd /workspace
 
-# Backend deps + Prisma
+# === Backend ===
 if [ -d backend ]; then
   echo "[postCreate] backend deps"
   cd backend
-  npm ci || true
-  npx prisma generate || true
+
+  # ставим зависимости (ci = строго по lock-файлу)
+  npm ci
+
+  # генерим prisma client
+  npx prisma generate
+
+  # проверка типов и сборка (чтобы tsserver видел index.d.ts из dist)
+  npm run build || echo "[postCreate] build failed, but continuing for editor"
+
   cd ..
 fi
 
-# Frontend deps
+# === Frontend ===
 if [ -d frontend ]; then
   echo "[postCreate] frontend deps"
   cd frontend
-  npm ci || true
+  npm ci
   cd ..
 fi
 
 echo "[postCreate] done"
-exit 0

@@ -1,22 +1,26 @@
 version: "3.9"
 
 services:
+  # VS Code Dev Container (редактор «живёт» здесь)
   workspace:
     image: mcr.microsoft.com/devcontainers/typescript-node:20
     volumes:
-      - .:/workspace:cached   # 👈 вместо ..
+      - .:/workspace:cached
       - workspace-frontend-node_modules:/workspace/frontend/node_modules
       - workspace-backend-node_modules:/workspace/backend/node_modules
     working_dir: /workspace
     command: sleep infinity
     environment:
       VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-pk_test_dummy}
+    # ⚠ важное: тот же сетевой стек, что и у backend → видно db:5432
+    network_mode: "service:backend"
+    depends_on:
+      - backend
 
+  # Prisma Studio (опционально)
   prisma-studio:
     image: node:20-alpine
     working_dir: /workspace/backend
-    # ВАЖНО: пинуем версию CLI = 6.14.0 (как у Prisma Client),
-    # и указываем абсолютный путь к schema.prisma
     command: >
       sh -lc '
         echo "Using Prisma 6.14.0";
@@ -27,12 +31,18 @@ services:
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/yachtpricer?schema=public
     volumes:
-      - /Users/leonidk/Developer/YachPricer/yachtpricer-mvp:/workspace:cached
+      - .:/workspace:cached
     ports:
       - "5556:5555"
     depends_on:
       - db
+    networks:
+      - default
 
 volumes:
   workspace-frontend-node_modules:
   workspace-backend-node_modules:
+
+networks:
+  default:
+    external: false
