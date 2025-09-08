@@ -8,57 +8,64 @@ datasource db {
 }
 
 model Organization {
-  id            String   @id @default(cuid())
-  name          String
-  slug          String   @unique
+  id   String @id @default(cuid())
+  name String
+  slug String @unique
 
   // контакты
-  contactName   String?
-  contactPhone  String?
-  contactEmail  String?
-  websiteUrl    String?
+  contactName  String?
+  contactPhone String?
+  contactEmail String?
+  websiteUrl   String?
 
-  yachts        Yacht[]
-  subscription  Subscription?
-  createdAt     DateTime @default(now())
+  yachts       Yacht[]
+  subscription Subscription?
+
+  users       User[]
+  ownerYachts OwnerYacht[] @relation("OrgOwnerYachts")
+
+  createdAt DateTime @default(now())
 }
 
-
 model Subscription {
-  id             String   @id @default(cuid())
-  orgId          String   @unique
-  org            Organization @relation(fields: [orgId], references: [id])
+  id    String       @id @default(cuid())
+  orgId String       @unique
+  org   Organization @relation(fields: [orgId], references: [id])
 
-  plan           String   @default("PRO") // можно заменить на enum позже
-  status         String   @default("active")
+  plan             String    @default("PRO") // можно заменить на enum позже
+  status           String    @default("active")
   currentPeriodEnd DateTime?
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Yacht {
-  id                   String  @id @default(uuid())
-  nausysId             String? @unique // 👈 внешний ID NauSYS
+  id       String  @id @default(uuid())
+  nausysId String? @unique // 👈 внешний ID NauSYS
 
   name                 String
   manufacturer         String
   model                String
-  type                 YachtType   @default(monohull)
+  type                 YachtType @default(monohull)
   length               Float
   builtYear            Int
   cabins               Int
   heads                Int
-  basePrice            Decimal     @db.Decimal(12, 2)
+  basePrice            Decimal   @db.Decimal(12, 2)
   location             String
   fleet                String
   charterCompany       String
   currentExtraServices Json
 
-  imageUrl             String? 
+  imageUrl String?
 
   orgId String?
   org   Organization? @relation(fields: [orgId], references: [id])
+
+  managerLinks ManagerYacht[]
+
+  ownerLinks OwnerYacht[] @relation("OwnerYachtToYacht")
 
   ownerId   String?
   ownerName String?
@@ -68,13 +75,14 @@ model Yacht {
   extraServiceHistory ExtraServiceHistory[]
   competitorPrices    CompetitorPrice[]
   competitorSnapshots CompetitorSnapshot[]
-  pricingDecisions    PricingDecision[]   
+  pricingDecisions    PricingDecision[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  @@map("yachts")
+
   @@index([manufacturer, model])
   @@index([location])
+  @@map("yachts")
 }
 
 model Owner {
@@ -86,6 +94,7 @@ model Owner {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   @@map("owners")
 }
 
@@ -96,13 +105,14 @@ model WeekSlot {
 
   startDate       DateTime
   status          WeekSlotStatus
-  currentPrice    Decimal     @db.Decimal(12, 2)
-  currentDiscount Decimal     @db.Decimal(12, 2)
+  currentPrice    Decimal        @db.Decimal(12, 2)
+  currentDiscount Decimal        @db.Decimal(12, 2)
 
   priceHistory PriceHistory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   @@unique([yachtId, startDate])
   @@index([yachtId, startDate])
   @@map("week_slots")
@@ -113,13 +123,14 @@ model PriceHistory {
   weekSlot   WeekSlot @relation(fields: [weekSlotId], references: [id])
   weekSlotId String
 
-  date     DateTime     @default(now())
-  price    Decimal      @db.Decimal(12, 2)
-  discount Decimal      @db.Decimal(12, 2)
+  date     DateTime @default(now())
+  price    Decimal  @db.Decimal(12, 2)
+  discount Decimal  @db.Decimal(12, 2)
   authorId String?
   note     String?
 
   createdAt DateTime @default(now())
+
   @@map("price_history")
 }
 
@@ -130,11 +141,12 @@ model ExtraServiceHistory {
 
   date        DateTime @default(now())
   serviceName String
-  price       Decimal     @db.Decimal(12, 2)
+  price       Decimal  @db.Decimal(12, 2)
   note        String?
   authorId    String?
 
   createdAt DateTime @default(now())
+
   @@map("extra_service_history")
 }
 
@@ -164,55 +176,56 @@ enum JobStatus {
 }
 
 model CompetitorPrice {
-  id              String        @id @default(uuid())
-  yacht           Yacht?        @relation(fields: [yachtId], references: [id])
-  yachtId         String?
+  id      String  @id @default(uuid())
+  yacht   Yacht?  @relation(fields: [yachtId], references: [id])
+  yachtId String?
 
   // неделя чартерная (суббота)
-  weekStart       DateTime
-  source          ScrapeSource
- 
+  weekStart DateTime
+  source    ScrapeSource
+
   // кто и что: базовые поля
   competitorYacht String
-  price           Decimal       @db.Decimal(12, 2)
+  price           Decimal  @db.Decimal(12, 2)
   currency        String
   link            String
-  scrapedAt       DateTime      @default(now())
+  scrapedAt       DateTime @default(now())
   raw             Json?
 
   // 👇 новые полезные поля для Boataround
-  scrapeJob       ScrapeJob?    @relation(fields: [scrapeJobId], references: [id])
-  scrapeJobId     String?
+  scrapeJob   ScrapeJob? @relation(fields: [scrapeJobId], references: [id])
+  scrapeJobId String?
 
-  externalId      String?       // ID лодки у поставщика (если сможем достать)
-  year            Int?
-  cabins          Int?
-  heads           Int?
-  lengthFt        Float?        // удобнее сразу хранить в футах
-  marina          String?
-  discountPct     Decimal?     @db.Decimal(12, 2) // реальная скидка на итог против “прайса”
-  feesTotal       Decimal?     @db.Decimal(12, 2) // доп. сборы (чистка/турист.налог и т.п.), если считаем
+  externalId  String? // ID лодки у поставщика (если сможем достать)
+  year        Int?
+  cabins      Int?
+  heads       Int?
+  lengthFt    Float? // удобнее сразу хранить в футах
+  marina      String?
+  discountPct Decimal? @db.Decimal(12, 2) // реальная скидка на итог против “прайса”
+  feesTotal   Decimal? @db.Decimal(12, 2) // доп. сборы (чистка/турист.налог и т.п.), если считаем
 
-  @@index([weekStart, source])
-  @@index([yachtId, weekStart, source])
   // часто удобно дедуплицировать по ссылке + неделя + источник:
   @@unique([source, link, weekStart])
+  @@index([weekStart, source])
+  @@index([yachtId, weekStart, source])
   @@map("competitor_prices")
 }
 
 model ScrapeJob {
-  id          String      @id @default(uuid())
-  source      ScrapeSource
-  status      JobStatus
-  params      Json
-  createdAt   DateTime    @default(now())
-  startedAt   DateTime?
-  finishedAt  DateTime?
-  error       String?
+  id         String       @id @default(uuid())
+  source     ScrapeSource
+  status     JobStatus
+  params     Json
+  createdAt  DateTime     @default(now())
+  startedAt  DateTime?
+  finishedAt DateTime?
+  error      String?
 
   // 👇 связь к результатам
-  results     CompetitorPrice[]
-   @@map("scrape_jobs")
+  results CompetitorPrice[]
+
+  @@map("scrape_jobs")
 }
 
 enum DecisionStatus {
@@ -223,15 +236,15 @@ enum DecisionStatus {
 }
 
 model CompetitorSnapshot {
-  id          String       @id @default(uuid())
+  id String @id @default(uuid())
 
-  yacht       Yacht        @relation(fields: [yachtId], references: [id])
-  yachtId     String
+  yacht   Yacht  @relation(fields: [yachtId], references: [id])
+  yachtId String
 
   weekStart   DateTime
   source      ScrapeSource
-  top1Price   Decimal       @db.Decimal(12, 2)
-  top3Avg     Decimal       @db.Decimal(12, 2)
+  top1Price   Decimal      @db.Decimal(12, 2)
+  top3Avg     Decimal      @db.Decimal(12, 2)
   currency    String
   sampleSize  Int
   rawStats    Json?
@@ -246,7 +259,7 @@ model CompetitorSnapshot {
 model PricingDecision {
   id          String         @id @default(uuid())
   yachtId     String
-  yacht       Yacht?         @relation(fields: [yachtId], references: [id]) 
+  yacht       Yacht?         @relation(fields: [yachtId], references: [id])
   weekStart   DateTime
   basePrice   Decimal        @db.Decimal(12, 2)
   top1        Decimal?       @db.Decimal(12, 2)
@@ -260,11 +273,117 @@ model PricingDecision {
   notes       String?
   auditJson   Json?
 
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs PriceAuditLog[] @relation("DecisionAuditLogs")
 
   @@unique([yachtId, weekStart])
-  @@index([weekStart])  // 👈 быстрый доступ по неделе
-  @@index([status])     // 👈 быстрый доступ по статусу
+  @@index([weekStart]) // 👈 быстрый доступ по неделе
+  @@index([status]) // 👈 быстрый доступ по статусу
   @@map("pricing_decisions")
+}
+
+// --- RBAC: роли пользователей ---
+enum Role {
+  ADMIN
+  FLEET_MANAGER
+  MANAGER
+  OWNER
+}
+
+// --- Режимы владельца для конкретной яхты ---
+enum OwnerMode {
+  ACTIVE
+  VIEW_ONLY
+  HIDDEN
+}
+
+// --- Пользователь системы (идентификатор может быть clerkId/oidc sub) ---
+model User {
+  id    String  @id @default(cuid())
+  email String  @unique
+  name  String?
+  role  Role
+
+  // Организация по умолчанию (у тебя уже есть DEFAULT_ORG_SLUG=aquatoria)
+  orgId String?
+  org   Organization? @relation(fields: [orgId], references: [id])
+
+  // связи
+  managerLinks ManagerYacht[]
+  ownerLinks   OwnerYacht[]
+  auditLogs    PriceAuditLog[] @relation("AuditActor")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+// --- Привязка менеджера к яхте (кто «ведёт» конкретную яхту) ---
+model ManagerYacht {
+  id        String @id @default(cuid())
+  managerId String
+  yachtId   String
+
+  manager User  @relation(fields: [managerId], references: [id])
+  yacht   Yacht @relation(fields: [yachtId], references: [id])
+
+  @@unique([managerId, yachtId])
+  @@index([yachtId])
+  @@map("manager_yachts")
+}
+
+// --- Привязка владельца (user с ролью OWNER) к яхте + режим доступа ---
+model OwnerYacht {
+  id      String @id @default(cuid())
+  ownerId String
+  yachtId String
+
+  // Если хочешь строго ограничивать в пределах org
+  orgId String?
+  // 👇 даём имя связи между OwnerYacht ↔ Organization
+  org   Organization? @relation("OrgOwnerYachts", fields: [orgId], references: [id])
+
+  owner User @relation(fields: [ownerId], references: [id])
+
+  // 👇 даём имя связи между OwnerYacht ↔ Yacht
+  yacht Yacht @relation("OwnerYachtToYacht", fields: [yachtId], references: [id])
+
+  mode      OwnerMode @default(VIEW_ONLY)
+  allowEdit Boolean   @default(false)
+
+  @@unique([ownerId, yachtId])
+  @@index([yachtId])
+  @@map("owner_yachts")
+}
+
+// --- Аудит действий по workflow PricingDecision ---
+enum AuditAction {
+  SUBMIT
+  APPROVE
+  REJECT
+}
+
+model PriceAuditLog {
+  id String @id @default(cuid())
+
+  decisionId String
+
+  decision PricingDecision @relation("DecisionAuditLogs", fields: [decisionId], references: [id])
+
+  action     AuditAction
+  fromStatus DecisionStatus?
+  toStatus   DecisionStatus
+
+  actorId String?
+  actor   User?   @relation("AuditActor", fields: [actorId], references: [id])
+
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([decisionId])
+  @@index([actorId])
+  @@map("price_audit_logs")
 }
