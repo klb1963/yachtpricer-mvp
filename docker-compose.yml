@@ -81,7 +81,7 @@ services:
     networks:
       - yachtpricer-net
     ports:
-      - "127.0.0.1:5556:5555"  # слушаем ТОЛЬКО на localhost VPS
+      - "127.0.0.1:5557:5555"  # слушаем ТОЛЬКО на localhost VPS
 
 networks:
   yachtpricer-net:
