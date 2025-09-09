@@ -9,8 +9,11 @@ services:
       - workspace-backend-node_modules:/workspace/backend/node_modules
     working_dir: /workspace
     command: sleep infinity
-    environment:
-      VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-pk_test_dummy}
+    environment: {}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - yachtpricer-mvp_yachtpricer-net
 
   prisma-studio:
     image: node:20-alpine
@@ -27,12 +30,18 @@ services:
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/yachtpricer?schema=public
     volumes:
-      - /Users/leonidk/Developer/YachPricer/yachtpricer-mvp:/workspace:cached
+      - .:/workspace:cached 
     ports:
       - "5556:5555"
     depends_on:
       - db
+    networks:
+      - yachtpricer-mvp_yachtpricer-net
 
 volumes:
   workspace-frontend-node_modules:
   workspace-backend-node_modules:
+
+networks:
+  yachtpricer-mvp_yachtpricer-net:
+    external: true

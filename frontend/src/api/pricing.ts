@@ -46,7 +46,8 @@ type RawPricingRow = {
 };
 
 // 🔧 по умолчанию ходим через Vite-proxy (/api)
-const API = import.meta.env.VITE_API_URL ?? '/api';
+const API = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL ?? '/api');
+console.log('[API] base URL =', API);
 
 // безопасное приведение строковых чисел → number
 function num(x: unknown): number | null {

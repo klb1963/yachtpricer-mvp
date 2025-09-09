@@ -7,10 +7,18 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
+# Build outputs
 dist
 dist-ssr
-*.local
+.vite
+
+# Dependencies
+node_modules
+
+# Env files (оставляем .env и .env.production в git)
+.env.local
+.env.*.local
+.env.development
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +30,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Lockfiles (оставь только тот, что реально используешь)
+yarn.lock
+pnpm-lock.yaml
