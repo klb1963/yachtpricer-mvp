@@ -1,9 +1,9 @@
 services:
   frontend:
+    profiles: ["local-docker-frontend"]
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
@@ -62,6 +62,7 @@ services:
       - yachtpricer-net
 
   prisma-studio:
+    profiles: ["tools"]
     image: node:20-alpine
     working_dir: /workspace/backend
     command: >
