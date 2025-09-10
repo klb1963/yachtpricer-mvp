@@ -1,8 +1,11 @@
+// /frontend/src/pages/DashboardPage.tsx
+
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Yacht, YachtListParams, YachtListResponse } from '../api';
 import { listYachts } from '../api';
 import YachtCard from '../components/YachtCard';
+import type { YachtType } from '../types/yacht';
 
 // API скрапера и типы
 import {
@@ -16,11 +19,11 @@ import { weekIso } from '../utils/date';
 
 // Значения value должны совпадать с тем, как хранится в БД (см. backend)
 const TYPE_OPTIONS = [
-  { value: '',              label: 'Any type' },
-  { value: 'Sailing yacht', label: 'Monohull' },
-  { value: 'Catamaran',     label: 'Catamaran' },
-  { value: 'Trimaran',      label: 'Trimaran' },
-  { value: 'Compromis',     label: 'Compromis' },
+  { value: '',           label: 'Any type' },
+  { value: 'monohull',   label: 'Monohull' },
+  { value: 'catamaran',  label: 'Catamaran' },
+  { value: 'trimaran',   label: 'Trimaran' },
+  { value: 'compromis',  label: 'Compromis' },
 ] as const;
 
 const SORT_OPTIONS = [
@@ -61,7 +64,7 @@ export default function DashboardPage() {
 
   // фильтры/сортировка/пагинация
   const [q, setQ] = useState('');
-  const [type, setType] = useState<string>('');
+  const [type, setType] = useState<YachtType | ''>('');
   const [minYear, setMinYear] = useState<string>('');
   const [maxYear, setMaxYear] = useState<string>('');
   const [minPrice, setMinPrice] = useState<string>('');
@@ -243,7 +246,9 @@ export default function DashboardPage() {
         <select
           className="rounded border p-2"
           value={type}
-          onChange={(e) => setType(e.target.value)}
+          onChange={(e) =>
+            setType((e.target.value as YachtType) || '')
+          }
         >
           {TYPE_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
