@@ -6,6 +6,8 @@ import type { Yacht, YachtListParams, YachtListResponse } from '../api';
 import { listYachts } from '../api';
 import YachtCard from '../components/YachtCard';
 import type { YachtType } from '../types/yacht';
+import { weekIso } from '../utils/date';
+import WeekPicker from '../components/WeekPicker';
 
 // API скрапера и типы
 import {
@@ -15,7 +17,6 @@ import {
   listCompetitorPrices,
 } from '../api';
 import type { CompetitorPrice } from '../api';
-import { weekIso } from '../utils/date';
 
 // Значения value должны совпадать с тем, как хранится в БД (см. backend)
 const TYPE_OPTIONS = [
@@ -61,6 +62,7 @@ const useViewMode = () => {
 export default function DashboardPage() {
   const { view, setView } = useViewMode();
   const location = useLocation();
+  const [weekStart, setWeekStart] = useState<string>(weekIso());
 
   // фильтры/сортировка/пагинация
   const [q, setQ] = useState('');
@@ -145,7 +147,8 @@ export default function DashboardPage() {
   async function handleScan(y: Yacht) {
     try {
       setBusyId(y.id);
-      const week = weekIso(); // суббота этой недели (UTC, как на бэке)
+      // Берём выбранную неделю из WeekPicker (UTC ISO yyyy-mm-dd)
+      const week = weekStart;
 
       // 1) старт мок-скрапера
       const { jobId } = await startScrape({ yachtId: y.id, weekStart: week, source: 'BOATAROUND' });
@@ -184,7 +187,10 @@ export default function DashboardPage() {
   return (
     <div className="mx-auto max-w-7xl p-6">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold">Boats</h1>
+        <div className="mb-4">
+          <h1 className="text-3xl font-bold mb-2">Boats</h1>
+          <WeekPicker value={weekStart} onChange={setWeekStart} />
+        </div>
 
         {/* Переключатель вида */}
         <div className="flex items-center gap-2">
@@ -219,7 +225,9 @@ export default function DashboardPage() {
           >
             + Add
           </Link>
+
         </div>
+        
       </div>
 
       {/* Фильтры */}
