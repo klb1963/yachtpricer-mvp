@@ -1,6 +1,5 @@
 services:
   frontend:
-    profiles: ["local-docker-frontend"]
     build:
       context: ./frontend
       dockerfile: Dockerfile
