@@ -97,6 +97,7 @@ export default function DashboardPage() {
     [q, type, minYear, maxYear, minPrice, maxPrice, sort, page, pageSize],
   );
 
+  // загрузка списка яхт
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -118,6 +119,13 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, [params]);
+
+  // сброс цен/агрегатов при смене недели
+  useEffect(() => {
+    setAggByYacht({});
+    setRawByYacht({});
+    setRowsOpen({});
+  }, [weekStart]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const goPrev = () => setPage((p) => Math.max(1, p - 1));
@@ -148,7 +156,7 @@ export default function DashboardPage() {
     try {
       setBusyId(y.id);
       // Берём выбранную неделю из WeekPicker (UTC ISO yyyy-mm-dd)
-      const week = weekStart;
+      const week = weekStart || new Date().toISOString().slice(0,10); // YYYY-MM-DD
 
       // 1) старт мок-скрапера
       const { jobId } = await startScrape({ yachtId: y.id, weekStart: week, source: 'BOATAROUND' });
@@ -186,34 +194,34 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl p-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
+
+      <div className="mb-4">
+        {/* Заголовок и неделя */}
         <div className="mb-4">
           <h1 className="text-3xl font-bold mb-2">Boats</h1>
           <WeekPicker value={weekStart} onChange={setWeekStart} />
         </div>
 
-        {/* Переключатель вида */}
+        {/* Переключатель вида + кнопка Add */}
         <div className="flex items-center gap-2">
           <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">
             <button
               type="button"
               onClick={() => setView('table')}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                view === 'table'
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === 'table'
                   ? 'bg-gray-900 text-white'
                   : '!text-gray-800 hover:bg-gray-100'
-              }`}
+                }`}
             >
               Table
             </button>
             <button
               type="button"
               onClick={() => setView('cards')}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                view === 'cards'
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === 'cards'
                   ? 'bg-gray-900 text-white'
                   : '!text-gray-800 hover:bg-gray-100'
-              }`}
+                }`}
             >
               Cards
             </button>
@@ -225,9 +233,7 @@ export default function DashboardPage() {
           >
             + Add
           </Link>
-
         </div>
-        
       </div>
 
       {/* Фильтры */}
