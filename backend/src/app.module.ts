@@ -9,6 +9,7 @@ import { PricingModule } from './pricing/pricing.module';
 import { ScraperModule } from './scraper/scraper.module';
 import { NausysModule } from './integrations/nausys/nausys.module';
 import { OrgModule } from './org/org.module';
+import { PricingDecisionsModule } from './pricing-decisions/pricing-decisions.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { OrgModule } from './org/org.module';
     PricingModule,
     NausysModule,
     OrgModule,
+    PricingDecisionsModule
   ],
   controllers: [AppController, YachtsController],
   providers: [AppService],

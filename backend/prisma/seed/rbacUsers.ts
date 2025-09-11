@@ -56,7 +56,7 @@ export async function seedRbacUsers() {
       length: 46.1,
       builtYear: 2020,
       cabins: 4,
-      heads: 2,
+      heads: 4,
       basePrice: new Prisma.Decimal('2500.00'),
       location: 'Athens',
       fleet: 'Aquatoria',

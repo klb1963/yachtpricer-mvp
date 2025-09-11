@@ -1,20 +1,19 @@
 // backend/tsconfig.build.json
-
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "noEmit": false,
-    "declaration": false
+    "declaration": false,
+    "noEmit": false
   },
   "include": ["src/**/*.ts"],
   "exclude": [
     "node_modules",
-    "test",
     "dist",
+    "test",
     "**/*.spec.ts",
-    "prisma/migrations",
+    "prisma/migrations/**",
     "prisma/seed.ts"
   ]
 }
