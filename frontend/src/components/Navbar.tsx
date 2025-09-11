@@ -6,7 +6,7 @@ export default function Navbar() {
     <nav className="flex justify-between items-center px-4 py-2 bg-blue-500 sticky top-0 z-10">
       {/* Brand */}
       <Link to="/" className="font-bold text-lg text-white no-underline">
-        ⛵ YachtPricer
+        ⛵ YP
       </Link>
 
       {/* Nav links */}
