@@ -1,5 +1,4 @@
 // backend/tsconfig.build.json
-
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
@@ -7,10 +6,17 @@
     "rootDir": "./src",
     "declaration": false,
     "noEmit": false,
-    "typeRoots": ["./src/types", "./node_modules/@types"]
-
+    "typeRoots": [
+      "./src/types",
+      "./node_modules/@types"
+    ],
+    "include": [
+      "src/**/*.ts"
+    ]
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
   "exclude": [
     "node_modules",
     "dist",

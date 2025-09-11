@@ -1,19 +1,24 @@
 // backend/src/users/users.controller.ts
+
 import { Controller, Get, Patch, Body, Query, UseGuards } from '@nestjs/common';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrgAdminGuard } from '../auth/org-admin.guard';
-import { Role, Prisma } from '@prisma/client';
+import { IsEnum, IsString } from 'class-validator';
 
 class UpdateUserRoleDto {
-  userId!: string;
-  role!: Role;
+  @IsString() userId!: string;
+  @IsEnum(Role) role!: Role;
 }
 
 @UseGuards(OrgAdminGuard)
 @Controller('users')
 export class UsersController {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {
+    console.log('✅ UsersController mounted at /users');
+  }
 
+  // GET /api/users?orgId=&q=&page=1&limit=20
   @Get()
   async list(
     @Query('orgId') orgId?: string,
@@ -24,13 +29,13 @@ export class UsersController {
     const p = Math.max(1, Number(page) || 1);
     const l = Math.min(100, Math.max(1, Number(limit) || 20));
 
-    // ✅ строгая типизация вместо any
     const where: Prisma.UserWhereInput = {};
     if (orgId) where.orgId = orgId;
-    if (q) {
+    if (q?.trim()) {
+      const s = q.trim();
       where.OR = [
-        { email: { contains: q, mode: 'insensitive' } },
-        { name: { contains: q, mode: 'insensitive' } },
+        { email: { contains: s, mode: 'insensitive' } },
+        { name: { contains: s, mode: 'insensitive' } },
       ];
     }
 
@@ -55,6 +60,7 @@ export class UsersController {
     return { items, total, page: p, limit: l };
   }
 
+  // PATCH /api/users/role
   @Patch('role')
   async updateRole(@Body() dto: UpdateUserRoleDto) {
     return this.prisma.user.update({

@@ -1,5 +1,10 @@
 // backend/src/app.module.ts
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import {
+  Module,
+  NestModule,
+  MiddlewareConsumer,
+  RequestMethod,
+} from '@nestjs/common';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -34,6 +39,8 @@ import { UsersModule } from './users/users.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(HeaderAuthMiddleware, OrgScopeMiddleware).forRoutes('*');
+    consumer
+      .apply(HeaderAuthMiddleware, OrgScopeMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }
