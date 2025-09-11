@@ -1,13 +1,8 @@
-// /frontend/src/pages/DashboardPage.tsx
-
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Yacht, YachtListParams, YachtListResponse } from '../api';
 import { listYachts } from '../api';
 import YachtCard from '../components/YachtCard';
-import type { YachtType } from '../types/yacht';
-import { weekIso } from '../utils/date';
-import WeekPicker from '../components/WeekPicker';
 
 // API скрапера и типы
 import {
@@ -17,14 +12,15 @@ import {
   listCompetitorPrices,
 } from '../api';
 import type { CompetitorPrice } from '../api';
+import { weekIso } from '../utils/date';
 
 // Значения value должны совпадать с тем, как хранится в БД (см. backend)
 const TYPE_OPTIONS = [
-  { value: '',           label: 'Any type' },
-  { value: 'monohull',   label: 'Monohull' },
-  { value: 'catamaran',  label: 'Catamaran' },
-  { value: 'trimaran',   label: 'Trimaran' },
-  { value: 'compromis',  label: 'Compromis' },
+  { value: '',              label: 'Any type' },
+  { value: 'Sailing yacht', label: 'Monohull' },
+  { value: 'Catamaran',     label: 'Catamaran' },
+  { value: 'Trimaran',      label: 'Trimaran' },
+  { value: 'Compromis',     label: 'Compromis' },
 ] as const;
 
 const SORT_OPTIONS = [
@@ -62,11 +58,10 @@ const useViewMode = () => {
 export default function DashboardPage() {
   const { view, setView } = useViewMode();
   const location = useLocation();
-  const [weekStart, setWeekStart] = useState<string>(weekIso());
 
   // фильтры/сортировка/пагинация
   const [q, setQ] = useState('');
-  const [type, setType] = useState<YachtType | ''>('');
+  const [type, setType] = useState<string>('');
   const [minYear, setMinYear] = useState<string>('');
   const [maxYear, setMaxYear] = useState<string>('');
   const [minPrice, setMinPrice] = useState<string>('');
@@ -97,7 +92,6 @@ export default function DashboardPage() {
     [q, type, minYear, maxYear, minPrice, maxPrice, sort, page, pageSize],
   );
 
-  // загрузка списка яхт
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -119,13 +113,6 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, [params]);
-
-  // сброс цен/агрегатов при смене недели
-  useEffect(() => {
-    setAggByYacht({});
-    setRawByYacht({});
-    setRowsOpen({});
-  }, [weekStart]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const goPrev = () => setPage((p) => Math.max(1, p - 1));
@@ -155,8 +142,7 @@ export default function DashboardPage() {
   async function handleScan(y: Yacht) {
     try {
       setBusyId(y.id);
-      // Берём выбранную неделю из WeekPicker (UTC ISO yyyy-mm-dd)
-      const week = weekStart || new Date().toISOString().slice(0,10); // YYYY-MM-DD
+      const week = weekIso(); // суббота этой недели (UTC, как на бэке)
 
       // 1) старт мок-скрапера
       const { jobId } = await startScrape({ yachtId: y.id, weekStart: week, source: 'BOATAROUND' });
@@ -194,34 +180,31 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl p-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h1 className="text-3xl font-bold">Boats</h1>
 
-      <div className="mb-4">
-        {/* Заголовок и неделя */}
-        <div className="mb-4">
-          <h1 className="text-3xl font-bold mb-2">Boats</h1>
-          <WeekPicker value={weekStart} onChange={setWeekStart} />
-        </div>
-
-        {/* Переключатель вида + кнопка Add */}
+        {/* Переключатель вида */}
         <div className="flex items-center gap-2">
           <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">
             <button
               type="button"
               onClick={() => setView('table')}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === 'table'
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                view === 'table'
                   ? 'bg-gray-900 text-white'
                   : '!text-gray-800 hover:bg-gray-100'
-                }`}
+              }`}
             >
               Table
             </button>
             <button
               type="button"
               onClick={() => setView('cards')}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === 'cards'
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                view === 'cards'
                   ? 'bg-gray-900 text-white'
                   : '!text-gray-800 hover:bg-gray-100'
-                }`}
+              }`}
             >
               Cards
             </button>
@@ -260,9 +243,7 @@ export default function DashboardPage() {
         <select
           className="rounded border p-2"
           value={type}
-          onChange={(e) =>
-            setType((e.target.value as YachtType) || '')
-          }
+          onChange={(e) => setType(e.target.value)}
         >
           {TYPE_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>

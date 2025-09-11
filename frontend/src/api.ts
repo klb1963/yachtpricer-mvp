@@ -42,8 +42,7 @@ export type YachtListResponse = {
 };
 
 // ---- HTTP helpers ----
-const API = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL ?? '/api');
-console.log('[API] base URL =', API);
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 // список с фильтрами/пагинацией (совместимо с новым бекэндом)
 export async function listYachts(params: YachtListParams): Promise<YachtListResponse> {
