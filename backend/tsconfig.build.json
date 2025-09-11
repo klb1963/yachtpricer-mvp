@@ -1,11 +1,14 @@
 // backend/tsconfig.build.json
+
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
     "declaration": false,
-    "noEmit": false
+    "noEmit": false,
+    "typeRoots": ["./src/types", "./node_modules/@types"]
+
   },
   "include": ["src/**/*.ts"],
   "exclude": [

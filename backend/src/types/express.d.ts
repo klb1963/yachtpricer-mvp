@@ -1,18 +1,26 @@
+// backend/src/types/express.d.ts
 import 'express';
-
-type OrgRole = 'ADMIN' | 'FLEET_MANAGER' | 'OWNER' | 'MANAGER';
+import type { User, Role, OwnerMode } from '@prisma/client';
 
 export interface OrgMembership {
-  role: OrgRole;
+  role: Role; // Prisma enum
   orgId: string;
   userId: string;
 }
 
 declare module 'express-serve-static-core' {
   interface Request {
-    orgId?: string;
+    /** Организация из заголовков X-Org-Id / X-Org-Slug */
+    orgId?: string | null;
+
+    /** Необязательно, если используешь отдельные membership-и */
     membership?: OrgMembership;
-    user?: { id: string; email?: string; role?: OrgRole }; // подправь под свой auth
+
+    /**
+     * Пользователь из базы (ставится HeaderAuthMiddleware).
+     * Может быть null, если заголовка X-User-Email нет или юзер не найден.
+     */
+    user?: (User & { ownerMode?: OwnerMode | null }) | null;
   }
 }
 

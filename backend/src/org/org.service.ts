@@ -9,14 +9,19 @@ export class OrgService {
 
   // Получить организацию по id (404 если нет)
   async get(orgId: string) {
-    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+    });
     if (!org) throw new NotFoundException('Organization not found');
     return org;
   }
 
   // НУЖНЫЙ МЕТОД: вернуть id по slug (или null)
   async findIdBySlug(slug: string): Promise<string | null> {
-    const org = await this.prisma.organization.findUnique({ where: { slug } });
+    const org = await this.prisma.organization.findUnique({
+      where: { slug },
+      select: { id: true }, // 👉 сузили выборку, теперь TS знает что это {id: string} | null
+    });
     return org?.id ?? null;
   }
 

@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
 import { PrismaService } from './prisma/prisma.service';
+import './types/express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
