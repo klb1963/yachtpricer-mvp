@@ -16,6 +16,8 @@ import { OrgModule } from './org/org.module';
 import { OrgScopeMiddleware } from './org/org-scope.middleware';
 import { HeaderAuthMiddleware } from './auth/header-auth.middleware';
 
+import { UsersModule } from './users/users.module';
+
 @Module({
   imports: [
     PrismaModule,
@@ -25,6 +27,7 @@ import { HeaderAuthMiddleware } from './auth/header-auth.middleware';
     PricingDecisionsModule,
     OrgModule,
     AuthModule,
+    UsersModule,
   ],
   controllers: [AppController, YachtsController],
   providers: [AppService],
