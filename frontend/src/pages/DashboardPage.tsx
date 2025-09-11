@@ -97,6 +97,7 @@ export default function DashboardPage() {
     [q, type, minYear, maxYear, minPrice, maxPrice, sort, page, pageSize],
   );
 
+  // загрузка списка яхт
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -118,6 +119,13 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, [params]);
+
+  // cброс цен/агрегатов при смене недели
+  useEffect(() => {
+    setAggByYacht({});
+    setRawByYacht({});
+    setRowsOpen({});
+  }, [weekStart]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const goPrev = () => setPage((p) => Math.max(1, p - 1));
@@ -148,7 +156,7 @@ export default function DashboardPage() {
     try {
       setBusyId(y.id);
       // Берём выбранную неделю из WeekPicker (UTC ISO yyyy-mm-dd)
-      const week = weekStart;
+      const week = weekStart || new Date().toISOString().slice(0,10); // YYYY-MM-DD
 
       // 1) старт мок-скрапера
       const { jobId } = await startScrape({ yachtId: y.id, weekStart: week, source: 'BOATAROUND' });
