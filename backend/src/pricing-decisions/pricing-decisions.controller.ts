@@ -27,7 +27,9 @@ export class PricingDecisionsController {
   // Возвращает решение + флаги can*
   @Get(':id/with-perms')
   async withPerms(@Param('id') id: string, @Query('actorId') actorId: string) {
-    const decision = await this.prisma.pricingDecision.findUnique({ where: { id } });
+    const decision = await this.prisma.pricingDecision.findUnique({
+      where: { id },
+    });
     if (!decision) throw new NotFoundException('Decision not found');
 
     const actor = await this.prisma.user.findUnique({ where: { id: actorId } });
@@ -47,10 +49,14 @@ export class PricingDecisionsController {
 
   @Post(':id/submit')
   async submit(@Param('id') id: string, @Body() body: ActorDto) {
-    const decision = await this.prisma.pricingDecision.findUnique({ where: { id } });
+    const decision = await this.prisma.pricingDecision.findUnique({
+      where: { id },
+    });
     if (!decision) throw new NotFoundException('Decision not found');
 
-    const actor = await this.prisma.user.findUnique({ where: { id: body.actorId } });
+    const actor = await this.prisma.user.findUnique({
+      where: { id: body.actorId },
+    });
     if (!actor) throw new NotFoundException('Actor not found');
 
     const ctx = await this.accessCtx.build(actor, decision.yachtId);
@@ -84,14 +90,19 @@ export class PricingDecisionsController {
 
   @Post(':id/approve')
   async approve(@Param('id') id: string, @Body() body: ActorDto) {
-    const decision = await this.prisma.pricingDecision.findUnique({ where: { id } });
+    const decision = await this.prisma.pricingDecision.findUnique({
+      where: { id },
+    });
     if (!decision) throw new NotFoundException('Decision not found');
 
-    const actor = await this.prisma.user.findUnique({ where: { id: body.actorId } });
+    const actor = await this.prisma.user.findUnique({
+      where: { id: body.actorId },
+    });
     if (!actor) throw new NotFoundException('Actor not found');
 
     const ctx = await this.accessCtx.build(actor, decision.yachtId);
-    if (!canApproveOrReject(actor, decision, ctx)) throw new ForbiddenException();
+    if (!canApproveOrReject(actor, decision, ctx))
+      throw new ForbiddenException();
 
     const status = asDecisionStatus(decision.status);
     if (status !== DecisionStatus.SUBMITTED) {
@@ -129,14 +140,19 @@ export class PricingDecisionsController {
       throw new ForbiddenException('Reject requires a comment');
     }
 
-    const decision = await this.prisma.pricingDecision.findUnique({ where: { id } });
+    const decision = await this.prisma.pricingDecision.findUnique({
+      where: { id },
+    });
     if (!decision) throw new NotFoundException('Decision not found');
 
-    const actor = await this.prisma.user.findUnique({ where: { id: body.actorId } });
+    const actor = await this.prisma.user.findUnique({
+      where: { id: body.actorId },
+    });
     if (!actor) throw new NotFoundException('Actor not found');
 
     const ctx = await this.accessCtx.build(actor, decision.yachtId);
-    if (!canApproveOrReject(actor, decision, ctx)) throw new ForbiddenException();
+    if (!canApproveOrReject(actor, decision, ctx))
+      throw new ForbiddenException();
 
     const status = asDecisionStatus(decision.status);
     if (status !== DecisionStatus.SUBMITTED) {

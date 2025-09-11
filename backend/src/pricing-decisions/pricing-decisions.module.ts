@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
 import { PricingDecisionsController } from './pricing-decisions.controller';
+import { PrismaModule } from 'src/prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [AuthModule], // PrismaModule глобальный
+  imports: [PrismaModule, AuthModule], // PrismaModule глобальный
   controllers: [PricingDecisionsController],
 })
 export class PricingDecisionsModule {}

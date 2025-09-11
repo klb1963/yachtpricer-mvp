@@ -3,7 +3,6 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { OrgService } from './org.service';
-import '../types/express';
 
 /**
  * Читает X-Org-Id или X-Org-Slug и выставляет req.orgId

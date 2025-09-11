@@ -29,25 +29,6 @@ const toNum = (v: unknown): number | undefined => {
 };
 const clamp = (n: number, a: number, b: number) => Math.min(Math.max(n, a), b);
 
-/** Хелпер для конвертации строки в enum YachtType */
-function parseYachtType(s?: string): YachtType | undefined {
-  if (!s) return undefined;
-  switch (s.toLowerCase()) {
-    case 'monohull':
-    case 'sailing':
-    case 'sail':
-      return YachtType.monohull;
-    case 'catamaran':
-      return YachtType.catamaran;
-    case 'trimaran':
-      return YachtType.trimaran;
-    case 'compromis':
-      return YachtType.compromis;
-    default:
-      return undefined;
-  }
-}
-
 @Controller('yachts')
 export class YachtsController {
   // -------- list --------
@@ -69,7 +50,7 @@ export class YachtsController {
     // 1) Параметры
     const q = (query.q ?? '').trim();
 
-    const typeEnum = parseYachtType(query.type); // YachtType | undefined
+    const typeEnum = query.type as YachtType | undefined;
 
     const minYear = toInt(query.minYear);
     const maxYear = toInt(query.maxYear);
@@ -137,7 +118,7 @@ export class YachtsController {
 
     // 4) total + items (одной транзакцией)
     const [total, items] = await prisma.$transaction([
-      prisma.yacht.count({ where }),
+      prisma.yacht.count({ where }), // count() возвращает число, без select
       prisma.yacht.findMany({ where, orderBy, skip, take }),
     ]);
 
@@ -236,7 +217,7 @@ export class YachtsController {
       name: this.reqStr(body, 'name'),
       manufacturer: this.reqStr(body, 'manufacturer'),
       model: this.reqStr(body, 'model'),
-      type: parseYachtType(this.reqStr(body, 'type')) ?? YachtType.monohull,
+      type: this.reqStr(body, 'type') as YachtType,
       location: this.reqStr(body, 'location'),
       fleet: this.reqStr(body, 'fleet'),
       charterCompany: this.reqStr(body, 'charterCompany'),
@@ -288,7 +269,10 @@ export class YachtsController {
       name: asStr('name'),
       manufacturer: asStr('manufacturer'),
       model: asStr('model'),
-      type: parseYachtType(asStr('type')),
+      type: (() => {
+        const s = asStr('type');
+        return s ? (s as YachtType) : undefined;
+      })(),
       location: asStr('location'),
       fleet: asStr('fleet'),
       charterCompany: asStr('charterCompany'),
