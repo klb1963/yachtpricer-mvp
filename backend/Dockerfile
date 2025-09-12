@@ -5,7 +5,10 @@
     
     # ---------- deps (все зависимости, включая dev) ----------
     FROM base AS deps
-    COPY package*.json ./
+    WORKDIR /app
+    # ВАЖНО: копируем отдельными строками, чтобы кэш корректно инвалидировался
+    COPY package.json ./
+    COPY package-lock.json ./
     RUN npm ci
     
     # ---------- build ----------
