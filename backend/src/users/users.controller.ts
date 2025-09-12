@@ -45,13 +45,8 @@ export class UsersController {
         orderBy: { createdAt: 'desc' },
         skip: (p - 1) * l,
         take: l,
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          orgId: true,
-          createdAt: true,
+        include: {
+          org: { select: { slug: true } }, // 👈 добавляем slug
         },
       }),
       this.prisma.user.count({ where }),

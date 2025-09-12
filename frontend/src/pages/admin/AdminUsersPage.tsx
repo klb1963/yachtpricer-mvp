@@ -10,6 +10,7 @@ type UserRow = {
   name: string | null;
   role: Role;
   orgId: string | null;
+  org?: { slug: string }; 
   createdAt?: string;
 };
 
@@ -24,7 +25,12 @@ export default function AdminUsersPage() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [data, setData] = useState<ListResp>({ items: [], total: 0, page: 1, limit: 10 });
+  const [data, setData] = useState<ListResp>({
+    items: [],
+    total: 0,
+    page: 1,
+    limit: 10,
+  });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -40,23 +46,30 @@ export default function AdminUsersPage() {
     setLoading(true);
     setErr(null);
     try {
-      const res = await fetch(`/api/users?${params}`, { headers: buildHeaders() });
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const json = (await res.json()) as ListResp;
-          setData(json);
-      } catch (e: unknown) {
-          if (e instanceof Error) {
-              setErr(e.message);
-          } else {
-              setErr("Failed to load users");
-          }
+      const url = `/api/users?${params}`;
+      const headers = buildHeaders();
+      // диагностика — можно убрать, когда все ок
+      console.log("AdminUsersPage.load ->", url, headers);
+
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status} ${res.statusText}: ${text}`);
       }
-    };
+      const json = (await res.json()) as ListResp;
+      setData(json);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed to load users");
+      setData((d) => ({ ...d, items: [] })); // очистим список при ошибке
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params]); // перезагружать при изменении фильтров/страницы
+  }, [params]);
 
   const changeRole = async (userId: string, role: Role) => {
     try {
@@ -90,7 +103,10 @@ export default function AdminUsersPage() {
           Apply
         </button>
         <button
-          onClick={() => { setQ(""); setPage(1); }}
+          onClick={() => {
+            setQ("");
+            setPage(1);
+          }}
           className="px-4 py-2 rounded bg-gray-200"
         >
           Reset
@@ -100,15 +116,23 @@ export default function AdminUsersPage() {
           <span className="text-sm text-gray-600">Rows:</span>
           <select
             value={limit}
-            onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+            onChange={(e) => {
+              setLimit(Number(e.target.value));
+              setPage(1);
+            }}
             className="border px-2 py-1 rounded"
           >
-            {[10, 20, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
+            {[10, 20, 50, 100].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
           </select>
         </div>
       </div>
 
-      {err && <div className="text-red-600 mb-2">{err}</div>}
+      {err && <div className="text-red-600 mb-2">Error: {err}</div>}
+
       {loading ? (
         <div className="text-gray-500">Loading…</div>
       ) : (
@@ -129,22 +153,28 @@ export default function AdminUsersPage() {
                   <td className="p-2">{u.email}</td>
                   <td className="p-2">{u.name ?? "—"}</td>
                   <td className="p-2">{u.role}</td>
-                  <td className="p-2">{u.orgId ?? "—"}</td>
+                  <td className="p-2">{u.org?.slug ?? "—"}</td>
                   <td className="p-2">
                     <select
                       defaultValue={u.role}
                       onChange={(e) => changeRole(u.id, e.target.value as Role)}
                       className="border px-2 py-1 rounded"
                     >
-                      {(["ADMIN","FLEET_MANAGER","MANAGER","OWNER"] as Role[]).map((r) =>
-                        <option key={r} value={r}>{r}</option>
-                      )}
+                      {(["ADMIN", "FLEET_MANAGER", "MANAGER", "OWNER"] as Role[]).map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
                     </select>
                   </td>
                 </tr>
               ))}
               {data.items.length === 0 && (
-                <tr><td className="p-4 text-center text-gray-500" colSpan={5}>No users</td></tr>
+                <tr>
+                  <td className="p-4 text-center text-gray-500" colSpan={5}>
+                    No users
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
