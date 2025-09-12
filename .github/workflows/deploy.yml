@@ -49,17 +49,35 @@ jobs:
 
             # Используем ТОЛЬКО базовый compose-файл
             docker compose -f docker-compose.yml down --remove-orphans || true
+
+            # Подтянуть свежие образы из registry (если используются image: теги)
             docker compose -f docker-compose.yml pull || true
-            docker compose -f docker-compose.yml up -d --build --remove-orphans
+
+            # Полная сборка без использования старых базовых образов и с подробными логами
+            docker compose -f docker-compose.yml build --pull --progress=plain
+
+            # Запуск
+            docker compose -f docker-compose.yml up -d --remove-orphans
 
             # Ждём, пока backend станет здоров
+            ok=""
             for i in $(seq 1 30); do
               if curl -fsS http://localhost:8000/api/health >/dev/null; then
                 echo "Backend is healthy."
+                ok="yes"
                 break
               fi
               echo "Waiting for backend... ($i/30)"
               sleep 2
             done
 
+            if [ -z "$ok" ]; then
+              echo "Backend failed to become healthy. Recent logs:"
+              docker compose -f docker-compose.yml logs backend --tail=200
+              exit 1
+            fi
+
             docker compose -f docker-compose.yml ps
+
+            # Опционально: чистка подвисших/неиспользуемых слоёв
+            docker image prune -f || true
