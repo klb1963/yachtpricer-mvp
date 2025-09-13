@@ -1,6 +1,8 @@
-// /frontend/src/pages/OrganizationPage.tsx
-
+// frontend/src/pages/OrganizationPage.tsx
 import { useEffect, useMemo, useState } from "react";
+import type React from "react";
+import { api } from "@/api";
+import { useWhoami } from "@/hooks/useWhoami";
 
 type Org = {
   id: string;
@@ -23,6 +25,9 @@ function getErrorMessage(err: unknown): string {
 }
 
 export default function OrganizationPage() {
+  const { whoami } = useWhoami();
+  const isAdmin = useMemo(() => (whoami?.role ?? "") === "ADMIN", [whoami?.role]);
+
   const [org, setOrg] = useState<Org | null>(null);
   const [form, setForm] = useState<Partial<Org>>({});
   const [loading, setLoading] = useState(true);
@@ -30,19 +35,12 @@ export default function OrganizationPage() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  // ⚠️ Временная логика "кто Admin" (замени на свою /api/me, когда подключишь роли)
-  const isAdmin = useMemo(() => {
-    const role = window.localStorage.getItem("role") || "ADMIN"; // <-- пока по-умолчанию ADMIN
-    return role.toUpperCase() === "ADMIN";
-  }, []);
-
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
-        const r = await fetch("/api/org");
-        if (!r.ok) throw new Error(await r.text());
-        const data: Org = await r.json();
+        // ✅ axios вместо fetch — токен подставит интерсептор
+        const { data } = await api.get<Org>("/org");
         setOrg(data);
         setForm({
           name: data.name,
@@ -51,7 +49,7 @@ export default function OrganizationPage() {
           contactEmail: data.contactEmail || "",
           websiteUrl: data.websiteUrl || "",
         });
-      } catch (e: unknown) {
+      } catch (e) {
         setError(getErrorMessage(e) || "Failed to load organization");
       } finally {
         setLoading(false);
@@ -60,7 +58,8 @@ export default function OrganizationPage() {
   }, []);
 
   const onChange =
-    (k: keyof Org) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    (k: keyof Org) =>
+    (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm((p) => ({ ...p, [k]: e.target.value }));
 
   const onSave = async () => {
@@ -68,16 +67,11 @@ export default function OrganizationPage() {
     setSaved(false);
     setError(null);
     try {
-      const r = await fetch("/api/org", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      if (!r.ok) throw new Error(await r.text());
-      const data: Org = await r.json();
+      // ✅ axios PATCH
+      const { data } = await api.patch<Org>("/org", form);
       setOrg(data);
       setSaved(true);
-    } catch (e: unknown) {
+    } catch (e) {
       setError(getErrorMessage(e) || "Save failed");
     } finally {
       setSaving(false);
@@ -94,13 +88,9 @@ export default function OrganizationPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Organization</h1>
         {!isAdmin ? (
-          <span className="text-xs rounded px-2 py-1 bg-gray-100">
-            read-only
-          </span>
+          <span className="text-xs rounded px-2 py-1 bg-gray-100">read-only</span>
         ) : saved ? (
-          <span className="text-xs rounded px-2 py-1 bg-green-100">
-            Saved
-          </span>
+          <span className="text-xs rounded px-2 py-1 bg-green-100">Saved</span>
         ) : null}
       </div>
 

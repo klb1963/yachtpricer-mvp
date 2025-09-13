@@ -1,6 +1,7 @@
+// frontend/src/components/Navbar.tsx
 import { UserButton } from "@clerk/clerk-react";
 import { Link, NavLink } from "react-router-dom";
-import { useWhoami } from "../hooks/useWhoami";
+import { useWhoami } from "@/hooks/useWhoami"; // ← алиас @
 
 export default function Navbar() {
   const { whoami, loading } = useWhoami();
@@ -32,12 +33,17 @@ export default function Navbar() {
           </NavLink>
         ))}
 
-        {/* 👇 условная ссылка для ADMIN */}
-        {!loading && whoami?.role === "ADMIN" && (
+        {/* ADMIN-only */}
+        {loading ? (
+          // маленький плейсхолдер, чтобы не мигало
+          <span className="px-3 py-2 rounded-md text-sm text-white/70 select-none">
+            …
+          </span>
+        ) : whoami?.role === "ADMIN" ? (
           <NavLink to="/admin/users" className={navLinkClass}>
             Users
           </NavLink>
-        )}
+        ) : null}
       </div>
 
       {/* User */}

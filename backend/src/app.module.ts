@@ -6,7 +6,6 @@ import {
   RequestMethod,
   type CanActivate,
   type FactoryProvider,
-  type ExecutionContext,
 } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 

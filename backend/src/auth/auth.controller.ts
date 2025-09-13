@@ -1,3 +1,5 @@
+// /backend/src/auth/auth.controller.ts
+
 import { Controller, Get } from '@nestjs/common';
 import { CurrentUser } from './current-user.decorator';
 import type { User, $Enums } from '@prisma/client';

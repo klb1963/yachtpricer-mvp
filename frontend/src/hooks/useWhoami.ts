@@ -1,32 +1,55 @@
 // frontend/src/hooks/useWhoami.ts
-
 import { useEffect, useState } from "react";
-// без алиаса используем относительный импорт
-import { api } from "../api";
+import { api } from "@/api";
+
+type Role = "ADMIN" | "FLEET_MANAGER" | "MANAGER" | "OWNER";
 
 export type WhoAmI =
   | {
       id: string;
       email: string;
-      role: "ADMIN" | "FLEET_MANAGER" | "MANAGER" | "OWNER";
+      role: Role;
       orgId: string | null;
       name: string | null;
     }
   | null;
 
-type WhoAmIRaw = {
-  authenticated: boolean;
-  userId?: string;
-  email?: string;
-  role?: "ADMIN" | "FLEET_MANAGER" | "MANAGER" | "OWNER";
-  orgId?: string | null;
-  name?: string | null;
-  mode?: "fake" | "clerk";
-};
+type WhoAmIWire = WhoAmI | { user: WhoAmI };
 
-export function buildHeaders(): Record<string, string> {
-  const devEmail = localStorage.getItem("devUserEmail") ?? undefined;
-  return devEmail ? { "X-User-Email": devEmail } : {};
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function pickUser(v: WhoAmIWire): WhoAmI {
+  if (isRecord(v) && "user" in v && isRecord((v as Record<string, unknown>).user)) {
+    return (v as { user: WhoAmI }).user;
+  }
+  return (v as WhoAmI) ?? null;
+}
+
+// Ждём появления window.Clerk и живой сессии (до ~5 сек)
+async function waitForClerk(maxMs = 5000): Promise<void> {
+  const start = Date.now();
+  const w = window as unknown as { Clerk?: { session?: { getToken?: (o?: { skipCache?: boolean }) => Promise<string | null> } } };
+  while (Date.now() - start < maxMs) {
+    try {
+      const t = await w.Clerk?.session?.getToken?.({ skipCache: true });
+      if (t) return;
+    } catch {
+      // no-op, ещё подождём
+    }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+}
+
+// Безопасно получить токен Clerk (или null)
+async function getClerkTokenSafe(): Promise<string | null> {
+  const w = window as unknown as { Clerk?: { session?: { getToken?: (o?: { skipCache?: boolean }) => Promise<string | null> } } };
+  try {
+    return (await w.Clerk?.session?.getToken?.({ skipCache: true })) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export function useWhoami() {
@@ -39,22 +62,18 @@ export function useWhoami() {
     (async () => {
       setLoading(true);
       try {
-        const { data: raw } = await api.get<WhoAmIRaw>("/auth/whoami", {
-          headers: buildHeaders(),
-        });
+        // 1) дождёмся Clerk
+        await waitForClerk();
 
-        const mapped: WhoAmI =
-          raw?.authenticated && raw.userId && raw.email
-            ? {
-                id: raw.userId,
-                email: raw.email,
-                role: raw.role ?? "MANAGER",
-                orgId: raw.orgId ?? null,
-                name: raw.name ?? null,
-              }
-            : null;
+        // 2) попробуем достать токен и подставим его явно (вдобавок к интерсептору)
+        const token = await getClerkTokenSafe();
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
 
-        if (!cancelled) setData(mapped);
+        const { data: json } = await api.get<WhoAmIWire>("/auth/whoami", { headers });
+        const val = pickUser(json);
+
+        if (!cancelled) setData(val);
       } catch {
         if (!cancelled) setData(null);
       } finally {
@@ -69,5 +88,3 @@ export function useWhoami() {
 
   return { whoami: data, loading };
 }
-
-export default useWhoami;

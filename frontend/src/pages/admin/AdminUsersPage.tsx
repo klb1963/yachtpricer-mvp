@@ -1,7 +1,7 @@
-// /frontend/src/pages/admin/AdminUsersPage.tsx
-
+// frontend/src/pages/admin/AdminUsersPage.tsx
 import { useEffect, useMemo, useState } from "react";
-import { buildHeaders } from "../../hooks/useWhoami";
+import { api } from "@/api";
+
 type Role = "ADMIN" | "FLEET_MANAGER" | "MANAGER" | "OWNER";
 
 type UserRow = {
@@ -10,7 +10,7 @@ type UserRow = {
   name: string | null;
   role: Role;
   orgId: string | null;
-  org?: { slug: string }; 
+  org?: { slug: string };
   createdAt?: string;
 };
 
@@ -34,51 +34,37 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const params = useMemo(() => {
-    const p = new URLSearchParams();
-    if (q.trim()) p.set("q", q.trim());
-    p.set("page", String(page));
-    p.set("limit", String(limit));
-    return p.toString();
-  }, [q, page, limit]);
+  const params = useMemo(
+    () => ({
+      q: q.trim() || undefined,
+      page,
+      limit,
+    }),
+    [q, page, limit]
+  );
 
   const load = async () => {
     setLoading(true);
     setErr(null);
     try {
-      const url = `/api/users?${params}`;
-      const headers = buildHeaders();
-      // диагностика — можно убрать, когда все ок
-      console.log("AdminUsersPage.load ->", url, headers);
-
-      const res = await fetch(url, { headers });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status} ${res.statusText}: ${text}`);
-      }
-      const json = (await res.json()) as ListResp;
-      setData(json);
-    } catch (e: unknown) {
+      const { data } = await api.get<ListResp>("/users", { params });
+      setData(data);
+    } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to load users");
-      setData((d) => ({ ...d, items: [] })); // очистим список при ошибке
+      setData((d) => ({ ...d, items: [] }));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
+    void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
 
   const changeRole = async (userId: string, role: Role) => {
     try {
-      const res = await fetch("/api/users/role", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", ...buildHeaders() },
-        body: JSON.stringify({ userId, role }),
-      });
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      await api.patch("/users/role", { userId, role });
       await load();
     } catch (e) {
       console.error(e);

@@ -1,5 +1,8 @@
 // frontend/src/api/pricing.ts
 
+// ✅ Оставляем общий клиент. Через него автоматически подставляется Authorization: Bearer …
+import { api } from '@/api';
+
 export type PricingRow = {
   yachtId: string;
   name: string;
@@ -45,8 +48,8 @@ type RawPricingRow = {
   finalPrice?: number | string | null;
 };
 
-// 🔧 по умолчанию ходим через Vite-proxy (/api)
-const API = import.meta.env.VITE_API_URL ?? '/api';
+// ❌ УДАЛЕНО: локальная константа API и прямые вызовы fetch()
+// const API = import.meta.env.VITE_API_URL ?? '/api';
 
 // безопасное приведение строковых чисел → number
 function num(x: unknown): number | null {
@@ -82,40 +85,35 @@ function normalizeRow(r: RawPricingRow): PricingRow {
   };
 }
 
+/* ======================
+   Запросы через Axios api
+   ====================== */
+
+// 🔁 CHANGED: fetch → api.get + params
 export async function fetchRows(weekISO: string): Promise<PricingRow[]> {
-  const r = await fetch(`${API}/pricing/rows?week=${encodeURIComponent(weekISO)}`);
-  if (!r.ok) throw new Error('Failed to load pricing rows');
-  const data: unknown = await r.json();
-  return Array.isArray(data) ? (data as RawPricingRow[]).map(normalizeRow) : [];
+  const { data } = await api.get<RawPricingRow[]>('/pricing/rows', {
+    params: { week: weekISO },
+  });
+  return Array.isArray(data) ? data.map(normalizeRow) : [];
 }
 
+// 🔁 CHANGED: fetch POST → api.post
 export async function upsertDecision(params: {
   yachtId: string;
   week: string;
   discountPct?: number | null;
   finalPrice?: number | null;
 }) {
-  const r = await fetch(`${API}/pricing/decision`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  });
-  if (!r.ok) throw new Error('Failed to upsert decision');
-  const data = (await r.json()) as RawPricingRow;
+  const { data } = await api.post<RawPricingRow>('/pricing/decision', params);
   return normalizeRow(data);
 }
 
+// 🔁 CHANGED: fetch POST → api.post
 export async function changeStatus(params: {
   yachtId: string;
   week: string;
   status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
 }) {
-  const r = await fetch(`${API}/pricing/status`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  });
-  if (!r.ok) throw new Error('Failed to change status');
-  const data = (await r.json()) as RawPricingRow;
+  const { data } = await api.post<RawPricingRow>('/pricing/status', params);
   return normalizeRow(data);
 }
