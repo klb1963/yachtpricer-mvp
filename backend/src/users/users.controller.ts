@@ -1,10 +1,10 @@
 // backend/src/users/users.controller.ts
-
 import { Controller, Get, Patch, Body, Query, UseGuards } from '@nestjs/common';
 import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrgAdminGuard } from '../auth/org-admin.guard';
 import { IsEnum, IsString } from 'class-validator';
+import { Roles } from '../auth/roles.decorator';
 
 class UpdateUserRoleDto {
   @IsString() userId!: string;
@@ -12,6 +12,8 @@ class UpdateUserRoleDto {
 }
 
 @UseGuards(OrgAdminGuard)
+// весь контроллер доступен только ADMIN
+@Roles('ADMIN')
 @Controller('users')
 export class UsersController {
   constructor(private readonly prisma: PrismaService) {
@@ -46,7 +48,7 @@ export class UsersController {
         skip: (p - 1) * l,
         take: l,
         include: {
-          org: { select: { slug: true } }, // 👈 добавляем slug
+          org: { select: { slug: true } },
         },
       }),
       this.prisma.user.count({ where }),

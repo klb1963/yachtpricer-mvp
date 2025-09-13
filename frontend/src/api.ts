@@ -1,5 +1,23 @@
 // frontend/src/api.ts
 
+import axios, {
+  AxiosError,
+  InternalAxiosRequestConfig,
+  AxiosHeaders,
+  AxiosRequestHeaders,
+} from "axios";
+
+// ---- Глобальный тип для window.Clerk ----
+declare global {
+  interface Window {
+    Clerk?: {
+      session?: {
+        getToken: (opts?: { refresh?: boolean }) => Promise<string | null>;
+      };
+    };
+  }
+}
+
 // ---- Types ----
 export interface Yacht {
   id: string;
@@ -29,7 +47,7 @@ export type YachtListParams = {
   maxYear?: number;
   minPrice?: number;
   maxPrice?: number;
-  sort?: 'priceAsc' | 'priceDesc' | 'yearAsc' | 'yearDesc' | 'createdDesc';
+  sort?: "priceAsc" | "priceDesc" | "yearAsc" | "yearDesc" | "createdDesc";
   page?: number;
   pageSize?: number;
 };
@@ -41,38 +59,91 @@ export type YachtListResponse = {
   pageSize: number;
 };
 
-// ---- HTTP helpers ----
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+// ============================
+// Общий Axios-клиент
+// ============================
 
-// список с фильтрами/пагинацией (совместимо с новым бекэндом)
+const API_BASE: string = import.meta.env.VITE_API_URL || "/api";
+
+export const api = axios.create({
+  baseURL: API_BASE,
+});
+
+// Helper: гарантируем, что у нас именно AxiosHeaders (а не undefined)
+function ensureHeaders(
+  headers?: AxiosRequestHeaders
+): AxiosHeaders {
+  return headers instanceof AxiosHeaders
+    ? headers
+    : new AxiosHeaders(headers ?? {});
+}
+
+// маленький helper для токена Clerk
+async function getClerkToken(opts?: { refresh?: boolean }): Promise<string | null> {
+  try {
+    const s = window.Clerk?.session;
+    if (!s?.getToken) return null;
+    return await s.getToken(opts);
+  } catch {
+    return null;
+  }
+}
+
+// Подставляем Bearer JWT в каждый запрос
+api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+  const token = await getClerkToken();
+  if (token) {
+    const headers = ensureHeaders(config.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+    config.headers = headers;
+  }
+  return config;
+});
+
+// Тип для конфига с нашим флагом ретрая
+interface RetryableConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean;
+}
+
+// Один автоматический ретрай при 401 с принудительным refresh токена
+api.interceptors.response.use(
+  (res) => res,
+  async (error: AxiosError) => {
+    const cfg = (error.config ?? {}) as RetryableConfig;
+
+    if (error.response?.status === 401 && !cfg._retry) {
+      cfg._retry = true;
+      const fresh = await getClerkToken({ refresh: true });
+      if (fresh) {
+        const headers = ensureHeaders(cfg.headers);
+        headers.set("Authorization", `Bearer ${fresh}`);
+        cfg.headers = headers;
+        return api.request(cfg);
+      }
+    }
+    throw error;
+  }
+);
+
+// ============================
+// Yachts API
+// ============================
+
 export async function listYachts(params: YachtListParams): Promise<YachtListResponse> {
-  const sp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== '') sp.set(k, String(v));
-  });
-  const res = await fetch(`${API}/yachts?${sp.toString()}`);
-  if (!res.ok) throw new Error('Failed to load yachts');
-  return res.json();
+  const { data } = await api.get<YachtListResponse>("/yachts", { params });
+  return data;
 }
 
 export async function getYachts(): Promise<Yacht[]> {
-  const res = await fetch(`${API}/yachts`);
-  if (!res.ok) throw new Error('Failed to load yachts');
-
-  const data = await res.json();
-  // Бэкенд мог вернуть либо массив (старый формат), либо объект { items, ... } (новый)
-  if (Array.isArray(data)) return data as Yacht[];
-  return (data?.items ?? []) as Yacht[];
+  const { data } = await api.get("/yachts");
+  return Array.isArray(data) ? (data as Yacht[]) : ((data as { items?: Yacht[] })?.items ?? []);
 }
 
-// получить одну яхту
 export async function getYacht(id: string): Promise<Yacht> {
-  const res = await fetch(`${API}/yachts/${id}`);
-  if (!res.ok) throw new Error('Yacht not found');
-  return res.json();
+  const { data } = await api.get<Yacht>(`/yachts/${id}`);
+  return data;
 }
 
-// обновление/создание
 export type YachtUpdatePayload = {
   name?: string;
   manufacturer?: string;
@@ -93,39 +164,28 @@ export type YachtUpdatePayload = {
 };
 
 export async function updateYacht(id: string, payload: YachtUpdatePayload): Promise<Yacht> {
-  const res = await fetch(`${API}/yachts/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error('Failed to update yacht');
-  return res.json();
+  const { data } = await api.patch<Yacht>(`/yachts/${id}`, payload);
+  return data;
 }
 
 export async function createYacht(payload: YachtUpdatePayload): Promise<Yacht> {
-  const res = await fetch(`${API}/yachts`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error('Failed to create yacht');
-  return res.json();
+  const { data } = await api.post<Yacht>("/yachts", payload);
+  return data;
 }
 
 export async function deleteYacht(id: string): Promise<{ success: boolean }> {
-  const res = await fetch(`${API}/yachts/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('Failed to delete yacht');
-  return res.json();
+  const { data } = await api.delete<{ success: boolean }>(`/yachts/${id}`);
+  return data;
 }
 
 // ============================
+//
 // Scraper API (mock backend)
+//
 // ============================
 
-export type ScrapeSource = 'BOATAROUND' | 'SEARADAR';
-
-// Статус джобы и тип ответа /scrape/status
-export type JobStatus = 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED';
+export type ScrapeSource = "BOATAROUND" | "SEARADAR";
+export type JobStatus = "PENDING" | "RUNNING" | "DONE" | "FAILED";
 
 export type ScrapeJobDTO = {
   id: string;
@@ -133,17 +193,16 @@ export type ScrapeJobDTO = {
   error?: string | null;
 };
 
-// Параметры 1:1 с backend StartScrapeDto (всё опционально)
 export type StartScrapePayload = {
   source?: ScrapeSource;
   yachtId?: string;
-  weekStart?: string;   // ISO YYYY-MM-DD (любой день той недели)
+  weekStart?: string; // ISO YYYY-MM-DD
   location?: string;
   type?: string;
   minYear?: number;
   maxYear?: number;
-  minLength?: number;   // метры
-  maxLength?: number;   // метры
+  minLength?: number; // метры
+  maxLength?: number; // метры
   people?: number;
   cabins?: number;
   heads?: number;
@@ -151,77 +210,63 @@ export type StartScrapePayload = {
 
 export type StartScrapeResult = {
   jobId: string;
-  status: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED';
+  status: "PENDING" | "RUNNING" | "DONE" | "FAILED";
 };
 
-/**
- * POST /scrape/start
- * Старт скрейпа (мок). Возвращает jobId.
- */
 export async function startScrape(payload: StartScrapePayload): Promise<StartScrapeResult> {
-  const res = await fetch(`${API}/scrape/start`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(`startScrape failed: ${res.status}`);
-  return res.json();
+  const { data } = await api.post<StartScrapeResult>("/scrape/start", payload);
+  return data;
 }
 
-/**
- * GET /scrape/status?jobId=...
- * Бэкенд возвращает запись ScrapeJob из Prisma; нас интересует status.
- */
+// сырой тип ответа для /scrape/status
+type ScrapeStatusRaw = {
+  id?: string;
+  status?: JobStatus | string;
+  error?: string | null;
+};
+
 export async function getScrapeStatus(jobId: string): Promise<ScrapeJobDTO> {
-  const res = await fetch(`${API}/scrape/status?jobId=${encodeURIComponent(jobId)}`);
-  if (!res.ok) throw new Error(`status failed: ${res.status}`);
-  const job = await res.json();
+  const { data } = await api.get<ScrapeStatusRaw>("/scrape/status", {
+    params: { jobId },
+  });
   return {
-    id: job?.id ?? jobId,
-    status: (job?.status ?? 'FAILED') as JobStatus,
-    error: job?.error ?? null,
+    id: data?.id ?? jobId,
+    status: ((data?.status as JobStatus) ?? "FAILED") as JobStatus,
+    error: data?.error ?? null,
   };
 }
 
-// Ответ агрегата CompetitorSnapshot (Prisma.Decimal -> string)
 export type Snapshot = {
   id: string;
   yachtId: string;
-  weekStart: string;       // ISO
+  weekStart: string; // ISO
   source: ScrapeSource;
-  top1Price: string;       // строка
-  top3Avg: string;         // строка
+  top1Price: string;
+  top3Avg: string;
   currency: string;
   sampleSize: number;
-  rawStats?: unknown;      // JSON со срезом карточек
+  rawStats?: unknown; // JSON
 };
 
-/**
- * POST /scrape/aggregate
- * Агрегирует сохранённые цены в снапшот (TOP1/AVG).
- * Возвращает Snapshot или null, если данных нет.
- */
-export async function aggregateSnapshot(args: { yachtId: string; week: string; source?: ScrapeSource }): Promise<Snapshot | null> {
-  const res = await fetch(`${API}/scrape/aggregate`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(args),
-  });
-  if (!res.ok) throw new Error(`aggregate failed: ${res.status}`);
-  return res.json();
+export async function aggregateSnapshot(args: {
+  yachtId: string;
+  week: string;
+  source?: ScrapeSource;
+}): Promise<Snapshot | null> {
+  const { data } = await api.post<Snapshot | null>("/scrape/aggregate", args);
+  return data;
 }
 
-// Сырые цены конкурентов — удобно показывать в «Details»
 export type CompetitorPrice = {
   id: string;
   yachtId: string | null;
-  weekStart: string;     // ISO
+  weekStart: string; // ISO
   source: ScrapeSource;
   competitorYacht: string | null;
-  price: string;         // строка
+  price: string; // строка
   currency: string | null;
   link: string | null;
-  scrapedAt: string;     // ISO
+  scrapedAt: string; // ISO
   lengthFt?: number | null;
   cabins?: number | null;
   heads?: number | null;
@@ -229,16 +274,9 @@ export type CompetitorPrice = {
   marina?: string | null;
 };
 
-/**
- * GET /scrape/competitors-prices?yachtId=&week=
- * Возвращает массив карточек конкурентов (последние 50).
- * Параметр week — любой день нужной недели; бэкенд нормализует к субботе.
- */
 export async function listCompetitorPrices(params: { yachtId?: string; week?: string }) {
-  const qs = new URLSearchParams();
-  if (params.yachtId) qs.set('yachtId', params.yachtId);
-  if (params.week) qs.set('week', params.week);
-  const res = await fetch(`${API}/scrape/competitors-prices?${qs.toString()}`);
-  if (!res.ok) throw new Error(`competitors failed: ${res.status}`);
-  return res.json() as Promise<CompetitorPrice[]>;
+  const { data } = await api.get<CompetitorPrice[]>("/scrape/competitors-prices", {
+    params,
+  });
+  return data;
 }

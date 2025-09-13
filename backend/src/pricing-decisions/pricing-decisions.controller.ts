@@ -13,11 +13,13 @@ import { AccessCtxService } from '../auth/access-ctx.service';
 import { canSubmit, canApproveOrReject, canView } from '../auth/policies';
 import { ActorDto, RejectDto } from './dto';
 import { DecisionStatus, AuditAction } from '@prisma/client';
+import { Roles } from '../auth/roles.decorator';
 
 // удобный хелпер для каста string -> DecisionStatus
 const asDecisionStatus = (s: string) => s as DecisionStatus;
 
 @Controller('pricing-decisions')
+@Roles('MANAGER', 'ADMIN')
 export class PricingDecisionsController {
   constructor(
     private readonly prisma: PrismaService,

@@ -24,8 +24,14 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://postgres:postgres@db:5432/yachtpricer
-      CORS_ORIGINS: https://sandbox.leonidk.de
+      CORS_ORIGINS: https://sandbox.leonidk.de,http://localhost:3000,http://localhost:3001
+
       NAUSYS_USE_MOCK: "true"
+
+      AUTH_MODE: clerk
+      CLERK_SECRET_KEY: sk_test_b2GEuGwtyyfcZ27SAA4ZSGLBsihQ9E5ipVQ4q0ureQ
+      CLERK_ISSUER: https://exciting-mule-31.clerk.accounts.dev
+
     depends_on:
       db:
         condition: service_healthy

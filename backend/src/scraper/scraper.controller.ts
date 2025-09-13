@@ -17,6 +17,7 @@ import {
   CompetitorsQueryDto,
   AggregateDto,
 } from './scraper.dto';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller('scrape')
 // Локальный ValidationPipe: трансформирует строки в числа/даты по декораторам и отсекает лишние поля.
@@ -35,6 +36,7 @@ export class ScraperController {
    * В лог пишем только ключевые поля (без полного JSON), чтобы не засорять логи и не светить лишнее.
    */
   @Post('start')
+  @Roles('MANAGER', 'ADMIN')
   start(@Body() dto: StartScrapeDto) {
     this.logger.log('hit /scrape/start', {
       yachtId: dto.yachtId,
@@ -45,6 +47,7 @@ export class ScraperController {
   }
 
   @Post('aggregate')
+  @Roles('MANAGER', 'ADMIN')
   aggregate(@Body() dto: AggregateDto) {
     return this.svc.aggregate(dto);
   }

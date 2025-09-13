@@ -1,5 +1,4 @@
-// /backend/src/auth/roles.guard.ts
-
+// backend/src/auth/roles.guard.ts
 import {
   CanActivate,
   ExecutionContext,
@@ -23,24 +22,19 @@ export class RolesGuard implements CanActivate {
       ctx.getHandler(),
       ctx.getClass(),
     ]);
-
-    // Если на хендлере/контроллере не задан @Roles — пропускаем
     if (!required || required.length === 0) return true;
 
     const req = ctx.switchToHttp().getRequest<ReqWithUser>();
     const user = req.user;
-
     if (!user) throw new UnauthorizedException('Not authenticated');
 
     const role = user.role;
     if (!role) throw new ForbiddenException('No role');
 
-    // ADMIN — суперпользователь
     if (role === 'ADMIN') return true;
-
-    if (!required.includes(role)) {
+    if (!required.includes(role))
       throw new ForbiddenException('Insufficient role');
-    }
+
     return true;
   }
 }

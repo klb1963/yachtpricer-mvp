@@ -9,7 +9,15 @@
     # ВАЖНО: копируем отдельными строками, чтобы кэш корректно инвалидировался
     COPY package.json ./
     COPY package-lock.json ./
+
+    # Диагностика: проверим, что зависимость заявлена в package.json
+    RUN node -e "const p=require('./package.json'); if(!p.dependencies || !p.dependencies['@clerk/backend']){console.error('NO @clerk/backend in package.json'); process.exit(1)}"
+
+    # Ставим зависимости строго по lock-файлу
     RUN npm ci
+
+    # Диагностика: убеждаемся, что пакет реально установлен
+    RUN node -e "require.resolve('@clerk/backend/package.json'); console.log('clerk/backend OK')"
     
     # ---------- build ----------
     FROM deps AS build
