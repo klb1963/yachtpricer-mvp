@@ -1,5 +1,4 @@
 // backend/src/app.module.ts
-
 import {
   Module,
   NestModule,
@@ -27,12 +26,11 @@ import { HeaderAuthMiddleware } from './auth/header-auth.middleware';
 import { RolesGuard } from './auth/roles.guard';
 import { ClerkAuthMiddleware } from './auth/clerk-auth.middleware';
 
-// ✅ Явно типизируем провайдер
 const APP_ROLES_GUARD = {
   provide: APP_GUARD,
-  useFactory: (g: RolesGuard): RolesGuard => g,
+  useFactory: (g: RolesGuard) => g,
   inject: [RolesGuard],
-} satisfies FactoryProvider<RolesGuard>;
+} satisfies FactoryProvider;
 
 @Module({
   imports: [
@@ -52,13 +50,31 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     const mode = (process.env.AUTH_MODE ?? 'fake').toLowerCase();
 
+    // Роуты, которые должны быть публичными
+    const PUBLIC_HEALTH = [
+      { path: 'health', method: RequestMethod.ALL },
+      { path: 'api/health', method: RequestMethod.ALL },
+    ];
+
     if (mode === 'clerk') {
       consumer
-        .apply(ClerkAuthMiddleware, OrgScopeMiddleware)
+        .apply(ClerkAuthMiddleware)
+        .exclude(...PUBLIC_HEALTH)
+        .forRoutes({ path: '*', method: RequestMethod.ALL });
+
+      consumer
+        .apply(OrgScopeMiddleware)
+        .exclude(...PUBLIC_HEALTH)
         .forRoutes({ path: '*', method: RequestMethod.ALL });
     } else {
       consumer
-        .apply(HeaderAuthMiddleware, OrgScopeMiddleware)
+        .apply(HeaderAuthMiddleware)
+        .exclude(...PUBLIC_HEALTH)
+        .forRoutes({ path: '*', method: RequestMethod.ALL });
+
+      consumer
+        .apply(OrgScopeMiddleware)
+        .exclude(...PUBLIC_HEALTH)
         .forRoutes({ path: '*', method: RequestMethod.ALL });
     }
   }
