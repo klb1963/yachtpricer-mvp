@@ -7,8 +7,6 @@ import {
 import type { Request, Response, NextFunction } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 
-// type JwtPayloadLite = { sub?: string } & Record<string, unknown>;
-
 type ClerkEmailAddr = { emailAddress?: string | null };
 type ClerkUserLite = {
   id: string;
@@ -32,6 +30,30 @@ type ClerkBackendModule = {
   ) => Promise<unknown>;
 };
 
+// ---- helpers ----
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null;
+
+function extractSub(verified: unknown): string | null {
+  if (!isRecord(verified)) return null;
+
+  const payload = verified['payload'];
+  if (isRecord(payload) && typeof payload['sub'] === 'string') {
+    return payload['sub'];
+  }
+
+  if (typeof verified['sub'] === 'string') {
+    return verified['sub'];
+  }
+
+  const claims = verified['claims'];
+  if (isRecord(claims) && typeof claims['sub'] === 'string') {
+    return claims['sub'];
+  }
+
+  return null;
+}
+
 @Injectable()
 export class ClerkAuthMiddleware implements NestMiddleware {
   private clerkClient: ClerkClient | null = null;
@@ -40,67 +62,57 @@ export class ClerkAuthMiddleware implements NestMiddleware {
 
   async use(req: Request, _res: Response, next: NextFunction) {
     try {
+      // Разрешаем health-check без токена
+      const path = req.path ?? req.url ?? '';
+      if (path === '/api/health' || path === '/health') return next();
+
       const auth = req.headers.authorization ?? '';
       const [, token] = auth.split(' ');
       if (!token) throw new UnauthorizedException('Missing Bearer token');
 
-      // Динамическая загрузка @clerk/backend (чтобы в fake-режиме пакет не требовался)
+      // Динамически подгружаем SDK, чтобы в fake-режиме не тянуть зависимость
       const { createClerkClient, verifyToken } = (await import(
         '@clerk/backend'
       )) as ClerkBackendModule;
 
-      if (!process.env.CLERK_SECRET_KEY) {
-        throw new Error('CLERK_SECRET_KEY is not set');
-      }
+      const secretKey = process.env.CLERK_SECRET_KEY;
+      if (!secretKey) throw new Error('CLERK_SECRET_KEY is not set');
 
       if (!this.clerkClient) {
-        this.clerkClient = createClerkClient({
-          secretKey: process.env.CLERK_SECRET_KEY,
-        });
+        this.clerkClient = createClerkClient({ secretKey });
       }
       const client = this.clerkClient;
 
       const verified = await verifyToken(token, {
-        secretKey: process.env.CLERK_SECRET_KEY,
+        secretKey,
         issuer: process.env.CLERK_ISSUER,
         audience: process.env.CLERK_AUDIENCE,
       });
 
-      // Поддерживаем разные формы ответа SDK: {payload: {...}}, {sub: ...}, {claims: {sub: ...}}
-      const isRec = (v: unknown): v is Record<string, unknown> =>
-        typeof v === 'object' && v !== null;
-
-      const extractSub = (v: unknown): string | null => {
-        if (!isRec(v)) return null;
-
-        const r = v;
-
-        const p = r['payload'];
-        if (isRec(p) && typeof p['sub'] === 'string') return p['sub'];
-
-        if (typeof r['sub'] === 'string') return r['sub'];
-
-        const c = r['claims'];
-        if (isRec(c) && typeof c['sub'] === 'string') return c['sub'];
-
-        return null;
-      };
-
       const sub = extractSub(verified);
-      const clerkUserId = sub ? String(sub) : '';
-      if (!clerkUserId) {
-        throw new UnauthorizedException('Invalid token: no sub');
-      }
+      if (!sub) throw new UnauthorizedException('Invalid token: no sub');
 
-      const cUser = await client.users.getUser(clerkUserId);
+      // Получаем email пользователя из Clerk
+      const cUser = await client.users.getUser(sub);
       const email =
         cUser?.primaryEmailAddress?.emailAddress ??
         cUser?.emailAddresses?.[0]?.emailAddress ??
         null;
-
       if (!email) throw new UnauthorizedException('Email not found');
 
-      const dbUser = await this.prisma.user.findFirst({ where: { email } });
+      // Маппим на пользователя в нашей БД
+      const dbUser = await this.prisma.user.findFirst({
+        where: { email },
+        select: {
+          id: true,
+          email: true,
+          orgId: true,
+          role: true,
+          name: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
       if (!dbUser) throw new UnauthorizedException('User not found in DB');
 
       req.user = dbUser;
