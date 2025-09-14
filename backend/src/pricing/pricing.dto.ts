@@ -46,4 +46,5 @@ export class ChangeStatusDto {
 
   @IsEnum(DecisionStatus)
   status!: DecisionStatus; // SUBMITTED | APPROVED | REJECTED
+  comment?: string;
 }

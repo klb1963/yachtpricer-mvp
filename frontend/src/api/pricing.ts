@@ -1,14 +1,10 @@
 // frontend/src/api/pricing.ts
 
-// ✅ Общий axios-клиент. Через него автоматически подставляется Authorization: Bearer …
+// ✅ Оставляем общий клиент. Через него автоматически подставляется Authorization: Bearer …
 import { api } from '@/api';
 
+// Типы статуса решений (синхронизировано с backend @prisma/client)
 export type DecisionStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
-
-export type RowPerms = {
-  canSubmit: boolean;
-  canApproveOrReject: boolean;
-};
 
 export type PricingRow = {
   yachtId: string;
@@ -24,14 +20,16 @@ export type PricingRow = {
   decision: null | {
     discountPct: number | null;
     finalPrice: number | null;
-    status: DecisionStatus;
+    status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
   };
   mlReco: number | null;
   finalPrice: number | null;
-  perms?: RowPerms; // ← добавили perms
+  perms?: {
+    canSubmit?: boolean;
+    canApproveOrReject?: boolean;
+  };
 };
 
-// ✅ типы "сырых" данных от бэка (числа могут прийти строками)
 type RawSnapshot = {
   top1Price: number | string | null | undefined;
   top3Avg: number | string | null | undefined;
@@ -43,7 +41,7 @@ type RawSnapshot = {
 type RawDecision = {
   discountPct: number | string | null | undefined;
   finalPrice: number | string | null | undefined;
-  status: DecisionStatus;
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
 };
 
 type RawPricingRow = {
@@ -60,14 +58,12 @@ type RawPricingRow = {
   };
 };
 
-// безопасное приведение строковых чисел → number
 function num(x: unknown): number | null {
   if (x === null || x === undefined) return null;
   const n = typeof x === 'number' ? x : Number(x);
   return Number.isFinite(n) ? n : null;
 }
 
-// ✅ нормализация строки
 function normalizeRow(r: RawPricingRow): PricingRow {
   return {
     yachtId: r.yachtId,
@@ -91,42 +87,33 @@ function normalizeRow(r: RawPricingRow): PricingRow {
       : null,
     mlReco: num(r.mlReco ?? null),
     finalPrice: num(r.finalPrice ?? null),
-    perms: r.perms
-      ? {
-          canSubmit: !!r.perms.canSubmit,
-          canApproveOrReject: !!r.perms.canApproveOrReject,
-        }
-      : undefined,
+    perms: r.perms ?? {},
   };
 }
 
-/* ======================
-   Запросы через Axios api
-   ====================== */
-
-// Список строк на неделю
 export async function fetchRows(weekISO: string): Promise<PricingRow[]> {
-  const { data } = await api.get<RawPricingRow[]>('/pricing/rows', { params: { week: weekISO } });
+  const { data } = await api.get<RawPricingRow[]>('/pricing/rows', {
+    params: { week: weekISO },
+  });
   return Array.isArray(data) ? data.map(normalizeRow) : [];
 }
 
-// Создание/обновление решения (скидка/итог)
 export async function upsertDecision(params: {
   yachtId: string;
   week: string;
   discountPct?: number | null;
   finalPrice?: number | null;
-}): Promise<PricingRow> {
+}) {
   const { data } = await api.post<RawPricingRow>('/pricing/decision', params);
   return normalizeRow(data);
 }
 
-// Смена статуса (Submit/Approve/Reject)
 export async function changeStatus(params: {
   yachtId: string;
   week: string;
-  status: DecisionStatus;
-}): Promise<PricingRow> {
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+  comment?: string; // 👈 добавили
+}) {
   const { data } = await api.post<RawPricingRow>('/pricing/status', params);
   return normalizeRow(data);
 }

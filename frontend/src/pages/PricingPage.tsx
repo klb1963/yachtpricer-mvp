@@ -1,8 +1,11 @@
 // frontend/src/pages/PricingPage.tsx
+
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { changeStatus, fetchRows, upsertDecision } from '../api/pricing';
 import type { PricingRow, DecisionStatus } from '../api/pricing';
 import { toYMD, nextSaturday, prevSaturday, toSaturdayUTC } from '../utils/week';
+import ConfirmActionModal from '@/components/ConfirmActionModal';
+import axios from 'axios';
 
 // ─ helpers ─
 function asMoney(n: number | null | undefined) {
@@ -15,12 +18,12 @@ function toNumberOrNull(v: string): number | null {
 }
 function calcDiscountPct(base: number, final_: number | null | undefined) {
   if (final_ == null || !Number.isFinite(final_) || base <= 0) return null;
-  const pct = (1 - final_ / base) * 100;
+  const pct = (1 - (final_ as number) / base) * 100;
   return Number(pct.toFixed(1));
 }
 function calcFinal(base: number, discountPct: number | null | undefined) {
   if (discountPct == null || !Number.isFinite(discountPct)) return null;
-  const k = 1 - discountPct / 100;
+  const k = 1 - (discountPct as number) / 100;
   if (k < 0) return 0;
   return Math.round(base * k);
 }
@@ -35,6 +38,14 @@ export default function PricingPage() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [error, setError] = useState<string | null>(null);
+
+  // модалка подтверждения со сбором комментария
+  const [dialog, setDialog] = useState<{
+    open: boolean;
+    yachtId: string | null;
+    status: DecisionStatus | null;
+  }>({ open: false, yachtId: null, status: null });
+  const [submitting, setSubmitting] = useState(false);
 
   const weekDate = useMemo(() => new Date(`${week}T00:00:00Z`), [week]);
   const weekLabel = useMemo(() => toYMD(weekDate), [weekDate]);
@@ -105,7 +116,8 @@ export default function PricingPage() {
 
     setSavingId(yachtId);
     try {
-      await upsertDecision({ yachtId, week, discountPct, finalPrice });
+      const updated = await upsertDecision({ yachtId, week, discountPct, finalPrice });
+      setRows(prev => prev.map(r => (r.yachtId === yachtId ? { ...r, ...updated } : r)));
     } finally {
       setSavingId(null);
     }
@@ -119,7 +131,8 @@ export default function PricingPage() {
 
     setSavingId(yachtId);
     try {
-      await upsertDecision({ yachtId, week, finalPrice, discountPct });
+      const updated = await upsertDecision({ yachtId, week, finalPrice, discountPct });
+      setRows(prev => prev.map(r => (r.yachtId === yachtId ? { ...r, ...updated } : r)));
     } catch (e: unknown) {
       if (
         typeof e === 'object' &&
@@ -136,14 +149,46 @@ export default function PricingPage() {
     }
   }
 
-  async function onStatus(yachtId: string, status: DecisionStatus) {
-    setSavingId(yachtId);
+  // ─ смена статуса через модалку комментария ─
+  function openStatusDialog(yachtId: string, status: DecisionStatus) {
+    setDialog({ open: true, yachtId, status });
+  }
+  function closeDialog() {
+    setDialog({ open: false, yachtId: null, status: null });
+  }
+
+  async function confirmDialog(comment: string) {
+    if (!dialog.yachtId || !dialog.status) return;
+    setSubmitting(true);
+    setSavingId(dialog.yachtId);
     try {
-      const updated = await changeStatus({ yachtId, week, status });
-      setRows(prev => prev.map(r => (r.yachtId === yachtId ? { ...r, ...updated } : r)));
+      const updated = await changeStatus({
+        yachtId: dialog.yachtId,
+        week,
+        status: dialog.status,
+        comment: comment?.trim() || undefined,
+      });
+      setRows(prev => prev.map(r => (r.yachtId === updated.yachtId ? { ...r, ...updated } : r)));
+      closeDialog();
+    } catch (e: unknown) {
+      if (axios.isAxiosError(e) && e.response?.status === 403) {
+        alert('Недостаточно прав');
+      } else {
+        alert('Не удалось сменить статус');
+        // опционально: console.error(e);
+      }
     } finally {
+      setSubmitting(false);
       setSavingId(null);
     }
+  }
+
+  function dialogTitle() {
+    const s = dialog.status;
+    if (s === 'SUBMITTED') return 'Submit for approval';
+    if (s === 'APPROVED') return 'Approve decision';
+    if (s === 'REJECTED') return 'Reject decision';
+    return 'Change status';
   }
 
   function onPickDate(value: string) {
@@ -292,7 +337,7 @@ export default function PricingPage() {
                     <div className="flex gap-2">
                       <button
                         className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
-                        onClick={() => onStatus(r.yachtId, 'SUBMITTED')}
+                        onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
                         disabled={savingId === r.yachtId || !r.perms?.canSubmit}
                         title={r.perms?.canSubmit ? 'Submit' : 'Недостаточно прав'}
                       >
@@ -300,7 +345,7 @@ export default function PricingPage() {
                       </button>
                       <button
                         className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
-                        onClick={() => onStatus(r.yachtId, 'APPROVED')}
+                        onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
                         disabled={savingId === r.yachtId || !r.perms?.canApproveOrReject}
                         title={r.perms?.canApproveOrReject ? 'Approve' : 'Недостаточно прав'}
                       >
@@ -308,7 +353,7 @@ export default function PricingPage() {
                       </button>
                       <button
                         className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
-                        onClick={() => onStatus(r.yachtId, 'REJECTED')}
+                        onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
                         disabled={savingId === r.yachtId || !r.perms?.canApproveOrReject}
                         title={r.perms?.canApproveOrReject ? 'Reject' : 'Недостаточно прав'}
                       >
@@ -376,7 +421,7 @@ export default function PricingPage() {
                 <div className="flex gap-2">
                   <button
                     className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
-                    onClick={() => onStatus(r.yachtId, 'SUBMITTED')}
+                    onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
                     disabled={savingId === r.yachtId || !r.perms?.canSubmit}
                     title={r.perms?.canSubmit ? 'Submit' : 'Недостаточно прав'}
                   >
@@ -384,7 +429,7 @@ export default function PricingPage() {
                   </button>
                   <button
                     className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
-                    onClick={() => onStatus(r.yachtId, 'APPROVED')}
+                    onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
                     disabled={savingId === r.yachtId || !r.perms?.canApproveOrReject}
                     title={r.perms?.canApproveOrReject ? 'Approve' : 'Недостаточно прав'}
                   >
@@ -392,7 +437,7 @@ export default function PricingPage() {
                   </button>
                   <button
                     className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
-                    onClick={() => onStatus(r.yachtId, 'REJECTED')}
+                    onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
                     disabled={savingId === r.yachtId || !r.perms?.canApproveOrReject}
                     title={r.perms?.canApproveOrReject ? 'Reject' : 'Недостаточно прав'}
                   >
@@ -404,6 +449,29 @@ export default function PricingPage() {
           ))}
         </div>
       )}
+
+      {/* Диалог комментариев / подтверждения */}
+      <ConfirmActionModal
+        open={dialog.open}
+        title={dialogTitle()}
+        confirmLabel={
+          dialog.status === 'SUBMITTED'
+            ? 'Submit'
+            : dialog.status === 'APPROVED'
+            ? 'Approve'
+            : dialog.status === 'REJECTED'
+            ? 'Reject'
+            : 'Confirm'
+        }
+        placeholder={
+          dialog.status === 'REJECTED'
+            ? 'Why is it rejected? (optional)…'
+            : 'Comment (optional)…'
+        }
+        submitting={submitting}
+        onCancel={closeDialog}
+        onConfirm={confirmDialog}
+      />
     </div>
   );
 }

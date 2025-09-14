@@ -1,7 +1,7 @@
 // backend/src/pricing/pricing.service.ts
 
 import { Injectable, ForbiddenException } from '@nestjs/common';
-import { Prisma, DecisionStatus, User } from '@prisma/client';
+import { Prisma, DecisionStatus, User, AuditAction } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   PricingRowsQueryDto,
@@ -35,7 +35,6 @@ export class PricingService {
   async rows(q: PricingRowsQueryDto, user: User) {
     const ws = weekStartUTC(new Date(q.week));
 
-    // Лодки (минимум полей для таблицы)
     const yachts = await this.prisma.yacht.findMany({
       orderBy: { name: 'asc' },
       select: {
@@ -50,7 +49,6 @@ export class PricingService {
       },
     });
 
-    // Снимки конкурентов и текущие решения на эту неделю
     const [snaps, decisions] = await Promise.all([
       this.prisma.competitorSnapshot.findMany({
         where: { weekStart: ws },
@@ -64,32 +62,24 @@ export class PricingService {
     const snapByYacht = new Map(snaps.map((s) => [s.yachtId, s]));
     const decByYacht = new Map(decisions.map((d) => [d.yachtId, d]));
 
-    // Собираем финальную строку по каждой лодке
     return Promise.all(
       yachts.map(async (y) => {
         const s = snapByYacht.get(y.id);
         const d = decByYacht.get(y.id);
-        const status = d?.status ?? 'DRAFT';
+        const status = d?.status ?? DecisionStatus.DRAFT;
 
-        // контекст доступа для этой лодки
         const ctx: AccessCtx = await this.accessCtx.build(
           { id: user.id, role: user.role },
           y.id,
         );
 
-        // права на действия (только вычисляем и возвращаем во фронт)
         const perms = {
           canSubmit: canSubmit(user, { status }, ctx),
           canApproveOrReject: canApproveOrReject(user, { status }, ctx),
         };
 
-        // (опциональный лог)
-        // console.log(`[PricingService.rows] yacht=${y.name}, role=${user.role}, perms=`, perms);
-
-        // простая эвристика: рекомендация = top3Avg, если есть
         const mlReco = s?.top3Avg ?? null;
 
-        // если у решения есть discountPct, пересчитаем итог (если finalPrice не задан)
         let finalPrice = d?.finalPrice ?? null;
         if (finalPrice == null && d?.discountPct != null) {
           finalPrice = y.basePrice.mul(
@@ -135,14 +125,14 @@ export class PricingService {
       select: { basePrice: true, id: true },
     });
 
-    // текущий статус решения (если есть)
+    // узнать текущий статус (если запись уже есть)
     const current = await this.prisma.pricingDecision.findUnique({
       where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
       select: { status: true },
     });
-    const currentStatus = current?.status ?? 'DRAFT';
+    const currentStatus = current?.status ?? DecisionStatus.DRAFT;
 
-    // контекст + RBAC
+    // RBAC
     const ctx: AccessCtx = await this.accessCtx.build(
       { id: user.id, role: user.role },
       yacht.id,
@@ -153,13 +143,11 @@ export class PricingService {
 
     const basePriceDecimal = yacht.basePrice ?? new Prisma.Decimal(0);
 
-    // приводим входные числа к Decimal (или null)
     const discountDec =
       dto.discountPct != null ? new Prisma.Decimal(dto.discountPct) : null;
     const finalPriceDec =
       dto.finalPrice != null ? new Prisma.Decimal(dto.finalPrice) : null;
 
-    // upsert без include (иначе TS может дать include: never)
     await this.prisma.pricingDecision.upsert({
       where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
       create: {
@@ -176,51 +164,96 @@ export class PricingService {
       },
     });
 
-    // возвращаем ту же запись уже с include
     return this.prisma.pricingDecision.findUnique({
       where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
       include: { yacht: true },
     });
   }
 
-  /** Смена статуса решения (RBAC: canSubmit / canApproveOrReject) */
+  /** Смена статуса решения (RBAC: canSubmit / canApproveOrReject) + аудит */
   async changeStatus(dto: ChangeStatusDto, user: User) {
     const ws = weekStartUTC(new Date(dto.week));
 
-    // найдём текущую запись/статус и контекст
-    const current = await this.prisma.pricingDecision.findUnique({
+    // ⚠️ пробуем найти текущую запись
+    let current = await this.prisma.pricingDecision.findUnique({
       where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
-      include: { yacht: { select: { id: true } } },
+      include: { yacht: { select: { id: true, basePrice: true } } }, // ← добавим basePrice
     });
 
-    const currentStatus = current?.status ?? 'DRAFT';
+    // ✅ если записи нет, и это первый шаг (часто SUBMITTED), создадим её на лету
+    if (!current) {
+      const yacht = await this.prisma.yacht.findUniqueOrThrow({
+        where: { id: dto.yachtId },
+        select: { id: true, basePrice: true },
+      });
+      current = await this.prisma.pricingDecision.create({
+        data: {
+          yachtId: dto.yachtId,
+          weekStart: ws,
+          basePrice: yacht.basePrice ?? new Prisma.Decimal(0),
+          status: DecisionStatus.DRAFT, // создаём как DRAFT, дальше RBAC решит можно ли менять
+        },
+        include: { yacht: { select: { id: true, basePrice: true } } },
+      });
+    }
+
+    const currentStatus = current?.status ?? DecisionStatus.DRAFT;
+
     const ctx: AccessCtx = await this.accessCtx.build(
       { id: user.id, role: user.role },
       dto.yachtId,
     );
 
-    // RBAC
-    if (dto.status === 'SUBMITTED') {
+    if (dto.status === DecisionStatus.SUBMITTED) {
       if (!canSubmit(user, { status: currentStatus }, ctx)) {
         throw new ForbiddenException('Недостаточно прав для Submit');
       }
-    } else if (dto.status === 'APPROVED' || dto.status === 'REJECTED') {
+    } else if (
+      dto.status === DecisionStatus.APPROVED ||
+      dto.status === DecisionStatus.REJECTED
+    ) {
       if (!canApproveOrReject(user, { status: currentStatus }, ctx)) {
         throw new ForbiddenException('Недостаточно прав для Approve/Reject');
       }
     }
 
-    await this.prisma.pricingDecision.update({
-      where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
-      data: {
-        status: dto.status,
-        approvedAt: dto.status === 'APPROVED' ? new Date() : null,
-      },
+    const toStatus = dto.status;
+
+    const auditAction: AuditAction | null =
+      toStatus === DecisionStatus.SUBMITTED
+        ? AuditAction.SUBMIT
+        : toStatus === DecisionStatus.APPROVED
+          ? AuditAction.APPROVE
+          : toStatus === DecisionStatus.REJECTED
+            ? AuditAction.REJECT
+            : null;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const decision = await tx.pricingDecision.update({
+        where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
+        data: {
+          status: toStatus,
+          approvedAt: toStatus === DecisionStatus.APPROVED ? new Date() : null,
+        },
+        include: { yacht: true },
+      });
+
+      if (auditAction) {
+        await tx.priceAuditLog.create({
+          data: {
+            decisionId: decision.id,
+            action: auditAction,
+            fromStatus: currentStatus,
+            toStatus,
+            actorId: user.id,
+            comment: dto.comment?.trim() || null,
+          },
+        });
+      }
+
+      return decision;
     });
 
-    return this.prisma.pricingDecision.findUnique({
-      where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
-      include: { yacht: true },
-    });
+    return updated;
   }
 }
