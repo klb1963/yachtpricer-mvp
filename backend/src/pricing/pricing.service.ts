@@ -1,4 +1,5 @@
 // backend/src/pricing/pricing.service.ts
+
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { Prisma, DecisionStatus, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -76,11 +77,14 @@ export class PricingService {
           y.id,
         );
 
-        // права на действия (только вычисляем и возвращаем в фронт)
+        // права на действия (только вычисляем и возвращаем во фронт)
         const perms = {
           canSubmit: canSubmit(user, { status }, ctx),
           canApproveOrReject: canApproveOrReject(user, { status }, ctx),
         };
+
+        // (опциональный лог)
+        // console.log(`[PricingService.rows] yacht=${y.name}, role=${user.role}, perms=`, perms);
 
         // простая эвристика: рекомендация = top3Avg, если есть
         const mlReco = s?.top3Avg ?? null;
@@ -88,7 +92,6 @@ export class PricingService {
         // если у решения есть discountPct, пересчитаем итог (если finalPrice не задан)
         let finalPrice = d?.finalPrice ?? null;
         if (finalPrice == null && d?.discountPct != null) {
-          // Decimal-арифметика
           finalPrice = y.basePrice.mul(
             new Prisma.Decimal(1).sub(d.discountPct.div(100)),
           );
@@ -116,7 +119,7 @@ export class PricingService {
             : null,
           mlReco,
           finalPrice,
-          perms, // ← добавили для фронта
+          perms,
         };
       }),
     );
@@ -126,19 +129,25 @@ export class PricingService {
   async upsertDecision(dto: UpsertDecisionDto, user: User) {
     const ws = weekStartUTC(new Date(dto.week));
 
-    // текущая базовая цена лодки в Decimal и orgId
+    // текущая базовая цена лодки и id
     const yacht = await this.prisma.yacht.findUniqueOrThrow({
       where: { id: dto.yachtId },
-      select: { basePrice: true, orgId: true, id: true },
+      select: { basePrice: true, id: true },
     });
 
-    // RBAC: редактировать черновик могут ADMIN/FLEET_MANAGER всегда,
-    // MANAGER — только свой объект (ctx.isManagerOfYacht)
+    // текущий статус решения (если есть)
+    const current = await this.prisma.pricingDecision.findUnique({
+      where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
+      select: { status: true },
+    });
+    const currentStatus = current?.status ?? 'DRAFT';
+
+    // контекст + RBAC
     const ctx: AccessCtx = await this.accessCtx.build(
       { id: user.id, role: user.role },
       yacht.id,
     );
-    if (!canEditDraft(user, { status: 'DRAFT' }, ctx)) {
+    if (!canEditDraft(user, { status: currentStatus }, ctx)) {
       throw new ForbiddenException('Недостаточно прав для изменения черновика');
     }
 
@@ -181,7 +190,7 @@ export class PricingService {
     // найдём текущую запись/статус и контекст
     const current = await this.prisma.pricingDecision.findUnique({
       where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
-      include: { yacht: { select: { id: true, orgId: true } } },
+      include: { yacht: { select: { id: true } } },
     });
 
     const currentStatus = current?.status ?? 'DRAFT';
@@ -199,7 +208,7 @@ export class PricingService {
       if (!canApproveOrReject(user, { status: currentStatus }, ctx)) {
         throw new ForbiddenException('Недостаточно прав для Approve/Reject');
       }
-    } // переход в DRAFT обычно разрешаем тем, кто может редактировать черновик
+    }
 
     await this.prisma.pricingDecision.update({
       where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
