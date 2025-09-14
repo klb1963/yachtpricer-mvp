@@ -1,10 +1,11 @@
-// /workspace/yachtpricer-mvp/backend/tsconfig.json
-
 {
   "compilerOptions": {
     "target": "ES2023",
-    "module": "commonjs",
-    "moduleResolution": "node",
+
+    // 👇 Чтобы VS Code корректно резолвил ESM-пакеты c "exports"
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
     "baseUrl": "./",
     "rootDir": "./src",
     "outDir": "./dist",
@@ -28,7 +29,10 @@
     "skipLibCheck": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    // редактору ничего не эмитить
+    "noEmit": true
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts"],
   "exclude": ["node_modules", "dist", "src/**/*.spec.ts"],

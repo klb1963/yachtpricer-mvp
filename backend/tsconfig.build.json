@@ -1,25 +1,13 @@
-// backend/tsconfig.build.json
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "declaration": false,
+    // Сборку оставляем на commonjs (как было у тебя)
+    "module": "commonjs",
+    "moduleResolution": "node",
+
     "noEmit": false,
-    "typeRoots": [
-      "./src/types",
-      "./node_modules/@types"
-    ]
+    "outDir": "./dist"
   },
-  "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "test",
-    "**/*.spec.ts",
-    "prisma/migrations/**",
-    "prisma/seed.ts"
-  ]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/**/*.spec.ts"]
 }

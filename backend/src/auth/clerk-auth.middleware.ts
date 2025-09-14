@@ -10,6 +10,8 @@ import { PrismaService } from '../prisma/prisma.service';
 type ClerkEmailAddr = { emailAddress?: string | null };
 type ClerkUserLite = {
   id: string;
+  firstName?: string | null;
+  lastName?: string | null;
   primaryEmailAddress?: ClerkEmailAddr | null;
   emailAddresses?: ClerkEmailAddr[] | null;
 };
@@ -30,69 +32,56 @@ type ClerkBackendModule = {
   ) => Promise<unknown>;
 };
 
-// ---- helpers ----
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null;
-
-function extractSub(verified: unknown): string | null {
-  if (!isRecord(verified)) return null;
-
-  const payload = verified['payload'];
-  if (isRecord(payload) && typeof payload['sub'] === 'string') {
-    return payload['sub'];
-  }
-
-  if (typeof verified['sub'] === 'string') {
-    return verified['sub'];
-  }
-
-  const claims = verified['claims'];
-  if (isRecord(claims) && typeof claims['sub'] === 'string') {
-    return claims['sub'];
-  }
-
-  return null;
-}
+const ORG_SLUG = process.env.DEFAULT_ORG_SLUG ?? 'yachtpricer';
+// необязательный белый список админов
+const ADMIN_WHITELIST = (process.env.ADMIN_EMAILS ?? '')
+  .split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
 
 @Injectable()
 export class ClerkAuthMiddleware implements NestMiddleware {
   private clerkClient: ClerkClient | null = null;
-
   constructor(private readonly prisma: PrismaService) {}
 
   async use(req: Request, _res: Response, next: NextFunction) {
     try {
-      // Разрешаем health-check без токена
-      const path = req.path ?? req.url ?? '';
-      if (path === '/api/health' || path === '/health') return next();
-
       const auth = req.headers.authorization ?? '';
       const [, token] = auth.split(' ');
       if (!token) throw new UnauthorizedException('Missing Bearer token');
 
-      // Динамически подгружаем SDK, чтобы в fake-режиме не тянуть зависимость
       const { createClerkClient, verifyToken } = (await import(
         '@clerk/backend'
       )) as ClerkBackendModule;
-
-      const secretKey = process.env.CLERK_SECRET_KEY;
-      if (!secretKey) throw new Error('CLERK_SECRET_KEY is not set');
+      const secret = process.env.CLERK_SECRET_KEY;
+      if (!secret) throw new Error('CLERK_SECRET_KEY is not set');
 
       if (!this.clerkClient) {
-        this.clerkClient = createClerkClient({ secretKey });
+        this.clerkClient = createClerkClient({ secretKey: secret });
       }
       const client = this.clerkClient;
 
       const verified = await verifyToken(token, {
-        secretKey,
+        secretKey: secret,
         issuer: process.env.CLERK_ISSUER,
         audience: process.env.CLERK_AUDIENCE,
       });
 
+      const isRec = (v: unknown): v is Record<string, unknown> =>
+        typeof v === 'object' && v !== null;
+      const extractSub = (v: unknown): string | null => {
+        if (!isRec(v)) return null;
+        const p = isRec(v.payload) ? v.payload : null;
+        if (p && typeof p['sub'] === 'string') return p['sub'];
+        if (typeof v['sub'] === 'string') return v['sub'];
+        const c = isRec(v['claims']) ? v['claims'] : null;
+        if (c && typeof c['sub'] === 'string') return c['sub'];
+        return null;
+      };
+
       const sub = extractSub(verified);
       if (!sub) throw new UnauthorizedException('Invalid token: no sub');
 
-      // Получаем email пользователя из Clerk
       const cUser = await client.users.getUser(sub);
       const email =
         cUser?.primaryEmailAddress?.emailAddress ??
@@ -100,24 +89,34 @@ export class ClerkAuthMiddleware implements NestMiddleware {
         null;
       if (!email) throw new UnauthorizedException('Email not found');
 
-      // Маппим на пользователя в нашей БД
-      const dbUser = await this.prisma.user.findFirst({
-        where: { email },
-        select: {
-          id: true,
-          email: true,
-          orgId: true,
-          role: true,
-          name: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
-      if (!dbUser) throw new UnauthorizedException('User not found in DB');
+      // --- Автопровижининг ---
+      let dbUser = await this.prisma.user.findUnique({ where: { email } });
+      if (!dbUser) {
+        const org = await this.prisma.organization.upsert({
+          where: { slug: ORG_SLUG },
+          update: {},
+          create: { slug: ORG_SLUG, name: ORG_SLUG },
+        });
+
+        // роль по умолчанию MANAGER; админам из whitelist — ADMIN
+        const defaultRole = ADMIN_WHITELIST.includes(email.toLowerCase())
+          ? 'ADMIN'
+          : 'MANAGER';
+
+        dbUser = await this.prisma.user.create({
+          data: {
+            email,
+            name:
+              [cUser.firstName, cUser.lastName].filter(Boolean).join(' ') ||
+              null,
+            role: defaultRole,
+            org: { connect: { id: org.id } },
+          },
+        });
+      }
 
       req.user = dbUser;
       req.orgId = dbUser.orgId ?? null;
-
       next();
     } catch (e) {
       next(new UnauthorizedException((e as Error).message));
