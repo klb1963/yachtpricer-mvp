@@ -4,9 +4,10 @@ services:
   workspace:
     image: mcr.microsoft.com/devcontainers/typescript-node:20
     volumes:
-      - .:/workspace:cached   # 👈 вместо ..
+      - .:/workspace:cached                     # проект
       - workspace-frontend-node_modules:/workspace/frontend/node_modules
       - workspace-backend-node_modules:/workspace/backend/node_modules
+      - ssh_node:/home/node/.ssh               # ⬅️ сохраняем SSH-ключи контейнера
     working_dir: /workspace
     command: sleep infinity
     environment: {}
@@ -30,7 +31,7 @@ services:
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/yachtpricer?schema=public
     volumes:
-      - .:/workspace:cached 
+      - .:/workspace:cached
     ports:
       - "5556:5555"
     depends_on:
@@ -41,6 +42,7 @@ services:
 volumes:
   workspace-frontend-node_modules:
   workspace-backend-node_modules:
+  ssh_node:                                   # ⬅️ named volume для ~/.ssh
 
 networks:
   yachtpricer-mvp_yachtpricer-net:
