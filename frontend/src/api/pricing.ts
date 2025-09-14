@@ -1,7 +1,14 @@
 // frontend/src/api/pricing.ts
 
-// ✅ Оставляем общий клиент. Через него автоматически подставляется Authorization: Bearer …
+// ✅ Общий axios-клиент. Через него автоматически подставляется Authorization: Bearer …
 import { api } from '@/api';
+
+export type DecisionStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+
+export type RowPerms = {
+  canSubmit: boolean;
+  canApproveOrReject: boolean;
+};
 
 export type PricingRow = {
   yachtId: string;
@@ -17,10 +24,11 @@ export type PricingRow = {
   decision: null | {
     discountPct: number | null;
     finalPrice: number | null;
-    status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+    status: DecisionStatus;
   };
   mlReco: number | null;
   finalPrice: number | null;
+  perms?: RowPerms; // ← добавили perms
 };
 
 // ✅ типы "сырых" данных от бэка (числа могут прийти строками)
@@ -35,7 +43,7 @@ type RawSnapshot = {
 type RawDecision = {
   discountPct: number | string | null | undefined;
   finalPrice: number | string | null | undefined;
-  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+  status: DecisionStatus;
 };
 
 type RawPricingRow = {
@@ -46,10 +54,11 @@ type RawPricingRow = {
   decision?: RawDecision | null;
   mlReco?: number | string | null;
   finalPrice?: number | string | null;
+  perms?: {
+    canSubmit?: boolean;
+    canApproveOrReject?: boolean;
+  };
 };
-
-// ❌ УДАЛЕНО: локальная константа API и прямые вызовы fetch()
-// const API = import.meta.env.VITE_API_URL ?? '/api';
 
 // безопасное приведение строковых чисел → number
 function num(x: unknown): number | null {
@@ -58,7 +67,7 @@ function num(x: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-// ✅ убрали any → используем тип RawPricingRow
+// ✅ нормализация строки
 function normalizeRow(r: RawPricingRow): PricingRow {
   return {
     yachtId: r.yachtId,
@@ -82,6 +91,12 @@ function normalizeRow(r: RawPricingRow): PricingRow {
       : null,
     mlReco: num(r.mlReco ?? null),
     finalPrice: num(r.finalPrice ?? null),
+    perms: r.perms
+      ? {
+          canSubmit: !!r.perms.canSubmit,
+          canApproveOrReject: !!r.perms.canApproveOrReject,
+        }
+      : undefined,
   };
 }
 
@@ -89,31 +104,29 @@ function normalizeRow(r: RawPricingRow): PricingRow {
    Запросы через Axios api
    ====================== */
 
-// 🔁 CHANGED: fetch → api.get + params
+// Список строк на неделю
 export async function fetchRows(weekISO: string): Promise<PricingRow[]> {
-  const { data } = await api.get<RawPricingRow[]>('/pricing/rows', {
-    params: { week: weekISO },
-  });
+  const { data } = await api.get<RawPricingRow[]>('/pricing/rows', { params: { week: weekISO } });
   return Array.isArray(data) ? data.map(normalizeRow) : [];
 }
 
-// 🔁 CHANGED: fetch POST → api.post
+// Создание/обновление решения (скидка/итог)
 export async function upsertDecision(params: {
   yachtId: string;
   week: string;
   discountPct?: number | null;
   finalPrice?: number | null;
-}) {
+}): Promise<PricingRow> {
   const { data } = await api.post<RawPricingRow>('/pricing/decision', params);
   return normalizeRow(data);
 }
 
-// 🔁 CHANGED: fetch POST → api.post
+// Смена статуса (Submit/Approve/Reject)
 export async function changeStatus(params: {
   yachtId: string;
   week: string;
-  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
-}) {
+  status: DecisionStatus;
+}): Promise<PricingRow> {
   const { data } = await api.post<RawPricingRow>('/pricing/status', params);
   return normalizeRow(data);
 }

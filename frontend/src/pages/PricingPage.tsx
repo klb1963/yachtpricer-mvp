@@ -1,7 +1,7 @@
 // frontend/src/pages/PricingPage.tsx
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { changeStatus, fetchRows, upsertDecision } from '../api/pricing';
-import type { PricingRow } from '../api/pricing';
+import type { PricingRow, DecisionStatus } from '../api/pricing';
 import { toYMD, nextSaturday, prevSaturday, toSaturdayUTC } from '../utils/week';
 
 // ─ helpers ─
@@ -24,8 +24,6 @@ function calcFinal(base: number, discountPct: number | null | undefined) {
   if (k < 0) return 0;
   return Math.round(base * k);
 }
-
-type DecisionStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
 
 export default function PricingPage() {
   // ────────────────────────────────────────────────────────────
@@ -122,6 +120,17 @@ export default function PricingPage() {
     setSavingId(yachtId);
     try {
       await upsertDecision({ yachtId, week, finalPrice, discountPct });
+    } catch (e: unknown) {
+      if (
+        typeof e === 'object' &&
+        e !== null &&
+        'response' in e &&
+        (e as { response?: { status?: number } }).response?.status === 403
+      ) {
+        alert('Недостаточно прав');
+      } else {
+        alert('Ошибка изменения статуса');
+      }
     } finally {
       setSavingId(null);
     }
@@ -281,15 +290,30 @@ export default function PricingPage() {
                   </td>
                   <td className="p-3">
                     <div className="flex gap-2">
-                      <button className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
-                              onClick={() => onStatus(r.yachtId, 'SUBMITTED')}
-                              disabled={savingId === r.yachtId}>Submit</button>
-                      <button className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
-                              onClick={() => onStatus(r.yachtId, 'APPROVED')}
-                              disabled={savingId === r.yachtId}>Approve</button>
-                      <button className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
-                              onClick={() => onStatus(r.yachtId, 'REJECTED')}
-                              disabled={savingId === r.yachtId}>Reject</button>
+                      <button
+                        className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
+                        onClick={() => onStatus(r.yachtId, 'SUBMITTED')}
+                        disabled={savingId === r.yachtId || !r.perms?.canSubmit}
+                        title={r.perms?.canSubmit ? 'Submit' : 'Недостаточно прав'}
+                      >
+                        Submit
+                      </button>
+                      <button
+                        className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
+                        onClick={() => onStatus(r.yachtId, 'APPROVED')}
+                        disabled={savingId === r.yachtId || !r.perms?.canApproveOrReject}
+                        title={r.perms?.canApproveOrReject ? 'Approve' : 'Недостаточно прав'}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
+                        onClick={() => onStatus(r.yachtId, 'REJECTED')}
+                        disabled={savingId === r.yachtId || !r.perms?.canApproveOrReject}
+                        title={r.perms?.canApproveOrReject ? 'Reject' : 'Недостаточно прав'}
+                      >
+                        Reject
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -350,15 +374,30 @@ export default function PricingPage() {
                   {r.decision?.status ?? 'DRAFT'}
                 </span>
                 <div className="flex gap-2">
-                  <button className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
-                          onClick={() => onStatus(r.yachtId, 'SUBMITTED')}
-                          disabled={savingId === r.yachtId}>Submit</button>
-                  <button className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
-                          onClick={() => onStatus(r.yachtId, 'APPROVED')}
-                          disabled={savingId === r.yachtId}>Approve</button>
-                  <button className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
-                          onClick={() => onStatus(r.yachtId, 'REJECTED')}
-                          disabled={savingId === r.yachtId}>Reject</button>
+                  <button
+                    className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
+                    onClick={() => onStatus(r.yachtId, 'SUBMITTED')}
+                    disabled={savingId === r.yachtId || !r.perms?.canSubmit}
+                    title={r.perms?.canSubmit ? 'Submit' : 'Недостаточно прав'}
+                  >
+                    Submit
+                  </button>
+                  <button
+                    className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
+                    onClick={() => onStatus(r.yachtId, 'APPROVED')}
+                    disabled={savingId === r.yachtId || !r.perms?.canApproveOrReject}
+                    title={r.perms?.canApproveOrReject ? 'Approve' : 'Недостаточно прав'}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
+                    onClick={() => onStatus(r.yachtId, 'REJECTED')}
+                    disabled={savingId === r.yachtId || !r.perms?.canApproveOrReject}
+                    title={r.perms?.canApproveOrReject ? 'Reject' : 'Недостаточно прав'}
+                  >
+                    Reject
+                  </button>
                 </div>
               </div>
             </div>
