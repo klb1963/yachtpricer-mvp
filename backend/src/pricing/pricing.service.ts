@@ -24,6 +24,14 @@ function weekStartUTC(d: Date) {
   return x;
 }
 
+// Тип-ответ для changeStatus: решение + лодка + мета-поля
+type DecisionWithMeta = Prisma.PricingDecisionGetPayload<{
+  include: { yacht: true };
+}> & {
+  lastComment: string | null;
+  lastActionAt: Date | null;
+};
+
 @Injectable()
 export class PricingService {
   constructor(
@@ -31,7 +39,7 @@ export class PricingService {
     private accessCtx: AccessCtxService,
   ) {}
 
-  /** Табличка по флоту на неделю: базовая цена, снапшот, черновик решения, perms и предложка mlReco */
+  /** Табличка по флоту на неделю: базовая цена, снапшот, черновик решения, perms, комментарии и предложка mlReco */
   async rows(q: PricingRowsQueryDto, user: User) {
     const ws = weekStartUTC(new Date(q.week));
 
@@ -49,6 +57,7 @@ export class PricingService {
       },
     });
 
+    // Снимки конкурентов и текущие решения на эту неделю
     const [snaps, decisions] = await Promise.all([
       this.prisma.competitorSnapshot.findMany({
         where: { weekStart: ws },
@@ -62,30 +71,60 @@ export class PricingService {
     const snapByYacht = new Map(snaps.map((s) => [s.yachtId, s]));
     const decByYacht = new Map(decisions.map((d) => [d.yachtId, d]));
 
+    // ✨ Подтянем последний комментарий/время действия по каждому решению
+    const decisionIds = decisions.map((d) => d.id);
+    const lastAuditByDecision = new Map<
+      string,
+      { comment: string | null; createdAt: Date }
+    >();
+    if (decisionIds.length > 0) {
+      const audits = await this.prisma.priceAuditLog.findMany({
+        where: { decisionId: { in: decisionIds } },
+        orderBy: { createdAt: 'desc' },
+      });
+      for (const a of audits) {
+        // запомним только самый свежий по decisionId
+        if (!lastAuditByDecision.has(a.decisionId)) {
+          lastAuditByDecision.set(a.decisionId, {
+            comment: a.comment ?? null,
+            createdAt: a.createdAt,
+          });
+        }
+      }
+    }
+
+    // Собираем финальную строку по каждой лодке
     return Promise.all(
       yachts.map(async (y) => {
         const s = snapByYacht.get(y.id);
         const d = decByYacht.get(y.id);
         const status = d?.status ?? DecisionStatus.DRAFT;
 
+        // контекст доступа для этой лодки
         const ctx: AccessCtx = await this.accessCtx.build(
-          { id: user.id, role: user.role },
+          { id: user.id, role: user.role, orgId: user.orgId },
           y.id,
         );
 
+        // права на действия (только вычисляем и возвращаем во фронт)
         const perms = {
+          canEditDraft: canEditDraft(user, { status }, ctx),
           canSubmit: canSubmit(user, { status }, ctx),
           canApproveOrReject: canApproveOrReject(user, { status }, ctx),
         };
 
+        // простая эвристика: рекомендация = top3Avg, если есть
         const mlReco = s?.top3Avg ?? null;
 
+        // если у решения есть discountPct, пересчитаем итог (если finalPrice не задан)
         let finalPrice = d?.finalPrice ?? null;
         if (finalPrice == null && d?.discountPct != null) {
           finalPrice = y.basePrice.mul(
             new Prisma.Decimal(1).sub(d.discountPct.div(100)),
           );
         }
+
+        const lastAudit = d?.id ? lastAuditByDecision.get(d.id) : undefined;
 
         return {
           yachtId: y.id,
@@ -107,6 +146,9 @@ export class PricingService {
                 status: d.status,
               }
             : null,
+          // ✨ последние комментарий и время действия
+          lastComment: lastAudit?.comment ?? null,
+          lastActionAt: lastAudit?.createdAt ?? null,
           mlReco,
           finalPrice,
           perms,
@@ -132,9 +174,9 @@ export class PricingService {
     });
     const currentStatus = current?.status ?? DecisionStatus.DRAFT;
 
-    // RBAC
+    // контекст + RBAC
     const ctx: AccessCtx = await this.accessCtx.build(
-      { id: user.id, role: user.role },
+      { id: user.id, role: user.role, orgId: user.orgId },
       yacht.id,
     );
     if (!canEditDraft(user, { status: currentStatus }, ctx)) {
@@ -143,11 +185,13 @@ export class PricingService {
 
     const basePriceDecimal = yacht.basePrice ?? new Prisma.Decimal(0);
 
+    // приводим входные числа к Decimal (или null)
     const discountDec =
       dto.discountPct != null ? new Prisma.Decimal(dto.discountPct) : null;
     const finalPriceDec =
       dto.finalPrice != null ? new Prisma.Decimal(dto.finalPrice) : null;
 
+    // upsert
     await this.prisma.pricingDecision.upsert({
       where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
       create: {
@@ -164,6 +208,7 @@ export class PricingService {
       },
     });
 
+    // возвращаем запись с лодкой
     return this.prisma.pricingDecision.findUnique({
       where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
       include: { yacht: true },
@@ -171,16 +216,20 @@ export class PricingService {
   }
 
   /** Смена статуса решения (RBAC: canSubmit / canApproveOrReject) + аудит */
-  async changeStatus(dto: ChangeStatusDto, user: User) {
+  async changeStatus(
+    dto: ChangeStatusDto,
+    user: User,
+  ): Promise<DecisionWithMeta> {
+    console.log('[SVC] changeStatus input:', dto);
     const ws = weekStartUTC(new Date(dto.week));
 
-    // ⚠️ пробуем найти текущую запись
+    // пробуем найти текущую запись
     let current = await this.prisma.pricingDecision.findUnique({
       where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
-      include: { yacht: { select: { id: true, basePrice: true } } }, // ← добавим basePrice
+      include: { yacht: { select: { id: true, basePrice: true } } },
     });
 
-    // ✅ если записи нет, и это первый шаг (часто SUBMITTED), создадим её на лету
+    // если записи нет, создаём её как DRAFT (частый случай при первом SUBMIT)
     if (!current) {
       const yacht = await this.prisma.yacht.findUniqueOrThrow({
         where: { id: dto.yachtId },
@@ -191,7 +240,7 @@ export class PricingService {
           yachtId: dto.yachtId,
           weekStart: ws,
           basePrice: yacht.basePrice ?? new Prisma.Decimal(0),
-          status: DecisionStatus.DRAFT, // создаём как DRAFT, дальше RBAC решит можно ли менять
+          status: DecisionStatus.DRAFT,
         },
         include: { yacht: { select: { id: true, basePrice: true } } },
       });
@@ -200,10 +249,11 @@ export class PricingService {
     const currentStatus = current?.status ?? DecisionStatus.DRAFT;
 
     const ctx: AccessCtx = await this.accessCtx.build(
-      { id: user.id, role: user.role },
+      { id: user.id, role: user.role, orgId: user.orgId },
       dto.yachtId,
     );
 
+    // RBAC
     if (dto.status === DecisionStatus.SUBMITTED) {
       if (!canSubmit(user, { status: currentStatus }, ctx)) {
         throw new ForbiddenException('Недостаточно прав для Submit');
@@ -219,6 +269,7 @@ export class PricingService {
 
     const toStatus = dto.status;
 
+    // Тип аудита
     const auditAction: AuditAction | null =
       toStatus === DecisionStatus.SUBMITTED
         ? AuditAction.SUBMIT
@@ -228,6 +279,8 @@ export class PricingService {
             ? AuditAction.REJECT
             : null;
 
+    console.log('[SVC] create audit with comment:', dto.comment);
+    // Транзакция: обновляем статус + пишем аудит
     const updated = await this.prisma.$transaction(async (tx) => {
       const decision = await tx.pricingDecision.update({
         where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
@@ -236,6 +289,11 @@ export class PricingService {
           approvedAt: toStatus === DecisionStatus.APPROVED ? new Date() : null,
         },
         include: { yacht: true },
+      });
+
+      console.log('[AUDIT]', {
+        comment: dto.comment,
+        trimmed: dto.comment?.trim(),
       });
 
       if (auditAction) {
@@ -254,6 +312,13 @@ export class PricingService {
       return decision;
     });
 
-    return updated;
+    // Вернём также последний комментарий/время действия
+    const response: DecisionWithMeta = {
+      ...updated,
+      lastComment: dto.comment?.trim() || null,
+      lastActionAt: new Date(),
+    };
+
+    return response;
   }
 }

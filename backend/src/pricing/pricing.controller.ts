@@ -38,6 +38,7 @@ export class PricingController {
   @Post('status')
   change(@Body() dto: ChangeStatusDto, @CurrentUser() user: User | null) {
     if (!user) throw new UnauthorizedException();
+    console.log('[CTRL] changeStatus DTO:', dto); // ← временно
     return this.svc.changeStatus(dto, user);
   }
 }

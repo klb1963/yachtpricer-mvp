@@ -8,6 +8,7 @@ import {
   IsEnum,
   Min,
   Max,
+  MaxLength,
 } from 'class-validator';
 import { DecisionStatus } from '@prisma/client';
 
@@ -46,5 +47,8 @@ export class ChangeStatusDto {
 
   @IsEnum(DecisionStatus)
   status!: DecisionStatus; // SUBMITTED | APPROVED | REJECTED
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
   comment?: string;
 }
