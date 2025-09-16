@@ -12,6 +12,7 @@ import YachtEditPage from "./pages/YachtEditPage";
 import PricingPage from "./pages/PricingPage";
 import OrganizationPage from "./pages/OrganizationPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
+import DebugWhoamiPage from "./pages/DebugWhoamiPage";
 
 import { useWhoami } from "./hooks/useWhoami";
 
@@ -108,6 +109,18 @@ export default function App() {
             </>
           }
         />
+        
+        {/* 🛠 Debug route */}
+        <Route
+          path="/debug/whoami"
+          element={
+            <>
+              <SignedIn><DebugWhoamiPage /></SignedIn>
+              <SignedOut><RedirectToSignIn /></SignedOut>
+            </>
+          }
+        />
+
       </Routes>
     </BrowserRouter>
   );

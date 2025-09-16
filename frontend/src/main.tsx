@@ -1,14 +1,15 @@
 // /workspace/frontend/src/main.tsx
 
-// /workspace/frontend/src/main.tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+
+console.log('[main] entry loaded');     // <- ГРОМКО, чтобы видеть загрузку entry
 
 import './index.css';   // <-- ВАЖНО: Tailwind (base/components/utilities)
 import './App.css';     // <-- твои доп. стили (если есть)
 import './i18n';
 
-import App from './App.tsx';
+import App from './App';
 
 import { ClerkProvider } from '@clerk/clerk-react';
 

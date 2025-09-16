@@ -1,5 +1,4 @@
 // frontend/src/api.ts
-
 import axios, {
   AxiosError,
   InternalAxiosRequestConfig,
@@ -15,6 +14,7 @@ declare global {
         getToken: (opts?: { refresh?: boolean }) => Promise<string | null>;
       };
     };
+    __whoamiOnce?: () => Promise<any>;
   }
 }
 
@@ -29,7 +29,7 @@ export interface Yacht {
   builtYear: number;
   cabins: number;
   heads: number;
-  basePrice: string | number; // Decimal приходит строкой
+  basePrice: string | number;
   location: string;
   fleet: string;
   charterCompany: string;
@@ -65,17 +65,14 @@ export type YachtListResponse = {
 
 const API_BASE: string = import.meta.env.VITE_API_URL || "/api";
 
-export const api = axios.create({
-  baseURL: API_BASE,
-});
+export const api = axios.create({ baseURL: API_BASE });
 
-// Helper: гарантируем, что у нас именно AxiosHeaders (а не undefined)
-function ensureHeaders(
-  headers?: AxiosRequestHeaders
-): AxiosHeaders {
-  return headers instanceof AxiosHeaders
-    ? headers
-    : new AxiosHeaders(headers ?? {});
+// 🔊 Лог — убеждаемся, что подхватился именно этот модуль
+console.log("[api.ts] module loaded, baseURL =", API_BASE);
+
+// Helper: гарантируем AxiosHeaders
+function ensureHeaders(headers?: AxiosRequestHeaders): AxiosHeaders {
+  return headers instanceof AxiosHeaders ? headers : new AxiosHeaders(headers ?? {});
 }
 
 // маленький helper для токена Clerk
@@ -96,6 +93,19 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
     const headers = ensureHeaders(config.headers);
     headers.set("Authorization", `Bearer ${token}`);
     config.headers = headers;
+
+    // 🔊 видно всегда
+    try {
+      console.log(
+        "[api.ts] attached Clerk token (first16):",
+        token.slice(0, 16),
+        "… →",
+        config.method?.toUpperCase(),
+        config.baseURL + (config.url || "")
+      );
+    } catch {}
+  } else {
+    console.log("[api.ts] Clerk token missing (getToken() returned null)");
   }
   return config;
 });
@@ -105,13 +115,14 @@ interface RetryableConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
 }
 
-// Один автоматический ретрай при 401 с принудительным refresh токена
+// Один ретрай при 401 с принудительным refresh токена
 api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const cfg = (error.config ?? {}) as RetryableConfig;
 
     if (error.response?.status === 401 && !cfg._retry) {
+      console.warn("[api.ts] 401 from", cfg.url, "→ try refresh token & retry once");
       cfg._retry = true;
       const fresh = await getClerkToken({ refresh: true });
       if (fresh) {
@@ -153,13 +164,11 @@ export type YachtUpdatePayload = {
   fleet?: string;
   charterCompany?: string;
   ownerName?: string;
-
   length?: string;
   builtYear?: string;
   cabins?: string;
   heads?: string;
   basePrice?: string;
-
   currentExtraServices?: string | Array<{ name: string; price: number }>;
 };
 
@@ -179,9 +188,7 @@ export async function deleteYacht(id: string): Promise<{ success: boolean }> {
 }
 
 // ============================
-//
 // Scraper API (mock backend)
-//
 // ============================
 
 export type ScrapeSource = "BOATAROUND" | "SEARADAR";
@@ -201,8 +208,8 @@ export type StartScrapePayload = {
   type?: string;
   minYear?: number;
   maxYear?: number;
-  minLength?: number; // метры
-  maxLength?: number; // метры
+  minLength?: number;
+  maxLength?: number;
   people?: number;
   cabins?: number;
   heads?: number;
@@ -218,17 +225,10 @@ export async function startScrape(payload: StartScrapePayload): Promise<StartScr
   return data;
 }
 
-// сырой тип ответа для /scrape/status
-type ScrapeStatusRaw = {
-  id?: string;
-  status?: JobStatus | string;
-  error?: string | null;
-};
+type ScrapeStatusRaw = { id?: string; status?: JobStatus | string; error?: string | null };
 
 export async function getScrapeStatus(jobId: string): Promise<ScrapeJobDTO> {
-  const { data } = await api.get<ScrapeStatusRaw>("/scrape/status", {
-    params: { jobId },
-  });
+  const { data } = await api.get<ScrapeStatusRaw>("/scrape/status", { params: { jobId } });
   return {
     id: data?.id ?? jobId,
     status: ((data?.status as JobStatus) ?? "FAILED") as JobStatus,
@@ -263,7 +263,7 @@ export type CompetitorPrice = {
   weekStart: string; // ISO
   source: ScrapeSource;
   competitorYacht: string | null;
-  price: string; // строка
+  price: string;
   currency: string | null;
   link: string | null;
   scrapedAt: string; // ISO
@@ -275,8 +275,14 @@ export type CompetitorPrice = {
 };
 
 export async function listCompetitorPrices(params: { yachtId?: string; week?: string }) {
-  const { data } = await api.get<CompetitorPrice[]>("/scrape/competitors-prices", {
-    params,
-  });
+  const { data } = await api.get<CompetitorPrice[]>("/scrape/competitors-prices", { params });
   return data;
 }
+
+// ---- DEV helper: ручной вызов whoami ----
+async function __whoamiOnce() {
+  const res = await api.get("/auth/whoami");
+  console.log("[api.ts] whoami =>", res.data);
+  return res.data;
+}
+if (import.meta.env.DEV) window.__whoamiOnce = __whoamiOnce;
