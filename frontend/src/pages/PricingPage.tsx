@@ -1,7 +1,7 @@
 // frontend/src/pages/PricingPage.tsx
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { changeStatus, fetchRows, upsertDecision } from '../api/pricing';
+import { changeStatus, fetchRows, upsertDecision, pairFromRow } from '../api/pricing';
 import type { PricingRow, DecisionStatus } from '../api/pricing';
 import { toYMD, nextSaturday, prevSaturday, toSaturdayUTC } from '../utils/week';
 import ConfirmActionModal from '@/components/ConfirmActionModal';
@@ -163,6 +163,7 @@ export default function PricingPage() {
 
   // ─ смена статуса через модалку комментария ─
   function openStatusDialog(yachtId: string, status: DecisionStatus) {
+    (document.activeElement as HTMLElement | null)?.blur?.();
     setDialog({ open: true, yachtId, status });
   }
   function closeDialog() {
@@ -171,6 +172,11 @@ export default function PricingPage() {
 
   async function confirmDialog(comment: string) {
     if (!dialog.yachtId || !dialog.status) return;
+
+    // Берём актуальную строку и “нормализованную” пару (pct/final)
+    const row = rows.find(r => r.yachtId === dialog.yachtId);
+    const { discountPct, finalPrice } = row ? pairFromRow(row) : { discountPct: null, finalPrice: null };
+
     setSubmitting(true);
     setSavingId(dialog.yachtId);
     try {
@@ -179,8 +185,10 @@ export default function PricingPage() {
         week,
         status: dialog.status,
         comment: comment?.trim() || undefined,
+        discountPct,
+        finalPrice,
       });
-      // Обновляем только то, что пришло из бэка и реально поменялось
+
       setRows(prev =>
         prev.map(r =>
           r.yachtId === updated.yachtId
@@ -189,20 +197,19 @@ export default function PricingPage() {
               decision: updated.decision ?? r.decision,
               finalPrice: updated.finalPrice ?? r.finalPrice,
               perms: updated.perms ?? r.perms,
-              // ✨ либо то, что вернул сервер, либо локально введённый comment
               lastComment: updated.lastComment ?? (comment?.trim() || r.lastComment) ?? null,
               lastActionAt: updated.lastActionAt ?? r.lastActionAt ?? null,
             }
             : r
         )
       );
+
       closeDialog();
-    } catch (e: unknown) {
+    } catch (e) {
       if (axios.isAxiosError(e) && e.response?.status === 403) {
         alert('Недостаточно прав');
       } else {
         alert('Не удалось сменить статус');
-        // опционально: console.error(e);
       }
     } finally {
       setSubmitting(false);
@@ -231,9 +238,9 @@ export default function PricingPage() {
   function renderEditors(r: PricingRow) {
     const discountValue = r.decision?.discountPct ?? '';
     const finalValue = r.decision?.finalPrice ?? '';
-  // можно ли редактировать черновик (RBAC от бэкенда)
+    // можно ли редактировать черновик (RBAC от бэкенда)
     const canEdit = r.perms?.canEditDraft ?? false;
-  // общий флаг disable для инпутов
+    // общий флаг disable для инпутов
     const isDisabled = (savingId === r.yachtId) || !canEdit;
 
     return (

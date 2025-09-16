@@ -7,16 +7,16 @@ import axios, {
 } from "axios";
 
 // ---- Глобальный тип для window.Clerk ----
-declare global {
-  interface Window {
-    Clerk?: {
-      session?: {
-        getToken: (opts?: { refresh?: boolean }) => Promise<string | null>;
-      };
-    };
-    __whoamiOnce?: () => Promise<any>;
-  }
-}
+// declare global {
+//   interface Window {
+//     Clerk?: {
+//       session?: {
+//         getToken: (opts?: { refresh?: boolean }) => Promise<string | null>;
+//       };
+//     };
+//     __whoamiOnce?: () => Promise<any>;
+//   }
+// }
 
 // ---- Types ----
 export interface Yacht {
@@ -279,10 +279,10 @@ export async function listCompetitorPrices(params: { yachtId?: string; week?: st
   return data;
 }
 
-// ---- DEV helper: ручной вызов whoami ----
-async function __whoamiOnce() {
-  const res = await api.get("/auth/whoami");
-  console.log("[api.ts] whoami =>", res.data);
-  return res.data;
-}
-if (import.meta.env.DEV) window.__whoamiOnce = __whoamiOnce;
+// // ---- DEV helper: ручной вызов whoami ----
+// async function __whoamiOnce() {
+//   const res = await api.get("/auth/whoami");
+//   console.log("[api.ts] whoami =>", res.data);
+//   return res.data;
+// }
+// if (import.meta.env.DEV) window.__whoamiOnce = __whoamiOnce;
