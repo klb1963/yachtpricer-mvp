@@ -20,14 +20,25 @@ export function canEditDraft(
   ctxDecision: { status: DecisionStatus },
   ctx: AccessCtx,
 ): boolean {
+  // Только своя организация
   if (!ctx.sameOrg) return false;
 
-  // ОСТАВЛЯЕМ как было: правит только менеджер флота этой лодки
-  // (если нужно, чтобы ADMIN тоже мог редактировать поля — раскомментируй строку ниже)
-  // if (user.role === 'ADMIN') return ctxDecision.status === 'DRAFT' || ctxDecision.status === 'REJECTED';
+  // Редактируем ТОЛЬКО в DRAFT/REJECTED (жёсткий режим — ничего нельзя после SUBMITTED/APPROVED)
+  const editableStatus =
+    ctxDecision.status === 'DRAFT' || ctxDecision.status === 'REJECTED';
+  if (!editableStatus) return false;
 
-  if (user.role !== 'MANAGER') return false;
-  return ctxDecision.status === 'DRAFT' || ctxDecision.status === 'REJECTED';
+  // Аварийный режим: ADMIN может править всегда (в рамках editableStatus)
+  if (user.role === 'ADMIN') return true;
+
+  // Менеджер флота тоже может (для оперативной подмены)
+  if (user.role === 'FLEET_MANAGER') return true;
+
+  // Обычный менеджер — только если он отвечает за эту лодку
+  if (user.role === 'MANAGER' && ctx.isManagerOfYacht) return true;
+
+  // OWNER и прочие — нет
+  return false;
 }
 
 /** Submit (доступен в DRAFT/REJECTED) */
