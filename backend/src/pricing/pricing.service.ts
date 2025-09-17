@@ -1,5 +1,4 @@
 // backend/src/pricing/pricing.service.ts
-
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { Prisma, DecisionStatus, User, AuditAction } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -23,6 +22,48 @@ function weekStartUTC(d: Date) {
   x.setUTCHours(0, 0, 0, 0);
   return x;
 }
+
+// ── helpers: расчёт пары и пр. ───────────────────────────────────────────────
+
+// Тайп-guard: это Prisma.Decimal (или совместимый объект с toNumber(): number)
+function isPrismaDecimal(x: unknown): x is Prisma.Decimal {
+  return (
+    x instanceof Prisma.Decimal ||
+    (typeof x === 'object' &&
+      x !== null &&
+      'toNumber' in x &&
+      typeof (x as { toNumber: unknown }).toNumber === 'function')
+  );
+}
+
+// Привести unknown/Decimal/String к числу (если не получится — 0)
+export const toNumberSafe = (v: unknown): number => {
+  if (v == null) return 0;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  if (typeof v === 'string') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (isPrismaDecimal(v)) return v.toNumber();
+  return 0;
+};
+
+// type-guard: валидное число
+export const isNum = (x: unknown): x is number =>
+  typeof x === 'number' && Number.isFinite(x);
+
+// Итоговая цена из базы и скидки (%). На входе — валидные числа.
+export const calcFinal = (base: number, discountPct: number): number => {
+  const k = 1 - discountPct / 100;
+  return Math.round(Math.max(0, base * k));
+};
+
+// Скидка (%) из базы и финальной цены. На входе — валидные числа.
+export const calcDiscountPct = (base: number, finalPrice: number): number => {
+  if (base <= 0) return 0;
+  const pct = (1 - finalPrice / base) * 100;
+  return Number(pct.toFixed(1));
+};
 
 // Тип-ответ для changeStatus: решение + лодка + мета-поля
 type DecisionWithMeta = Prisma.PricingDecisionGetPayload<{
@@ -220,8 +261,9 @@ export class PricingService {
     dto: ChangeStatusDto,
     user: User,
   ): Promise<DecisionWithMeta> {
-    console.log('[SVC] changeStatus input:', dto);
     const ws = weekStartUTC(new Date(dto.week));
+
+    console.log('[SVC] changeStatus input DTO:', JSON.stringify({ ...dto }));
 
     // пробуем найти текущую запись
     let current = await this.prisma.pricingDecision.findUnique({
@@ -229,7 +271,19 @@ export class PricingService {
       include: { yacht: { select: { id: true, basePrice: true } } },
     });
 
-    // если записи нет, создаём её как DRAFT (частый случай при первом SUBMIT)
+    console.log(
+      '[SVC] current decision:',
+      current
+        ? {
+            id: current.id,
+            status: current.status,
+            basePrice: current.basePrice?.toString?.(),
+            yachtId: current.yachtId,
+          }
+        : '(not found)',
+    );
+
+    // если записи нет, создаём её как DRAFT
     if (!current) {
       const yacht = await this.prisma.yacht.findUniqueOrThrow({
         where: { id: dto.yachtId },
@@ -244,9 +298,14 @@ export class PricingService {
         },
         include: { yacht: { select: { id: true, basePrice: true } } },
       });
+      console.log('[SVC] created new decision draft:', {
+        id: current.id,
+        basePrice: current.basePrice?.toString?.(),
+      });
     }
 
     const currentStatus = current?.status ?? DecisionStatus.DRAFT;
+    console.log('[SVC] currentStatus:', currentStatus);
 
     const ctx: AccessCtx = await this.accessCtx.build(
       { id: user.id, role: user.role, orgId: user.orgId },
@@ -256,6 +315,7 @@ export class PricingService {
     // RBAC
     if (dto.status === DecisionStatus.SUBMITTED) {
       if (!canSubmit(user, { status: currentStatus }, ctx)) {
+        console.warn('[SVC] RBAC forbid Submit');
         throw new ForbiddenException('Недостаточно прав для Submit');
       }
     } else if (
@@ -263,11 +323,13 @@ export class PricingService {
       dto.status === DecisionStatus.REJECTED
     ) {
       if (!canApproveOrReject(user, { status: currentStatus }, ctx)) {
+        console.warn('[SVC] RBAC forbid Approve/Reject');
         throw new ForbiddenException('Недостаточно прав для Approve/Reject');
       }
     }
 
     const toStatus = dto.status;
+    console.log('[SVC] target status:', toStatus);
 
     // Тип аудита
     const auditAction: AuditAction | null =
@@ -279,9 +341,50 @@ export class PricingService {
             ? AuditAction.REJECT
             : null;
 
-    console.log('[SVC] create audit with comment:', dto.comment);
-    // Транзакция: обновляем статус + пишем аудит
+    console.log('[SVC] audit action:', auditAction);
+
+    // Транзакция
     const updated = await this.prisma.$transaction(async (tx) => {
+      // 1) при SUBMIT пробуем обновить discount/final
+      if (toStatus === DecisionStatus.SUBMITTED) {
+        const base = toNumberSafe(current?.yacht?.basePrice);
+        const nextDisc = dto.discountPct;
+        const nextFinal = dto.finalPrice;
+
+        console.log('[SVC] incoming pair:', { base, nextDisc, nextFinal });
+
+        let newDiscountPct: number | undefined;
+        let newFinalPrice: number | undefined;
+
+        if (isNum(nextDisc)) {
+          newDiscountPct = nextDisc;
+          newFinalPrice = calcFinal(base, nextDisc);
+        } else if (isNum(nextFinal)) {
+          newFinalPrice = nextFinal;
+          newDiscountPct = calcDiscountPct(base, nextFinal);
+        }
+
+        console.log('[SVC] resolved pair:', { newDiscountPct, newFinalPrice });
+
+        if (newDiscountPct !== undefined || newFinalPrice !== undefined) {
+          await tx.pricingDecision.update({
+            where: {
+              yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws },
+            },
+            data: {
+              ...(newDiscountPct !== undefined
+                ? { discountPct: new Prisma.Decimal(newDiscountPct) }
+                : {}),
+              ...(newFinalPrice !== undefined
+                ? { finalPrice: new Prisma.Decimal(newFinalPrice) }
+                : {}),
+            },
+          });
+          console.log('[SVC] applied update with discount/final');
+        }
+      }
+
+      // 2) обновляем статус
       const decision = await tx.pricingDecision.update({
         where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
         data: {
@@ -291,11 +394,9 @@ export class PricingService {
         include: { yacht: true },
       });
 
-      console.log('[AUDIT]', {
-        comment: dto.comment,
-        trimmed: dto.comment?.trim(),
-      });
+      console.log('[SVC] updated decision status:', decision.status);
 
+      // 3) пишем аудит
       if (auditAction) {
         await tx.priceAuditLog.create({
           data: {
@@ -307,17 +408,25 @@ export class PricingService {
             comment: dto.comment?.trim() || null,
           },
         });
+        console.log('[SVC] audit record created');
       }
 
       return decision;
     });
 
-    // Вернём также последний комментарий/время действия
     const response: DecisionWithMeta = {
       ...updated,
       lastComment: dto.comment?.trim() || null,
       lastActionAt: new Date(),
     };
+
+    console.log('[SVC] response prepared:', {
+      id: response.id,
+      status: response.status,
+      discountPct: response.discountPct?.toString?.(),
+      finalPrice: response.finalPrice?.toString?.(),
+      lastComment: response.lastComment,
+    });
 
     return response;
   }

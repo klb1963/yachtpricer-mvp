@@ -62,6 +62,7 @@ export default function PricingPage() {
 
   const weekDate = useMemo(() => new Date(`${week}T00:00:00Z`), [week]);
   const weekLabel = useMemo(() => toYMD(weekDate), [weekDate]);
+  const weekISO = useMemo(() => `${week}T00:00:00.000Z`, [week]);
 
   // ─ загрузка ─
   useEffect(() => {
@@ -69,7 +70,7 @@ export default function PricingPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await fetchRows(week);
+        const data = await fetchRows(weekISO);
         setRows(data);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to load pricing rows';
@@ -79,7 +80,7 @@ export default function PricingPage() {
         setLoading(false);
       }
     })();
-  }, [week]);
+  }, [weekISO]);
 
   // ─ локальный драфт ─
   const onDraftDiscountChange = useCallback((yachtId: string, valueStr: string) => {
@@ -129,7 +130,7 @@ export default function PricingPage() {
 
     setSavingId(yachtId);
     try {
-      const updated = await upsertDecision({ yachtId, week, discountPct, finalPrice });
+      const updated = await upsertDecision({ yachtId, week: weekISO, discountPct, finalPrice });
       setRows(prev => prev.map(r => (r.yachtId === yachtId ? { ...r, ...updated } : r)));
     } finally {
       setSavingId(null);
@@ -148,7 +149,7 @@ export default function PricingPage() {
 
     setSavingId(yachtId);
     try {
-      const updated = await upsertDecision({ yachtId, week, finalPrice, discountPct });
+      const updated = await upsertDecision({ yachtId, week: weekISO, finalPrice, discountPct });
       setRows(prev => prev.map(r => (r.yachtId === yachtId ? { ...r, ...updated } : r)));
     } catch (e: unknown) {
       // 403 для автосейва по blur показывать не обязательно
@@ -170,52 +171,68 @@ export default function PricingPage() {
     setDialog({ open: false, yachtId: null, status: null });
   }
 
-  async function confirmDialog(comment: string) {
-    if (!dialog.yachtId || !dialog.status) return;
+async function confirmDialog(comment: string) {
+  if (!dialog.yachtId || !dialog.status) return;
 
-    // Берём актуальную строку и “нормализованную” пару (pct/final)
-    const row = rows.find(r => r.yachtId === dialog.yachtId);
-    const { discountPct, finalPrice } = row ? pairFromRow(row) : { discountPct: null, finalPrice: null };
+  // Берём актуальную строку и “нормализованную” пару (pct/final)
+  const row = rows.find(r => r.yachtId === dialog.yachtId);
+  const { discountPct, finalPrice } = row ? pairFromRow(row) : { discountPct: null, finalPrice: null };
 
-    setSubmitting(true);
-    setSavingId(dialog.yachtId);
-    try {
-      const updated = await changeStatus({
-        yachtId: dialog.yachtId,
-        week,
-        status: dialog.status,
-        comment: comment?.trim() || undefined,
-        discountPct,
-        finalPrice,
+  setSubmitting(true);
+  setSavingId(dialog.yachtId);
+  try {
+    const updated = await changeStatus({
+      yachtId: dialog.yachtId,
+      week,
+      status: dialog.status,
+      comment: comment?.trim() || undefined,
+      discountPct,
+      finalPrice,
+    });
+
+    // Оптимистично: статус меняем сразу, canSubmit выключаем.
+    setRows(prev => {
+      return prev.map(r => {
+        if (r.yachtId !== updated.yachtId) return r;
+
+        const nextDecision =
+          updated.decision ??
+          r.decision ?? { status: 'DRAFT' as DecisionStatus, discountPct: null, finalPrice: null };
+
+        const nextPerms = {
+          ...(r.perms ?? { canEditDraft: false, canSubmit: false, canApproveOrReject: false }),
+          // Submit доступен только в DRAFT/REJECTED
+          canSubmit: nextDecision.status === 'DRAFT' || nextDecision.status === 'REJECTED',
+        };
+
+        return {
+          ...r,
+          decision: nextDecision,
+          finalPrice: updated.finalPrice ?? r.finalPrice ?? null,
+          perms: nextPerms,
+          lastComment: updated.lastComment ?? (comment?.trim() || r.lastComment) ?? null,
+          lastActionAt: updated.lastActionAt ?? r.lastActionAt ?? null,
+        };
       });
+    });
 
-      setRows(prev =>
-        prev.map(r =>
-          r.yachtId === updated.yachtId
-            ? {
-              ...r,
-              decision: updated.decision ?? r.decision,
-              finalPrice: updated.finalPrice ?? r.finalPrice,
-              perms: updated.perms ?? r.perms,
-              lastComment: updated.lastComment ?? (comment?.trim() || r.lastComment) ?? null,
-              lastActionAt: updated.lastActionAt ?? r.lastActionAt ?? null,
-            }
-            : r
-        )
-      );
+    // Тихо подтянем свежие perms/значения с бэка (без спиннера)
+    fetchRows(weekISO).then(fresh => {
+      setRows(fresh);
+    }).catch(() => { /* игнорируем, оптимистичное состояние уже есть */ });
 
-      closeDialog();
-    } catch (e) {
-      if (axios.isAxiosError(e) && e.response?.status === 403) {
-        alert('Недостаточно прав');
-      } else {
-        alert('Не удалось сменить статус');
-      }
-    } finally {
-      setSubmitting(false);
-      setSavingId(null);
+    closeDialog();
+  } catch (e) {
+    if (axios.isAxiosError(e) && e.response?.status === 403) {
+      alert('Недостаточно прав');
+    } else {
+      alert('Не удалось сменить статус');
     }
+  } finally {
+    setSubmitting(false);
+    setSavingId(null);
   }
+}
 
   function dialogTitle() {
     const s = dialog.status;
