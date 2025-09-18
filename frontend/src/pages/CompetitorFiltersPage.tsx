@@ -2,8 +2,31 @@
 
 import { useState } from "react";
 
-export default function CompetitorYachtFilterForm({ onSubmit }) {
-  const [filters, setFilters] = useState({
+// Доменные типы
+type YachtType = "Sailing" | "Catamaran" | "Motor";
+
+export interface CompetitorFilters {
+  lengthMin: number;
+  lengthMax: number;
+  capacity: number;
+  type: YachtType;
+  yearMin: number;
+  yearMax: number;
+  region: string[];     // пока не используется в форме — оставим для расширения
+  priceRange: number;   // % от базовой
+  rating: number;       // минимум
+}
+
+interface Props {
+  /** Колбек отправки формы. Если не передан — выведем в консоль. */
+  onSubmit?: (filters: CompetitorFilters) => void;
+}
+
+/**
+ * Страница/форма фильтров для отбора конкуренток
+ */
+export default function CompetitorFiltersPage({ onSubmit }: Props) {
+  const [filters, setFilters] = useState<CompetitorFilters>({
     lengthMin: 35,
     lengthMax: 55,
     capacity: 8,
@@ -15,15 +38,37 @@ export default function CompetitorYachtFilterForm({ onSubmit }) {
     rating: 4,
   });
 
-  const handleChange = (field, value) =>
-    setFilters({ ...filters, [field]: value });
+  // Универсальный, типобезопасный сеттер по ключу состояния
+  function setField<K extends keyof CompetitorFilters>(field: K, value: CompetitorFilters[K]) {
+    setFilters(prev => ({ ...prev, [field]: value }));
+  }
+
+  // Утилиты преобразования строки в число/float
+  const toInt = (v: string) => {
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const toFloat = (v: string) => {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  function handleSubmit() {
+    if (onSubmit) {
+      onSubmit(filters);
+    } else {
+      // поведение по умолчанию, чтобы страница работала автономно
+      // eslint-disable-next-line no-console
+      console.log("Applied competitor filters:", filters);
+    }
+  }
 
   return (
     <form
       className="grid gap-4 p-4 bg-white rounded-xl shadow"
       onSubmit={(e) => {
         e.preventDefault();
-        onSubmit(filters);
+        handleSubmit();
       }}
     >
       <h2 className="text-xl font-bold">⚓ Настройки отбора конкуренток</h2>
@@ -33,18 +78,22 @@ export default function CompetitorYachtFilterForm({ onSubmit }) {
           Длина от
           <input
             type="number"
+            inputMode="numeric"
             value={filters.lengthMin}
-            onChange={(e) => handleChange("lengthMin", e.target.value)}
+            onChange={(e) => setField("lengthMin", toInt(e.target.value))}
             className="border rounded p-1"
+            min={0}
           />
         </label>
         <label className="flex flex-col">
           до
           <input
             type="number"
+            inputMode="numeric"
             value={filters.lengthMax}
-            onChange={(e) => handleChange("lengthMax", e.target.value)}
+            onChange={(e) => setField("lengthMax", toInt(e.target.value))}
             className="border rounded p-1"
+            min={filters.lengthMin}
           />
         </label>
       </div>
@@ -53,9 +102,11 @@ export default function CompetitorYachtFilterForm({ onSubmit }) {
         Вместимость (пассажиры)
         <input
           type="number"
+          inputMode="numeric"
           value={filters.capacity}
-          onChange={(e) => handleChange("capacity", e.target.value)}
+          onChange={(e) => setField("capacity", toInt(e.target.value))}
           className="border rounded p-1"
+          min={1}
         />
       </label>
 
@@ -63,7 +114,7 @@ export default function CompetitorYachtFilterForm({ onSubmit }) {
         Тип яхты
         <select
           value={filters.type}
-          onChange={(e) => handleChange("type", e.target.value)}
+          onChange={(e) => setField("type", e.target.value as YachtType)}
           className="border rounded p-1"
         >
           <option value="Sailing">Sailing yacht</option>
@@ -77,18 +128,23 @@ export default function CompetitorYachtFilterForm({ onSubmit }) {
           Год от
           <input
             type="number"
+            inputMode="numeric"
             value={filters.yearMin}
-            onChange={(e) => handleChange("yearMin", e.target.value)}
+            onChange={(e) => setField("yearMin", toInt(e.target.value))}
             className="border rounded p-1"
+            min={1970}
+            max={filters.yearMax}
           />
         </label>
         <label className="flex flex-col">
           до
           <input
             type="number"
+            inputMode="numeric"
             value={filters.yearMax}
-            onChange={(e) => handleChange("yearMax", e.target.value)}
+            onChange={(e) => setField("yearMax", toInt(e.target.value))}
             className="border rounded p-1"
+            min={filters.yearMin}
           />
         </label>
       </div>
@@ -97,9 +153,12 @@ export default function CompetitorYachtFilterForm({ onSubmit }) {
         Диапазон цен (% от базовой)
         <input
           type="number"
+          inputMode="numeric"
           value={filters.priceRange}
-          onChange={(e) => handleChange("priceRange", e.target.value)}
+          onChange={(e) => setField("priceRange", toInt(e.target.value))}
           className="border rounded p-1"
+          min={0}
+          max={100}
         />
       </label>
 
@@ -108,9 +167,12 @@ export default function CompetitorYachtFilterForm({ onSubmit }) {
         <input
           type="number"
           step="0.1"
+          inputMode="decimal"
           value={filters.rating}
-          onChange={(e) => handleChange("rating", e.target.value)}
+          onChange={(e) => setField("rating", toFloat(e.target.value))}
           className="border rounded p-1"
+          min={0}
+          max={5}
         />
       </label>
 
