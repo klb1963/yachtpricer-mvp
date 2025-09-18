@@ -7,7 +7,7 @@ import {
   IsString,
   IsEnum,
   Min,
-  Max,
+  MaxLength,
 } from 'class-validator';
 import { DecisionStatus } from '@prisma/client';
 
@@ -24,16 +24,15 @@ export class UpsertDecisionDto {
   @IsISO8601()
   week!: string;
 
-  /** % скидки, если задаём через скидку */
+  // скидка может быть отрицательной (поднятие цены) или положительной
+  @IsOptional()
+  @IsNumber()
+  discountPct?: number;
+
+  // итоговая цена — всегда >= 0
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Max(100)
-  discountPct?: number;
-
-  /** Итоговая цена, если задаём напрямую */
-  @IsOptional()
-  @IsNumber()
   finalPrice?: number;
 }
 
@@ -45,5 +44,21 @@ export class ChangeStatusDto {
   week!: string;
 
   @IsEnum(DecisionStatus)
-  status!: DecisionStatus; // SUBMITTED | APPROVED | REJECTED
+  status!: DecisionStatus;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  comment?: string;
+
+  // скидка может быть отрицательной или положительной
+  @IsOptional()
+  @IsNumber()
+  discountPct?: number;
+
+  // итоговая цена — всегда >= 0
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  finalPrice?: number;
 }

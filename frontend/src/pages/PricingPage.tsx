@@ -1,13 +1,28 @@
 // frontend/src/pages/PricingPage.tsx
+
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { changeStatus, fetchRows, upsertDecision } from '../api/pricing';
-import type { PricingRow } from '../api/pricing';
+import { changeStatus, fetchRows, upsertDecision, pairFromRow } from '../api/pricing';
+import type { PricingRow, DecisionStatus } from '../api/pricing';
 import { toYMD, nextSaturday, prevSaturday, toSaturdayUTC } from '../utils/week';
+import ConfirmActionModal from '@/components/ConfirmActionModal';
+import axios from 'axios';
 
 // ─ helpers ─
 function asMoney(n: number | null | undefined) {
   if (n == null) return '—';
   return `€ ${n.toLocaleString('en-EN', { maximumFractionDigits: 0 })}`;
+}
+function fmtWhen(iso: string | null | undefined) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  // локально-короткий формат: DD.MM HH:mm
+  return d.toLocaleString(undefined, {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 function toNumberOrNull(v: string): number | null {
   const n = Number(v.replace(',', '.'));
@@ -15,17 +30,15 @@ function toNumberOrNull(v: string): number | null {
 }
 function calcDiscountPct(base: number, final_: number | null | undefined) {
   if (final_ == null || !Number.isFinite(final_) || base <= 0) return null;
-  const pct = (1 - final_ / base) * 100;
+  const pct = (1 - (final_ as number) / base) * 100;
   return Number(pct.toFixed(1));
 }
 function calcFinal(base: number, discountPct: number | null | undefined) {
   if (discountPct == null || !Number.isFinite(discountPct)) return null;
-  const k = 1 - discountPct / 100;
+  const k = 1 - (discountPct as number) / 100;
   if (k < 0) return 0;
   return Math.round(base * k);
 }
-
-type DecisionStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
 
 export default function PricingPage() {
   // ────────────────────────────────────────────────────────────
@@ -38,26 +51,41 @@ export default function PricingPage() {
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [error, setError] = useState<string | null>(null);
 
+  // модалка подтверждения со сбором комментария
+  const [dialog, setDialog] = useState<{
+    open: boolean;
+    yachtId: string | null;
+    status: DecisionStatus | null;
+  }>({ open: false, yachtId: null, status: null });
+  const [submitting, setSubmitting] = useState(false);
+
   const weekDate = useMemo(() => new Date(`${week}T00:00:00Z`), [week]);
   const weekLabel = useMemo(() => toYMD(weekDate), [weekDate]);
+  const weekISO = useMemo(() => `${week}T00:00:00.000Z`, [week]);
 
   // ─ загрузка ─
   useEffect(() => {
+    let alive = true;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const data = await fetchRows(week);
-        setRows(data);
+        const data = await fetchRows(weekISO);
+        if (alive) setRows(data);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to load pricing rows';
-        setError(msg);
-        setRows([]);
+        if (alive) {
+          setError(msg);
+          setRows([]);
+        }
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     })();
-  }, [week]);
+    return () => {
+      alive = false;
+    };
+  }, [weekISO]);
 
   // ─ локальный драфт ─
   const onDraftDiscountChange = useCallback((yachtId: string, valueStr: string) => {
@@ -107,7 +135,8 @@ export default function PricingPage() {
 
     setSavingId(yachtId);
     try {
-      await upsertDecision({ yachtId, week, discountPct, finalPrice });
+      const updated = await upsertDecision({ yachtId, week: weekISO, discountPct, finalPrice });
+      setRows(prev => prev.map(r => (r.yachtId === yachtId ? { ...r, ...updated } : r)));
     } finally {
       setSavingId(null);
     }
@@ -118,23 +147,95 @@ export default function PricingPage() {
     if (!row) return;
     const finalPrice = row.decision?.finalPrice ?? null;
     const discountPct = calcDiscountPct(row.basePrice, finalPrice);
+    // если обе стороны null/равны — ничего не отправляем
+    const prevFinal = row.decision?.finalPrice ?? null;
+    const prevDisc = row.decision?.discountPct ?? null;
+    if (prevFinal === finalPrice && prevDisc === discountPct) return;
 
     setSavingId(yachtId);
     try {
-      await upsertDecision({ yachtId, week, finalPrice, discountPct });
+      const updated = await upsertDecision({ yachtId, week: weekISO, finalPrice, discountPct });
+      setRows(prev => prev.map(r => (r.yachtId === yachtId ? { ...r, ...updated } : r)));
+    } catch (e: unknown) {
+      // 403 для автосейва по blur показывать не обязательно
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      if (status && status !== 403) {
+        alert('Не удалось сохранить черновик');
+      }
     } finally {
       setSavingId(null);
     }
   }
 
-  async function onStatus(yachtId: string, status: DecisionStatus) {
-    setSavingId(yachtId);
+  // ─ смена статуса через модалку комментария ─
+  function openStatusDialog(yachtId: string, status: DecisionStatus) {
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    setDialog({ open: true, yachtId, status });
+  }
+  function closeDialog() {
+    setDialog({ open: false, yachtId: null, status: null });
+  }
+
+  async function confirmDialog(comment: string) {
+    if (!dialog.yachtId || !dialog.status) return;
+
+    // Берём актуальную строку и “нормализованную” пару (pct/final)
+    const row = rows.find(r => r.yachtId === dialog.yachtId);
+    const { discountPct, finalPrice } = row ? pairFromRow(row) : { discountPct: null, finalPrice: null };
+
+    setSubmitting(true);
+    setSavingId(dialog.yachtId);
     try {
-      const updated = await changeStatus({ yachtId, week, status });
-      setRows(prev => prev.map(r => (r.yachtId === yachtId ? { ...r, ...updated } : r)));
+      const updated = await changeStatus({
+        yachtId: dialog.yachtId,
+        week,
+        status: dialog.status,
+        comment: comment?.trim() || undefined,
+        discountPct,
+        finalPrice,
+      });
+
+      // Оптимистично: статус меняем сразу
+      setRows(prev =>
+        prev.map(r => {
+          if (r.yachtId !== updated.yachtId) return r;
+          const nextDecision =
+            updated.decision ??
+            r.decision ?? ({ status: 'DRAFT', discountPct: null, finalPrice: null } as PricingRow['decision']);
+          return {
+            ...r,
+            decision: nextDecision,
+            finalPrice: updated.finalPrice ?? r.finalPrice ?? null,
+            lastComment: updated.lastComment ?? (comment?.trim() || r.lastComment) ?? null,
+            lastActionAt: updated.lastActionAt ?? r.lastActionAt ?? null,
+          };
+        }),
+      );
+
+      // Тихо подтянем свежие значения с бэка (без спиннера)
+      fetchRows(weekISO)
+        .then(fresh => setRows(fresh))
+        .catch(() => { /* игнорируем, оптимистичное состояние уже есть */ });
+
+      closeDialog();
+    } catch (e) {
+      if (axios.isAxiosError(e) && e.response?.status === 403) {
+        alert('Недостаточно прав');
+      } else {
+        alert('Не удалось сменить статус');
+      }
     } finally {
+      setSubmitting(false);
       setSavingId(null);
     }
+  }
+
+  function dialogTitle() {
+    const s = dialog.status;
+    if (s === 'SUBMITTED') return 'Submit for approval';
+    if (s === 'APPROVED') return 'Approve decision';
+    if (s === 'REJECTED') return 'Reject decision';
+    return 'Change status';
   }
 
   function onPickDate(value: string) {
@@ -145,11 +246,15 @@ export default function PricingPage() {
   }
 
   // ────────────────────────────────────────────────────────────
-  // 2) renderEditors — обратно внутри компонента и ДО использования
+  // 2) renderEditors — право редактирования по статусу строки
   // ────────────────────────────────────────────────────────────
   function renderEditors(r: PricingRow) {
     const discountValue = r.decision?.discountPct ?? '';
     const finalValue = r.decision?.finalPrice ?? '';
+
+    const st = r.decision?.status ?? 'DRAFT';
+    const canEditByStatus = st === 'DRAFT' || st === 'REJECTED';
+    const isDisabled = (savingId === r.yachtId) || !canEditByStatus;
 
     return (
       <>
@@ -159,10 +264,10 @@ export default function PricingPage() {
           step="0.1"
           placeholder="—"
           value={discountValue as number | string}
-          onChange={(e) => onDraftDiscountChange(r.yachtId, e.target.value)}
+          onChange={(e) => canEditByStatus && onDraftDiscountChange(r.yachtId, e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-          onBlur={() => onChangeDiscount(r.yachtId)}
-          disabled={savingId === r.yachtId}
+          onBlur={() => { if (canEditByStatus) onChangeDiscount(r.yachtId); }}
+          disabled={isDisabled}
         />
         <span className="ml-1 text-gray-600">%</span>
         <div className="h-2" />
@@ -172,10 +277,10 @@ export default function PricingPage() {
           step="1"
           placeholder="—"
           value={finalValue as number | string}
-          onChange={(e) => onDraftFinalChange(r.yachtId, e.target.value)}
+          onChange={(e) => canEditByStatus && onDraftFinalChange(r.yachtId, e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-          onBlur={() => onChangeFinalPrice(r.yachtId)}
-          disabled={savingId === r.yachtId}
+          onBlur={() => { if (canEditByStatus) onChangeFinalPrice(r.yachtId); }}
+          disabled={isDisabled}
         />
         <span className="ml-1 text-gray-600">€</span>
         <div className="text-xs text-gray-500 mt-1">
@@ -259,112 +364,204 @@ export default function PricingPage() {
                 <th className="p-3">ML reco</th>
                 <th className="p-3">Discount % / Final €</th>
                 <th className="p-3">Status</th>
+                <th className="p-3 w-[18rem]">Last comment</th>
                 <th className="p-3 w-48">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map(r => (
-                <tr key={r.yachtId} className="border-t">
-                  <td className="p-3">
-                    <div className="font-medium">{r.name}</div>
-                    <div className="text-xs text-gray-500">{r.snapshot?.currency ?? 'EUR'}</div>
-                  </td>
-                  <td className="p-3">{asMoney(r.basePrice)}</td>
-                  <td className="p-3">{asMoney(r.snapshot?.top1Price)}</td>
-                  <td className="p-3">{asMoney(r.snapshot?.top3Avg)}</td>
-                  <td className="p-3">{asMoney(r.mlReco)}</td>
-                  <td className="p-3">{renderEditors(r)}</td>
-                  <td className="p-3">
-                    <span className="px-2 py-1 text-xs rounded bg-gray-100">
-                      {r.decision?.status ?? 'DRAFT'}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <div className="flex gap-2">
-                      <button className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
-                              onClick={() => onStatus(r.yachtId, 'SUBMITTED')}
-                              disabled={savingId === r.yachtId}>Submit</button>
-                      <button className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
-                              onClick={() => onStatus(r.yachtId, 'APPROVED')}
-                              disabled={savingId === r.yachtId}>Approve</button>
-                      <button className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
-                              onClick={() => onStatus(r.yachtId, 'REJECTED')}
-                              disabled={savingId === r.yachtId}>Reject</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {rows.map(r => {
+                const st = r.decision?.status ?? 'DRAFT';
+                const canSubmit = st === 'DRAFT' || st === 'REJECTED';
+                const canApproveReject = st === 'SUBMITTED';
+                return (
+                  <tr key={r.yachtId} className="border-t">
+                    <td className="p-3">
+                      <div className="font-medium">{r.name}</div>
+                      <div className="text-xs text-gray-500">{r.snapshot?.currency ?? 'EUR'}</div>
+                    </td>
+                    <td className="p-3">{asMoney(r.basePrice)}</td>
+                    <td className="p-3">{asMoney(r.snapshot?.top1Price)}</td>
+                    <td className="p-3">{asMoney(r.snapshot?.top3Avg)}</td>
+                    <td className="p-3">{asMoney(r.mlReco)}</td>
+                    <td className="p-3">{renderEditors(r)}</td>
+
+                    {/* Status */}
+                    <td className="p-3">
+                      <span className="px-2 py-1 text-xs rounded bg-gray-100">
+                        {st}
+                      </span>
+                    </td>
+
+                    {/* Last comment */}
+                    <td className="p-3 align-top">
+                      <div className="line-clamp-2 break-words">
+                        {r.lastComment ?? '—'}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {fmtWhen(r.lastActionAt)}
+                      </div>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="p-3">
+                      <div className="flex gap-2">
+                        <button
+                          className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
+                          onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
+                          disabled={savingId === r.yachtId || !canSubmit}
+                          title="Submit"
+                        >
+                          Submit
+                        </button>
+                        <button
+                          className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
+                          onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
+                          disabled={savingId === r.yachtId || !canApproveReject}
+                          title="Approve"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
+                          onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
+                          disabled={savingId === r.yachtId || !canApproveReject}
+                          title="Reject"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       ) : (
         // Cards
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {rows.map(r => (
-            <div key={r.yachtId} className="border rounded-lg p-4 shadow bg-white">
-              <h2 className="font-semibold text-lg mb-2">{r.name}</h2>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                <div className="text-gray-500">Base</div><div>{asMoney(r.basePrice)}</div>
-                <div className="text-gray-500">Top1</div><div>{asMoney(r.snapshot?.top1Price)}</div>
-                <div className="text-gray-500">Avg(Top3)</div><div>{asMoney(r.snapshot?.top3Avg)}</div>
-                <div className="text-gray-500">ML reco</div><div>{asMoney(r.mlReco)}</div>
-              </div>
+          {rows.map(r => {
+            const st = r.decision?.status ?? 'DRAFT';
+            const canSubmit = st === 'DRAFT' || st === 'REJECTED';
+            const canApproveReject = st === 'SUBMITTED';
+            const isSaving = savingId === r.yachtId;
 
-              <div className="mt-3">
-                <label className="block text-xs mb-1">Discount</label>
-                <input
-                  className="w-24 px-2 py-1 border rounded"
-                  type="number"
-                  step="0.1"
-                  placeholder="—"
-                  value={(r.decision?.discountPct ?? '') as number | string}
-                  onChange={(e) => onDraftDiscountChange(r.yachtId, e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-                  onBlur={() => onChangeDiscount(r.yachtId)}
-                  disabled={savingId === r.yachtId}
-                />
-                <span className="ml-1 text-gray-600">%</span>
-              </div>
+            return (
+              <div key={r.yachtId} className="border rounded-lg p-4 shadow bg-white">
+                <h2 className="font-semibold text-lg mb-2">{r.name}</h2>
 
-              <div className="mt-3">
-                <label className="block text-xs mb-1">Final price</label>
-                <input
-                  className="w-32 px-2 py-1 border rounded"
-                  type="number"
-                  step="1"
-                  placeholder="—"
-                  value={(r.decision?.finalPrice ?? '') as number | string}
-                  onChange={(e) => onDraftFinalChange(r.yachtId, e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-                  onBlur={() => onChangeFinalPrice(r.yachtId)}
-                  disabled={savingId === r.yachtId}
-                />
-                <span className="ml-1 text-gray-600">€</span>
-                <div className="text-xs text-gray-500 mt-1">
-                  Calculated: {asMoney(r.finalPrice)}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <div className="text-gray-500">Base</div><div>{asMoney(r.basePrice)}</div>
+                  <div className="text-gray-500">Top1</div><div>{asMoney(r.snapshot?.top1Price)}</div>
+                  <div className="text-gray-500">Avg(Top3)</div><div>{asMoney(r.snapshot?.top3Avg)}</div>
+                  <div className="text-gray-500">ML reco</div><div>{asMoney(r.mlReco)}</div>
+                </div>
+
+                <div className="mt-3">
+                  <label className="block text-xs mb-1">Discount</label>
+                  <input
+                    className="w-24 px-2 py-1 border rounded"
+                    type="number"
+                    step="0.1"
+                    placeholder="—"
+                    value={(r.decision?.discountPct ?? '') as number | string}
+                    onChange={(e) => (st === 'DRAFT' || st === 'REJECTED') && onDraftDiscountChange(r.yachtId, e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+                    onBlur={() => { if (st === 'DRAFT' || st === 'REJECTED') onChangeDiscount(r.yachtId); }}
+                    disabled={isSaving || !(st === 'DRAFT' || st === 'REJECTED')}
+                  />
+                  <span className="ml-1 text-gray-600">%</span>
+                </div>
+
+                <div className="mt-3">
+                  <label className="block text-xs mb-1">Final price</label>
+                  <input
+                    className="w-32 px-2 py-1 border rounded"
+                    type="number"
+                    step="1"
+                    placeholder="—"
+                    value={(r.decision?.finalPrice ?? '') as number | string}
+                    onChange={(e) => (st === 'DRAFT' || st === 'REJECTED') && onDraftFinalChange(r.yachtId, e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+                    onBlur={() => { if (st === 'DRAFT' || st === 'REJECTED') onChangeFinalPrice(r.yachtId); }}
+                    disabled={isSaving || !(st === 'DRAFT' || st === 'REJECTED')}
+                  />
+                  <span className="ml-1 text-gray-600">€</span>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Calculated: {asMoney(r.finalPrice)}
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="px-2 py-1 text-xs rounded bg-gray-100">
+                    {st}
+                  </span>
+                  {/* справа кнопки, а комментарий покажем ниже */}
+                  <div className="flex gap-2">
+                    <button
+                      className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
+                      onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
+                      disabled={isSaving || !canSubmit}
+                      title="Submit"
+                    >
+                      Submit
+                    </button>
+                    <button
+                      className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
+                      onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
+                      disabled={isSaving || !canApproveReject}
+                      title="Approve"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
+                      onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
+                      disabled={isSaving || !canApproveReject}
+                      title="Reject"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                  {/* Last comment + time */}
+                  <div className="mt-3 border-t pt-3">
+                    <div className="text-xs text-gray-500 mb-1">Last comment</div>
+                    <div className="text-sm">
+                      {r.lastComment ?? '—'}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {fmtWhen(r.lastActionAt)}
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              <div className="mt-3 flex items-center justify-between">
-                <span className="px-2 py-1 text-xs rounded bg-gray-100">
-                  {r.decision?.status ?? 'DRAFT'}
-                </span>
-                <div className="flex gap-2">
-                  <button className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
-                          onClick={() => onStatus(r.yachtId, 'SUBMITTED')}
-                          disabled={savingId === r.yachtId}>Submit</button>
-                  <button className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
-                          onClick={() => onStatus(r.yachtId, 'APPROVED')}
-                          disabled={savingId === r.yachtId}>Approve</button>
-                  <button className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
-                          onClick={() => onStatus(r.yachtId, 'REJECTED')}
-                          disabled={savingId === r.yachtId}>Reject</button>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      {/* Диалог комментариев / подтверждения */}
+      <ConfirmActionModal
+        open={dialog.open}
+        title={dialogTitle()}
+        confirmLabel={
+          dialog.status === 'SUBMITTED'
+            ? 'Submit'
+            : dialog.status === 'APPROVED'
+            ? 'Approve'
+            : dialog.status === 'REJECTED'
+            ? 'Reject'
+            : 'Confirm'
+        }
+        placeholder={
+          dialog.status === 'REJECTED'
+            ? 'Why is it rejected? (optional)…'
+            : 'Comment (optional)…'
+        }
+        submitting={submitting}
+        onCancel={closeDialog}
+        onConfirm={confirmDialog}
+      />
     </div>
   );
 }

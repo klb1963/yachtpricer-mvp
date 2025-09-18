@@ -1,48 +1,70 @@
+// backend/src/pricing-decisions/pricing-decisions.controller.ts
 import {
   Controller,
   Param,
   Post,
   Get,
-  Query,
   Body,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessCtxService } from '../auth/access-ctx.service';
-import { canSubmit, canApproveOrReject, canView } from '../auth/policies';
-import { ActorDto, RejectDto } from './dto';
-import { DecisionStatus, AuditAction } from '@prisma/client';
+import {
+  canSubmit,
+  canApproveOrReject,
+  canView,
+  canEditDraft,
+} from '../auth/policies';
+import { RejectDto } from './dto';
+import { DecisionStatus, AuditAction, User } from '@prisma/client';
 import { Roles } from '../auth/roles.decorator';
+import { CurrentUser } from '../auth/current-user.decorator'; // ← ВАЖНО
 
-// удобный хелпер для каста string -> DecisionStatus
 const asDecisionStatus = (s: string) => s as DecisionStatus;
 
 @Controller('pricing-decisions')
-@Roles('MANAGER', 'ADMIN')
+@Roles('MANAGER', 'FLEET_MANAGER', 'ADMIN')
 export class PricingDecisionsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly accessCtx: AccessCtxService,
   ) {}
 
-  // Возвращает решение + флаги can*
+  // Список решений + права (берём актёра из req.user)
+  @Get('list/with-perms')
+  async listWithPerms(@CurrentUser() actor: User) {
+    const decisions = await this.prisma.pricingDecision.findMany();
+    return Promise.all(
+      decisions.map(async (d) => {
+        const ctx = await this.accessCtx.build(actor, d.yachtId);
+        return {
+          decision: d,
+          perms: {
+            canView: canView(actor, ctx),
+            canEditDraft: canEditDraft(actor, { status: d.status }, ctx),
+            canSubmit: canSubmit(actor, d, ctx),
+            canApproveOrReject: canApproveOrReject(actor, d, ctx),
+          },
+        };
+      }),
+    );
+  }
+
+  // Одно решение + права
   @Get(':id/with-perms')
-  async withPerms(@Param('id') id: string, @Query('actorId') actorId: string) {
+  async withPerms(@Param('id') id: string, @CurrentUser() actor: User) {
     const decision = await this.prisma.pricingDecision.findUnique({
       where: { id },
     });
     if (!decision) throw new NotFoundException('Decision not found');
 
-    const actor = await this.prisma.user.findUnique({ where: { id: actorId } });
-    if (!actor) throw new NotFoundException('Actor not found');
-
     const ctx = await this.accessCtx.build(actor, decision.yachtId);
-
     return {
       decision,
       perms: {
         canView: canView(actor, ctx),
+        canEditDraft: canEditDraft(actor, { status: decision.status }, ctx),
         canSubmit: canSubmit(actor, decision, ctx),
         canApproveOrReject: canApproveOrReject(actor, decision, ctx),
       },
@@ -50,16 +72,11 @@ export class PricingDecisionsController {
   }
 
   @Post(':id/submit')
-  async submit(@Param('id') id: string, @Body() body: ActorDto) {
+  async submit(@Param('id') id: string, @CurrentUser() actor: User) {
     const decision = await this.prisma.pricingDecision.findUnique({
       where: { id },
     });
     if (!decision) throw new NotFoundException('Decision not found');
-
-    const actor = await this.prisma.user.findUnique({
-      where: { id: body.actorId },
-    });
-    if (!actor) throw new NotFoundException('Actor not found');
 
     const ctx = await this.accessCtx.build(actor, decision.yachtId);
     if (!canSubmit(actor, decision, ctx)) throw new ForbiddenException();
@@ -80,7 +97,7 @@ export class PricingDecisionsController {
           action: AuditAction.SUBMIT,
           fromStatus: status,
           toStatus: DecisionStatus.SUBMITTED,
-          actorId: body.actorId,
+          actorId: actor.id,
           comment: 'Submitted',
         },
       });
@@ -91,25 +108,19 @@ export class PricingDecisionsController {
   }
 
   @Post(':id/approve')
-  async approve(@Param('id') id: string, @Body() body: ActorDto) {
+  async approve(@Param('id') id: string, @CurrentUser() actor: User) {
     const decision = await this.prisma.pricingDecision.findUnique({
       where: { id },
     });
     if (!decision) throw new NotFoundException('Decision not found');
-
-    const actor = await this.prisma.user.findUnique({
-      where: { id: body.actorId },
-    });
-    if (!actor) throw new NotFoundException('Actor not found');
 
     const ctx = await this.accessCtx.build(actor, decision.yachtId);
     if (!canApproveOrReject(actor, decision, ctx))
       throw new ForbiddenException();
 
     const status = asDecisionStatus(decision.status);
-    if (status !== DecisionStatus.SUBMITTED) {
+    if (status !== DecisionStatus.SUBMITTED)
       throw new ForbiddenException('Invalid source status');
-    }
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const u = await tx.pricingDecision.update({
@@ -126,7 +137,7 @@ export class PricingDecisionsController {
           action: AuditAction.APPROVE,
           fromStatus: status,
           toStatus: DecisionStatus.APPROVED,
-          actorId: body.actorId,
+          actorId: actor.id,
           comment: 'Approved',
         },
       });
@@ -137,29 +148,26 @@ export class PricingDecisionsController {
   }
 
   @Post(':id/reject')
-  async reject(@Param('id') id: string, @Body() body: RejectDto) {
-    if (!body.comment?.trim()) {
+  async reject(
+    @Param('id') id: string,
+    @CurrentUser() actor: User,
+    @Body() body: RejectDto,
+  ) {
+    if (!body.comment?.trim())
       throw new ForbiddenException('Reject requires a comment');
-    }
 
     const decision = await this.prisma.pricingDecision.findUnique({
       where: { id },
     });
     if (!decision) throw new NotFoundException('Decision not found');
 
-    const actor = await this.prisma.user.findUnique({
-      where: { id: body.actorId },
-    });
-    if (!actor) throw new NotFoundException('Actor not found');
-
     const ctx = await this.accessCtx.build(actor, decision.yachtId);
     if (!canApproveOrReject(actor, decision, ctx))
       throw new ForbiddenException();
 
     const status = asDecisionStatus(decision.status);
-    if (status !== DecisionStatus.SUBMITTED) {
+    if (status !== DecisionStatus.SUBMITTED)
       throw new ForbiddenException('Invalid source status');
-    }
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const u = await tx.pricingDecision.update({
@@ -172,7 +180,7 @@ export class PricingDecisionsController {
           action: AuditAction.REJECT,
           fromStatus: status,
           toStatus: DecisionStatus.REJECTED,
-          actorId: body.actorId,
+          actorId: actor.id,
           comment: body.comment,
         },
       });

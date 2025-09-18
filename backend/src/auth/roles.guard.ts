@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from './roles.decorator';
+import { IS_PUBLIC_KEY } from './public.decorator'; // ← добавили
 import type { Role, User } from '@prisma/client';
 import type { Request } from 'express';
 
@@ -18,6 +19,14 @@ export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(ctx: ExecutionContext): boolean {
+    // 🔑 проверяем публичный маршрут
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      ctx.getHandler(),
+      ctx.getClass(),
+    ]);
+    if (isPublic) return true;
+
+    // 👇 стандартная логика как была
     const required = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
       ctx.getHandler(),
       ctx.getClass(),

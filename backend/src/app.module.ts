@@ -4,8 +4,6 @@ import {
   NestModule,
   MiddlewareConsumer,
   RequestMethod,
-  type CanActivate,
-  type FactoryProvider,
 } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -27,14 +25,6 @@ import { HeaderAuthMiddleware } from './auth/header-auth.middleware';
 import { RolesGuard } from './auth/roles.guard';
 import { ClerkAuthMiddleware } from './auth/clerk-auth.middleware';
 
-// ✅ Глобальный guard через useFactory (без unsafe-assign/return)
-const APP_ROLES_GUARD: FactoryProvider<CanActivate> = {
-  provide: APP_GUARD,
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  useFactory: (g: RolesGuard): CanActivate => g,
-  inject: [RolesGuard],
-};
-
 @Module({
   imports: [
     PrismaModule,
@@ -47,18 +37,25 @@ const APP_ROLES_GUARD: FactoryProvider<CanActivate> = {
     UsersModule,
   ],
   controllers: [AppController, YachtsController],
-  providers: [AppService, RolesGuard, APP_ROLES_GUARD],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: RolesGuard }, // @Public учитывается
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     const mode = (process.env.AUTH_MODE ?? 'fake').toLowerCase();
 
+    // health остаётся публичным и без всех мидлварей
     const PUBLIC_HEALTH = [
       { path: 'health', method: RequestMethod.ALL },
       { path: 'api/health', method: RequestMethod.ALL },
     ];
 
     if (mode === 'clerk') {
+      // ❌ раньше исключался whoami — из-за этого req.user был пуст
+      // ✅ НЕ исключаем whoami: пусть middleware заполняет req.user,
+      //    а доступ контролируется через @Public() на самом хендлере
       consumer
         .apply(ClerkAuthMiddleware)
         .exclude(...PUBLIC_HEALTH)
@@ -69,6 +66,7 @@ export class AppModule implements NestModule {
         .exclude(...PUBLIC_HEALTH)
         .forRoutes({ path: '*', method: RequestMethod.ALL });
     } else {
+      // В fake-режиме HeaderAuth читает X-User-Email и кладёт req.user.
       consumer
         .apply(HeaderAuthMiddleware)
         .exclude(...PUBLIC_HEALTH)

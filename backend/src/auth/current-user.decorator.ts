@@ -4,9 +4,11 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import type { Request } from 'express';
 import type { User } from '@prisma/client';
 
-export const CurrentUser = createParamDecorator<unknown, User | null>(
+export const CurrentUser = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): User | null => {
-    const req = ctx.switchToHttp().getRequest<Request>();
-    return req.user ?? null; // req.user расширен в src/types/express.d.ts
+    const req = ctx
+      .switchToHttp()
+      .getRequest<Request & { user?: User | null }>();
+    return req.user ?? null;
   },
 );
