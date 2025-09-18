@@ -1,4 +1,3 @@
-// frontend/tsconfig.app.json
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {

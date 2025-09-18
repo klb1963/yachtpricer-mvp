@@ -7,13 +7,6 @@ import { toYMD, nextSaturday, prevSaturday, toSaturdayUTC } from '../utils/week'
 import ConfirmActionModal from '@/components/ConfirmActionModal';
 import axios from 'axios';
 
-// интерфейс для прав
-interface DecisionPerms {
-  canEditDraft: boolean;
-  canSubmit: boolean;
-  canApproveOrReject: boolean;
-}
-
 // ─ helpers ─
 function asMoney(n: number | null | undefined) {
   if (n == null) return '—';
@@ -47,14 +40,6 @@ function calcFinal(base: number, discountPct: number | null | undefined) {
   return Math.round(base * k);
 }
 
-// безопасный геттер токена Clerk (если он есть в окне)
-async function getBearerToken(): Promise<string | null> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const w = window as any;
-  const token = await w?.Clerk?.session?.getToken?.();
-  return token || null;
-}
-
 export default function PricingPage() {
   // ────────────────────────────────────────────────────────────
   // 1) Неделя всегда в формате YYYY-MM-DD (plain date)
@@ -80,53 +65,26 @@ export default function PricingPage() {
 
   // ─ загрузка ─
   useEffect(() => {
+    let alive = true;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        // 1) основные строки
         const data = await fetchRows(weekISO);
-        setRows(data);
-
-        // 2) подмешиваем права из /pricing-decisions/list/with-perms (напрямую к backend:8000)
-        try {
-          const token = await getBearerToken();
-          const res = await fetch('http://localhost:8000/api/pricing-decisions/list/with-perms', {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
-          if (res.ok) {
-            // ожидаем элементы вида { decision: { yachtId, status, ... }, perms: DecisionPerms }
-            const list: Array<{ decision: { yachtId: string }; perms: DecisionPerms }> = await res.json();
-
-            const permsByYacht = new Map<string, DecisionPerms>();
-            for (const it of list) {
-              permsByYacht.set(it.decision.yachtId, it.perms);
-            }
-
-            setRows(prev =>
-              prev.map(r => ({
-                ...r,
-                perms:
-                  permsByYacht.get(r.yachtId) ??
-                  r.perms ?? {
-                    canEditDraft: false,
-                    canSubmit: false,
-                    canApproveOrReject: false,
-                  },
-              })),
-            );
-          }
-        } catch {
-          // если не смогли подтянуть perms — используем то, что пришло с /pricing/rows
-        }
+        if (alive) setRows(data);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to load pricing rows';
-        setError(msg);
-        setRows([]);
+        if (alive) {
+          setError(msg);
+          setRows([]);
+        }
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     })();
+    return () => {
+      alive = false;
+    };
   }, [weekISO]);
 
   // ─ локальный драфт ─
@@ -237,40 +195,27 @@ export default function PricingPage() {
         finalPrice,
       });
 
-      // Оптимистично: статус меняем сразу, canSubmit выключаем.
-      setRows(prev => {
-        return prev.map(r => {
+      // Оптимистично: статус меняем сразу
+      setRows(prev =>
+        prev.map(r => {
           if (r.yachtId !== updated.yachtId) return r;
-
           const nextDecision =
             updated.decision ??
-            r.decision ?? { status: 'DRAFT' as DecisionStatus, discountPct: null, finalPrice: null };
-
-          const nextPerms = {
-            ...(r.perms ?? { canEditDraft: false, canSubmit: false, canApproveOrReject: false }),
-            // Submit доступен только в DRAFT/REJECTED
-            canSubmit: nextDecision.status === 'DRAFT' || nextDecision.status === 'REJECTED',
-          };
-
+            r.decision ?? ({ status: 'DRAFT', discountPct: null, finalPrice: null } as PricingRow['decision']);
           return {
             ...r,
             decision: nextDecision,
             finalPrice: updated.finalPrice ?? r.finalPrice ?? null,
-            perms: nextPerms,
             lastComment: updated.lastComment ?? (comment?.trim() || r.lastComment) ?? null,
             lastActionAt: updated.lastActionAt ?? r.lastActionAt ?? null,
           };
-        });
-      });
+        }),
+      );
 
-      // Тихо подтянем свежие perms/значения с бэка (без спиннера)
+      // Тихо подтянем свежие значения с бэка (без спиннера)
       fetchRows(weekISO)
-        .then(fresh => {
-          setRows(fresh);
-        })
-        .catch(() => {
-          /* игнорируем, оптимистичное состояние уже есть */
-        });
+        .then(fresh => setRows(fresh))
+        .catch(() => { /* игнорируем, оптимистичное состояние уже есть */ });
 
       closeDialog();
     } catch (e) {
@@ -301,15 +246,15 @@ export default function PricingPage() {
   }
 
   // ────────────────────────────────────────────────────────────
-  // 2) renderEditors — право редактирования только по perms.canEditDraft
+  // 2) renderEditors — право редактирования по статусу строки
   // ────────────────────────────────────────────────────────────
   function renderEditors(r: PricingRow) {
     const discountValue = r.decision?.discountPct ?? '';
     const finalValue = r.decision?.finalPrice ?? '';
-    // можно ли редактировать черновик (RBAC от бэкенда)
-    const canEdit = r.perms?.canEditDraft ?? false;
-    // на время сохранения блокируем disabled; доступ/права — через readOnly
-    const isSaving = savingId === r.yachtId;
+
+    const st = r.decision?.status ?? 'DRAFT';
+    const canEditByStatus = st === 'DRAFT' || st === 'REJECTED';
+    const isDisabled = (savingId === r.yachtId) || !canEditByStatus;
 
     return (
       <>
@@ -319,11 +264,10 @@ export default function PricingPage() {
           step="0.1"
           placeholder="—"
           value={discountValue as number | string}
-          onChange={(e) => onDraftDiscountChange(r.yachtId, e.target.value)}
+          onChange={(e) => canEditByStatus && onDraftDiscountChange(r.yachtId, e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-          onBlur={() => { if (canEdit) onChangeDiscount(r.yachtId); }}
-          readOnly={!canEdit}
-          disabled={isSaving}
+          onBlur={() => { if (canEditByStatus) onChangeDiscount(r.yachtId); }}
+          disabled={isDisabled}
         />
         <span className="ml-1 text-gray-600">%</span>
         <div className="h-2" />
@@ -333,11 +277,10 @@ export default function PricingPage() {
           step="1"
           placeholder="—"
           value={finalValue as number | string}
-          onChange={(e) => onDraftFinalChange(r.yachtId, e.target.value)}
+          onChange={(e) => canEditByStatus && onDraftFinalChange(r.yachtId, e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-          onBlur={() => { if (canEdit) onChangeFinalPrice(r.yachtId); }}
-          readOnly={!canEdit}
-          disabled={isSaving}
+          onBlur={() => { if (canEditByStatus) onChangeFinalPrice(r.yachtId); }}
+          disabled={isDisabled}
         />
         <span className="ml-1 text-gray-600">€</span>
         <div className="text-xs text-gray-500 mt-1">
@@ -359,18 +302,18 @@ export default function PricingPage() {
               <button
                 type="button"
                 onClick={() => setViewMode('table')}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                  viewMode === 'table' ? 'bg-gray-900 text-white' : '!text-gray-800 hover:bg-gray-100'
-                }`}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium ${viewMode === 'table'
+                  ? 'bg-gray-900 text-white'
+                  : '!text-gray-800 hover:bg-gray-100'}`}
               >
                 Table
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode('cards')}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                  viewMode === 'cards' ? 'bg-gray-900 text-white' : '!text-gray-800 hover:bg-gray-100'
-                }`}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium ${viewMode === 'cards'
+                  ? 'bg-gray-900 text-white'
+                  : '!text-gray-800 hover:bg-gray-100'}`}
               >
                 Cards
               </button>
@@ -426,66 +369,71 @@ export default function PricingPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map(r => (
-                <tr key={r.yachtId} className="border-t">
-                  <td className="p-3">
-                    <div className="font-medium">{r.name}</div>
-                    <div className="text-xs text-gray-500">{r.snapshot?.currency ?? 'EUR'}</div>
-                  </td>
-                  <td className="p-3">{asMoney(r.basePrice)}</td>
-                  <td className="p-3">{asMoney(r.snapshot?.top1Price)}</td>
-                  <td className="p-3">{asMoney(r.snapshot?.top3Avg)}</td>
-                  <td className="p-3">{asMoney(r.mlReco)}</td>
-                  <td className="p-3">{renderEditors(r)}</td>
+              {rows.map(r => {
+                const st = r.decision?.status ?? 'DRAFT';
+                const canSubmit = st === 'DRAFT' || st === 'REJECTED';
+                const canApproveReject = st === 'SUBMITTED';
+                return (
+                  <tr key={r.yachtId} className="border-t">
+                    <td className="p-3">
+                      <div className="font-medium">{r.name}</div>
+                      <div className="text-xs text-gray-500">{r.snapshot?.currency ?? 'EUR'}</div>
+                    </td>
+                    <td className="p-3">{asMoney(r.basePrice)}</td>
+                    <td className="p-3">{asMoney(r.snapshot?.top1Price)}</td>
+                    <td className="p-3">{asMoney(r.snapshot?.top3Avg)}</td>
+                    <td className="p-3">{asMoney(r.mlReco)}</td>
+                    <td className="p-3">{renderEditors(r)}</td>
 
-                  {/* Status */}
-                  <td className="p-3">
-                    <span className="px-2 py-1 text-xs rounded bg-gray-100">
-                      {r.decision?.status ?? 'DRAFT'}
-                    </span>
-                  </td>
+                    {/* Status */}
+                    <td className="p-3">
+                      <span className="px-2 py-1 text-xs rounded bg-gray-100">
+                        {st}
+                      </span>
+                    </td>
 
-                  {/* Last comment */}
-                  <td className="p-3 align-top">
-                    <div className="line-clamp-2 break-words">
-                      {r.lastComment ?? '—'}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {fmtWhen(r.lastActionAt)}
-                    </div>
-                  </td>
+                    {/* Last comment */}
+                    <td className="p-3 align-top">
+                      <div className="line-clamp-2 break-words">
+                        {r.lastComment ?? '—'}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {fmtWhen(r.lastActionAt)}
+                      </div>
+                    </td>
 
-                  {/* Actions */}
-                  <td className="p-3">
-                    <div className="flex gap-2">
-                      <button
-                        className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
-                        onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
-                        disabled={savingId === r.yachtId || !r.perms?.canSubmit}
-                        title={r.perms?.canSubmit ? 'Submit' : 'Недостаточно прав'}
-                      >
-                        Submit
-                      </button>
-                      <button
-                        className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
-                        onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
-                        disabled={savingId === r.yachtId || !r.perms?.canApproveOrReject}
-                        title={r.perms?.canApproveOrReject ? 'Approve' : 'Недостаточно прав'}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
-                        onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
-                        disabled={savingId === r.yachtId || !r.perms?.canApproveOrReject}
-                        title={r.perms?.canApproveOrReject ? 'Reject' : 'Недостаточно прав'}
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    {/* Actions */}
+                    <td className="p-3">
+                      <div className="flex gap-2">
+                        <button
+                          className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
+                          onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
+                          disabled={savingId === r.yachtId || !canSubmit}
+                          title="Submit"
+                        >
+                          Submit
+                        </button>
+                        <button
+                          className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
+                          onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
+                          disabled={savingId === r.yachtId || !canApproveReject}
+                          title="Approve"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
+                          onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
+                          disabled={savingId === r.yachtId || !canApproveReject}
+                          title="Reject"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -493,8 +441,11 @@ export default function PricingPage() {
         // Cards
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map(r => {
-            const canEdit = r.perms?.canEditDraft ?? false;
+            const st = r.decision?.status ?? 'DRAFT';
+            const canSubmit = st === 'DRAFT' || st === 'REJECTED';
+            const canApproveReject = st === 'SUBMITTED';
             const isSaving = savingId === r.yachtId;
+
             return (
               <div key={r.yachtId} className="border rounded-lg p-4 shadow bg-white">
                 <h2 className="font-semibold text-lg mb-2">{r.name}</h2>
@@ -514,11 +465,10 @@ export default function PricingPage() {
                     step="0.1"
                     placeholder="—"
                     value={(r.decision?.discountPct ?? '') as number | string}
-                    onChange={(e) => onDraftDiscountChange(r.yachtId, e.target.value)}
+                    onChange={(e) => (st === 'DRAFT' || st === 'REJECTED') && onDraftDiscountChange(r.yachtId, e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-                    onBlur={() => { if (canEdit) onChangeDiscount(r.yachtId); }}
-                    readOnly={!canEdit}
-                    disabled={isSaving}
+                    onBlur={() => { if (st === 'DRAFT' || st === 'REJECTED') onChangeDiscount(r.yachtId); }}
+                    disabled={isSaving || !(st === 'DRAFT' || st === 'REJECTED')}
                   />
                   <span className="ml-1 text-gray-600">%</span>
                 </div>
@@ -531,11 +481,10 @@ export default function PricingPage() {
                     step="1"
                     placeholder="—"
                     value={(r.decision?.finalPrice ?? '') as number | string}
-                    onChange={(e) => onDraftFinalChange(r.yachtId, e.target.value)}
+                    onChange={(e) => (st === 'DRAFT' || st === 'REJECTED') && onDraftFinalChange(r.yachtId, e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-                    onBlur={() => { if (canEdit) onChangeFinalPrice(r.yachtId); }}
-                    readOnly={!canEdit}
-                    disabled={isSaving}
+                    onBlur={() => { if (st === 'DRAFT' || st === 'REJECTED') onChangeFinalPrice(r.yachtId); }}
+                    disabled={isSaving || !(st === 'DRAFT' || st === 'REJECTED')}
                   />
                   <span className="ml-1 text-gray-600">€</span>
                   <div className="text-xs text-gray-500 mt-1">
@@ -545,31 +494,31 @@ export default function PricingPage() {
 
                 <div className="mt-3 flex items-center justify-between">
                   <span className="px-2 py-1 text-xs rounded bg-gray-100">
-                    {r.decision?.status ?? 'DRAFT'}
+                    {st}
                   </span>
                   {/* справа кнопки, а комментарий покажем ниже */}
                   <div className="flex gap-2">
                     <button
                       className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
                       onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
-                      disabled={savingId === r.yachtId || !r.perms?.canSubmit}
-                      title={r.perms?.canSubmit ? 'Submit' : 'Недостаточно прав'}
+                      disabled={isSaving || !canSubmit}
+                      title="Submit"
                     >
                       Submit
                     </button>
                     <button
                       className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
                       onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
-                      disabled={savingId === r.yachtId || !r.perms?.canApproveOrReject}
-                      title={r.perms?.canApproveOrReject ? 'Approve' : 'Недостаточно прав'}
+                      disabled={isSaving || !canApproveReject}
+                      title="Approve"
                     >
                       Approve
                     </button>
                     <button
                       className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
                       onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
-                      disabled={savingId === r.yachtId || !r.perms?.canApproveOrReject}
-                      title={r.perms?.canApproveOrReject ? 'Reject' : 'Недостаточно прав'}
+                      disabled={isSaving || !canApproveReject}
+                      title="Reject"
                     >
                       Reject
                     </button>
