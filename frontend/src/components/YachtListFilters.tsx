@@ -1,3 +1,5 @@
+// /frontend/src/components/YachtListFilters.tsx
+
 import React from 'react';
 import type { YachtType } from '@/types/yacht';
 
@@ -45,6 +47,7 @@ export interface YachtListFiltersProps {
 
   onApply: (e: React.FormEvent) => void;
   onReset: () => void;
+  onOpenCompetitorFilters?: () => void;
 }
 
 export default function YachtListFilters(props: YachtListFiltersProps) {
@@ -58,6 +61,7 @@ export default function YachtListFilters(props: YachtListFiltersProps) {
     sort, setSort,
     currentYear,
     onApply, onReset,
+    onOpenCompetitorFilters,
   } = props;
 
   return (
@@ -134,6 +138,14 @@ export default function YachtListFilters(props: YachtListFiltersProps) {
         className="rounded bg-gray-300 px-4 py-2 text-black hover:bg-gray-400 md:col-span-1"
       >
         Reset
+      </button>
+
+      <button
+        type="button"
+        onClick={onOpenCompetitorFilters}
+        className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 md:col-span-1"
+      >
+        Competitors filter
       </button>
     </form>
   );

@@ -1,4 +1,4 @@
-// frontend/src/pages/CompetitorFiltersPage.tsx
+// /frontend/src/pages/CompetitorFiltersPage.tsx
 
 import { useState } from "react";
 
@@ -20,12 +20,14 @@ export interface CompetitorFilters {
 interface Props {
   /** Колбек отправки формы. Если не передан — выведем в консоль. */
   onSubmit?: (filters: CompetitorFilters) => void;
+  /** Колбек отмены (например, для закрытия модалки). */
+  onCancel?: () => void;
 }
 
 /**
- * Страница/форма фильтров для отбора конкуренток
+ * Форма фильтров для отбора конкуренток (используется в модалке)
  */
-export default function CompetitorFiltersPage({ onSubmit }: Props) {
+export default function CompetitorFiltersPage({ onSubmit, onCancel }: Props) {
   const [filters, setFilters] = useState<CompetitorFilters>({
     lengthMin: 35,
     lengthMax: 55,
@@ -65,16 +67,16 @@ export default function CompetitorFiltersPage({ onSubmit }: Props) {
 
   return (
     <form
-      className="grid gap-4 p-4 bg-white rounded-xl shadow"
+      className="grid gap-4 p-4 bg-white rounded-xl shadow max-w-lg"
       onSubmit={(e) => {
         e.preventDefault();
         handleSubmit();
       }}
     >
-      <h2 className="text-xl font-bold">⚓ Настройки отбора конкуренток</h2>
+      <h2 className="text-xl font-bold mb-2">⚓ Настройки отбора конкуренток</h2>
 
       <div className="flex gap-2">
-        <label className="flex flex-col">
+        <label className="flex flex-col flex-1">
           Длина от
           <input
             type="number"
@@ -85,7 +87,7 @@ export default function CompetitorFiltersPage({ onSubmit }: Props) {
             min={0}
           />
         </label>
-        <label className="flex flex-col">
+        <label className="flex flex-col flex-1">
           до
           <input
             type="number"
@@ -124,7 +126,7 @@ export default function CompetitorFiltersPage({ onSubmit }: Props) {
       </label>
 
       <div className="flex gap-2">
-        <label className="flex flex-col">
+        <label className="flex flex-col flex-1">
           Год от
           <input
             type="number"
@@ -136,7 +138,7 @@ export default function CompetitorFiltersPage({ onSubmit }: Props) {
             max={filters.yearMax}
           />
         </label>
-        <label className="flex flex-col">
+        <label className="flex flex-col flex-1">
           до
           <input
             type="number"
@@ -176,12 +178,24 @@ export default function CompetitorFiltersPage({ onSubmit }: Props) {
         />
       </label>
 
-      <button
-        type="submit"
-        className="bg-blue-600 text-white rounded p-2 hover:bg-blue-700"
-      >
-        Применить фильтры
-      </button>
+      {/* Кнопки управления */}
+      <div className="mt-4 flex justify-end gap-3">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded bg-gray-300 px-4 py-2 text-black hover:bg-gray-400"
+          >
+            Cancel
+          </button>
+        )}
+        <button
+          type="submit"
+          className="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-700"
+        >
+          Применить фильтры
+        </button>
+      </div>
     </form>
   );
 }

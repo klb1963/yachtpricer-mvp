@@ -10,8 +10,9 @@ import { weekIso } from '../utils/date';
 import WeekPicker from '../components/WeekPicker';
 import YachtListFilters from '@/components/YachtListFilters';
 import YachtTable from '../components/YachtTable';
+import Modal from '@/components/Modal';
+import CompetitorFiltersPage from '@/pages/CompetitorFiltersPage';
 
-// API скрапера и типы
 import {
   startScrape,
   getScrapeStatus,
@@ -33,7 +34,6 @@ const useViewMode = () => {
 
   const [view, setView] = useState<'cards' | 'table'>(initial);
 
-  // Синхроним URL и LS
   useEffect(() => {
     localStorage.setItem('dashboard:view', view);
     const sp = new URLSearchParams(loc.search);
@@ -81,6 +81,9 @@ export default function DashboardPage() {
     }),
     [q, type, minYear, maxYear, minPrice, maxPrice, sort, page, pageSize],
   );
+
+  // модалка фильтров конкуренток
+  const [isCompFiltersOpen, setCompFiltersOpen] = useState(false);
 
   // загрузка списка яхт
   useEffect(() => {
@@ -140,13 +143,10 @@ export default function DashboardPage() {
   async function handleScan(y: Yacht) {
     try {
       setBusyId(y.id);
-      // Берём выбранную неделю из WeekPicker (UTC ISO yyyy-mm-dd)
-      const week = weekStart || new Date().toISOString().slice(0,10); // YYYY-MM-DD
+      const week = weekStart || new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
-      // 1) старт мок-скрапера
       const { jobId } = await startScrape({ yachtId: y.id, weekStart: week, source: 'BOATAROUND' });
 
-      // 2) поллинг статуса (до ~15 секунд)
       let status: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED' = 'PENDING';
       for (let i = 0; i < 30; i++) {
         const { status: s } = await getScrapeStatus(jobId);
@@ -156,7 +156,6 @@ export default function DashboardPage() {
       }
       if (status !== 'DONE') throw new Error(`Scrape status: ${status}`);
 
-      // 3) агрегаты
       const snap = await aggregateSnapshot({ yachtId: y.id, week, source: 'BOATAROUND' });
       if (snap) {
         setAggByYacht((prev) => ({
@@ -165,7 +164,6 @@ export default function DashboardPage() {
         }));
       }
 
-      // 4) сырые карточки конкурентов — для Details
       const raw = await listCompetitorPrices({ yachtId: y.id, week });
       setRawByYacht((prev) => ({ ...prev, [y.id]: { prices: raw } }));
       setRowsOpen((prev) => ({ ...prev, [y.id]: true }));
@@ -176,6 +174,13 @@ export default function DashboardPage() {
       setBusyId(null);
     }
   }
+
+  // принимаем значения из формы конкурентных фильтров
+  const handleCompetitorFiltersSubmit = (filters: unknown) => {
+    // TODO: сохранить глобально (например, localStorage) или отправить на бэкенд
+    console.log('Competitor filters:', filters);
+    setCompFiltersOpen(false);
+  };
 
   return (
     <div className="mx-auto max-w-7xl p-6">
@@ -189,20 +194,18 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => setView('table')}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === 'table'
-                  ? 'bg-gray-900 text-white'
-                  : '!text-gray-800 hover:bg-gray-100'
-                }`}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                view === 'table' ? 'bg-gray-900 text-white' : '!text-gray-800 hover:bg-gray-100'
+              }`}
             >
               Table
             </button>
             <button
               type="button"
               onClick={() => setView('cards')}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === 'cards'
-                  ? 'bg-gray-900 text-white'
-                  : '!text-gray-800 hover:bg-gray-100'
-                }`}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                view === 'cards' ? 'bg-gray-900 text-white' : '!text-gray-800 hover:bg-gray-100'
+              }`}
             >
               Cards
             </button>
@@ -238,6 +241,7 @@ export default function DashboardPage() {
           setSort('createdDesc');
           setPage(1);
         }}
+        onOpenCompetitorFilters={() => setCompFiltersOpen(true)} // ← ОТКРЫВАЕМ МОДАЛКУ
       />
 
       {/* Контент: таблица или карточки */}
@@ -246,29 +250,25 @@ export default function DashboardPage() {
       ) : err ? (
         <div className="mt-10 text-center text-red-600">{err}</div>
       ) : view === 'cards' ? (
-            // Карточки яхт
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
-              {items.map((y) => (
-                <YachtCard
-                  key={y.id}
-                  y={y}
-                  search={location.search}
-                  onScan={() => handleScan(y)}
-                  scanning={busyId === y.id}
-                  agg={aggByYacht[y.id]}
-                  details={rawByYacht[y.id]?.prices ?? []}
-                  open={!!rowsOpen[y.id]}
-                  onToggleDetails={() =>
-                    setRowsOpen((p) => ({ ...p, [y.id]: !p[y.id] }))
-                  }
-                />
-              ))}
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
+          {items.map((y) => (
+            <YachtCard
+              key={y.id}
+              y={y}
+              search={location.search}
+              onScan={() => handleScan(y)}
+              scanning={busyId === y.id}
+              agg={aggByYacht[y.id]}
+              details={rawByYacht[y.id]?.prices ?? []}
+              open={!!rowsOpen[y.id]}
+              onToggleDetails={() => setRowsOpen((p) => ({ ...p, [y.id]: !p[y.id] }))}
+            />
+          ))}
           {items.length === 0 && (
             <div className="col-span-full py-10 text-center text-gray-500">No results</div>
           )}
         </div>
       ) : (
-        // Таблица яхт
         <YachtTable
           items={items}
           locationSearch={location.search}
@@ -279,7 +279,7 @@ export default function DashboardPage() {
           rawByYacht={rawByYacht}
           rowsOpen={rowsOpen}
           onScan={handleScan}
-          onToggleDetails={(id) => setRowsOpen(p => ({ ...p, [id]: !p[id] }))}
+          onToggleDetails={(id) => setRowsOpen((p) => ({ ...p, [id]: !p[id] }))}
         />
       )}
 
@@ -289,11 +289,7 @@ export default function DashboardPage() {
           Total: {total} • Page {page} of {Math.max(1, Math.ceil(total / pageSize))}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={goPrev}
-            disabled={page <= 1}
-            className="rounded border px-3 py-1 disabled:opacity-50"
-          >
+          <button onClick={goPrev} disabled={page <= 1} className="rounded border px-3 py-1 disabled:opacity-50">
             ← Prev
           </button>
           <select
@@ -319,6 +315,17 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+    {/* Модалка конкурентных фильтров */}
+      <Modal
+        open={isCompFiltersOpen}
+        onClose={() => setCompFiltersOpen(false)}
+        title="Competitor filters"
+      >
+        <CompetitorFiltersPage
+          onSubmit={handleCompetitorFiltersSubmit}
+          onCancel={() => setCompFiltersOpen(false)}
+        />
+      </Modal>
     </div>
   );
 }
