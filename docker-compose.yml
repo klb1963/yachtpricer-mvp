@@ -26,7 +26,11 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/yachtpricer
       CORS_ORIGINS: https://sandbox.leonidk.de,http://localhost:3000,http://localhost:3001
 
-      NAUSYS_USE_MOCK: "true"
+      NAUSYS_USE_MOCK: "false"
+      NAUSYS_API_URL: https://ws.nausys.com/CBMS-external/rest/Agency/v6
+      NAUSYS_CATALOG_URL: https://ws.nausys.com/CBMS-external/rest/catalogue/v6
+      NAUSYS_USERNAME: rest388@TTTTT
+      NAUSYS_PASSWORD: e2THubBC
 
       AUTH_MODE: clerk
       

@@ -1,9 +1,33 @@
 // /frontend/src/pages/CompetitorFiltersPage.tsx
+import { useState, useEffect, useRef } from "react";
+import { getCountries, getLocations, Country, LocationItem } from "../api";
+import type { YachtType } from "../types/yacht";
 
-import { useState } from "react";
-
-// Доменные типы
-type YachtType = "Sailing" | "Catamaran" | "Motor";
+/** Lightweight i18n (can be swapped to react-i18next later) */
+const messages = {
+  en: {
+    title: "⚓ Competitor filters",
+    country: "Country",
+    countryPlaceholder: "— select a country —",
+    location: "Location",
+    locationPlaceholder: "— select a location —",
+    loading: "Loading…",
+    length: "Length (ft)",
+    from: "From",
+    to: "To",
+    capacity: "Capacity (pax)",
+    type: "Type",
+    yearFrom: "Year from",
+    yearTo: "Year to",
+    cancel: "Cancel",
+    apply: "Apply filters",
+  },
+  // Example: extend later
+  // ru: { ... }
+};
+type LocaleKey = keyof typeof messages;
+const locale: LocaleKey = "en";
+const t = (key: keyof typeof messages.en) => messages[locale][key] ?? key;
 
 export interface CompetitorFilters {
   lengthMin: number;
@@ -12,27 +36,24 @@ export interface CompetitorFilters {
   type: YachtType;
   yearMin: number;
   yearMax: number;
-  region: string[];     // пока не используется в форме — оставим для расширения
-  priceRange: number;   // % от базовой
-  rating: number;       // минимум
+  region: string[];        // reserved for future use
+  priceRange: number;      // reserved for future use
+  rating: number;          // reserved for future use
+  countryCode?: string;
+  locationId?: string;
 }
 
 interface Props {
-  /** Колбек отправки формы. Если не передан — выведем в консоль. */
   onSubmit?: (filters: CompetitorFilters) => void;
-  /** Колбек отмены (например, для закрытия модалки). */
   onCancel?: () => void;
 }
 
-/**
- * Форма фильтров для отбора конкуренток (используется в модалке)
- */
 export default function CompetitorFiltersPage({ onSubmit, onCancel }: Props) {
   const [filters, setFilters] = useState<CompetitorFilters>({
     lengthMin: 35,
     lengthMax: 55,
     capacity: 8,
-    type: "Sailing",
+    type: "monohull",
     yearMin: 2005,
     yearMax: 2022,
     region: [],
@@ -40,12 +61,55 @@ export default function CompetitorFiltersPage({ onSubmit, onCancel }: Props) {
     rating: 4,
   });
 
-  // Универсальный, типобезопасный сеттер по ключу состояния
-  function setField<K extends keyof CompetitorFilters>(field: K, value: CompetitorFilters[K]) {
-    setFilters(prev => ({ ...prev, [field]: value }));
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [locations, setLocations] = useState<LocationItem[]>([]);
+  const [locLoading, setLocLoading] = useState(false);
+
+  // prevent race conditions when rapidly switching countries
+  const locLoadToken = useRef(0);
+
+  // load countries once
+  useEffect(() => {
+    getCountries()
+      .then(setCountries)
+      .catch((e) => console.error("Failed to load countries:", e));
+  }, []);
+
+  // on country change -> reset selected location and fetch list
+  useEffect(() => {
+    setFilters((prev) => ({ ...prev, locationId: undefined }));
+
+    const code = filters.countryCode?.trim();
+    if (!code) {
+      setLocations([]);
+      setLocLoading(false);
+      return;
+    }
+
+    setLocLoading(true);
+    const myToken = ++locLoadToken.current;
+
+    getLocations({ countryCode: code, take: 500, orderBy: "name" })
+      .then((r) => {
+        if (myToken === locLoadToken.current) {
+          setLocations(r.items);
+        }
+      })
+      .catch((e) => console.error("Failed to load locations:", e))
+      .finally(() => {
+        if (myToken === locLoadToken.current) setLocLoading(false);
+      });
+  }, [filters.countryCode]);
+
+  // typed field setter
+  function setField<K extends keyof CompetitorFilters>(
+    field: K,
+    value: CompetitorFilters[K]
+  ) {
+    setFilters((prev) => ({ ...prev, [field]: value }));
   }
 
-  // Утилиты преобразования строки в число/float
+  // parse helpers
   const toInt = (v: string) => {
     const n = parseInt(v, 10);
     return Number.isFinite(n) ? n : 0;
@@ -56,13 +120,8 @@ export default function CompetitorFiltersPage({ onSubmit, onCancel }: Props) {
   };
 
   function handleSubmit() {
-    if (onSubmit) {
-      onSubmit(filters);
-    } else {
-      // поведение по умолчанию, чтобы страница работала автономно
-      // eslint-disable-next-line no-console
-      console.log("Applied competitor filters:", filters);
-    }
+    if (onSubmit) onSubmit(filters);
+    else console.log("Applied competitor filters:", filters);
   }
 
   return (
@@ -73,11 +132,50 @@ export default function CompetitorFiltersPage({ onSubmit, onCancel }: Props) {
         handleSubmit();
       }}
     >
-      <h2 className="text-xl font-bold mb-2">⚓ Настройки отбора конкуренток</h2>
+      <h2 className="text-xl font-bold mb-2">{t("title")}</h2>
 
+      {/* Country */}
+      <label className="flex flex-col">
+        {t("country")}
+        <select
+          value={filters.countryCode || ""}
+          onChange={(e) => setField("countryCode", e.target.value || undefined)}
+          className="border rounded p-1"
+        >
+          <option value="">{t("countryPlaceholder")}</option>
+          {countries.map((c) => (
+            <option key={c.code2} value={c.code2}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {/* Location */}
+      <label className="flex flex-col">
+        {t("location")}
+        <select
+          value={filters.locationId || ""}
+          onChange={(e) => setField("locationId", e.target.value || undefined)}
+          className="border rounded p-1"
+          disabled={!filters.countryCode || locLoading}
+        >
+          <option value="">
+            {locLoading ? t("loading") : t("locationPlaceholder")}
+          </option>
+          {locations.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name}
+              {l.countryCode ? ` (${l.countryCode})` : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {/* Length */}
       <div className="flex gap-2">
         <label className="flex flex-col flex-1">
-          Длина от
+          {t("from")} — {t("length")}
           <input
             type="number"
             inputMode="numeric"
@@ -88,7 +186,7 @@ export default function CompetitorFiltersPage({ onSubmit, onCancel }: Props) {
           />
         </label>
         <label className="flex flex-col flex-1">
-          до
+          {t("to")} — {t("length")}
           <input
             type="number"
             inputMode="numeric"
@@ -100,8 +198,9 @@ export default function CompetitorFiltersPage({ onSubmit, onCancel }: Props) {
         </label>
       </div>
 
+      {/* Capacity */}
       <label className="flex flex-col">
-        Вместимость (пассажиры)
+        {t("capacity")}
         <input
           type="number"
           inputMode="numeric"
@@ -112,22 +211,25 @@ export default function CompetitorFiltersPage({ onSubmit, onCancel }: Props) {
         />
       </label>
 
+      {/* Type */}
       <label className="flex flex-col">
-        Тип яхты
+        {t("type")}
         <select
           value={filters.type}
           onChange={(e) => setField("type", e.target.value as YachtType)}
           className="border rounded p-1"
         >
-          <option value="Sailing">Sailing yacht</option>
-          <option value="Catamaran">Catamaran</option>
-          <option value="Motor">Motor yacht</option>
+          <option value="monohull">Monohull</option>
+          <option value="catamaran">Catamaran</option>
+          <option value="trimaran">Trimaran</option>
+          <option value="compromis">Compromis</option>
         </select>
       </label>
 
+      {/* Year */}
       <div className="flex gap-2">
         <label className="flex flex-col flex-1">
-          Год от
+          {t("yearFrom")}
           <input
             type="number"
             inputMode="numeric"
@@ -139,7 +241,7 @@ export default function CompetitorFiltersPage({ onSubmit, onCancel }: Props) {
           />
         </label>
         <label className="flex flex-col flex-1">
-          до
+          {t("yearTo")}
           <input
             type="number"
             inputMode="numeric"
@@ -151,34 +253,7 @@ export default function CompetitorFiltersPage({ onSubmit, onCancel }: Props) {
         </label>
       </div>
 
-      <label className="flex flex-col">
-        Диапазон цен (% от базовой)
-        <input
-          type="number"
-          inputMode="numeric"
-          value={filters.priceRange}
-          onChange={(e) => setField("priceRange", toInt(e.target.value))}
-          className="border rounded p-1"
-          min={0}
-          max={100}
-        />
-      </label>
-
-      <label className="flex flex-col">
-        Рейтинг (минимум)
-        <input
-          type="number"
-          step="0.1"
-          inputMode="decimal"
-          value={filters.rating}
-          onChange={(e) => setField("rating", toFloat(e.target.value))}
-          className="border rounded p-1"
-          min={0}
-          max={5}
-        />
-      </label>
-
-      {/* Кнопки управления */}
+      {/* Actions */}
       <div className="mt-4 flex justify-end gap-3">
         {onCancel && (
           <button
@@ -186,14 +261,14 @@ export default function CompetitorFiltersPage({ onSubmit, onCancel }: Props) {
             onClick={onCancel}
             className="rounded bg-gray-300 px-4 py-2 text-black hover:bg-gray-400"
           >
-            Cancel
+            {t("cancel")}
           </button>
         )}
         <button
           type="submit"
           className="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-700"
         >
-          Применить фильтры
+          {t("apply")}
         </button>
       </div>
     </form>
