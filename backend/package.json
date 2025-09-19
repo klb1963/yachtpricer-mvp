@@ -26,7 +26,11 @@
     "routes": "nest build && node dist/main.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "seed:countries": "ts-node prisma/seed/seedCountries.ts",
+    "seed:locations": "ts-node prisma/seed/seedLocations.ts",
+    "seed:aliases":   "ts-node prisma/seed/seedLocationAliases.ts",
+    "seed:geo": "npm run seed:countries && npm run seed:locations && npm run seed:aliases"
   },
   "dependencies": {
     "@clerk/backend": "^2.14.0",
@@ -66,10 +70,10 @@
     "supertest": "^7.0.0",
     "ts-jest": "^29.2.5",
     "ts-loader": "^9.5.2",
-    "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.20.0",
+    "ts-node": "^10.9.2"
   },
   "jest": {
     "moduleFileExtensions": [
