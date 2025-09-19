@@ -319,7 +319,7 @@ export default function DashboardPage() {
       <Modal
         open={isCompFiltersOpen}
         onClose={() => setCompFiltersOpen(false)}
-        title="Competitor filters"
+        // title="Competitor filters"
       >
         <CompetitorFiltersPage
           onSubmit={handleCompetitorFiltersSubmit}
