@@ -12,7 +12,7 @@ const USERNAME = process.env.NAUSYS_USERNAME || "rest388@TTTTT";
 const PASSWORD = process.env.NAUSYS_PASSWORD || "e2THubBC";
 
 // ── Types from NauSYS
-type NauName = { textEN?: string | null; [k: string]: string | undefined };
+type NauName = { textEN?: string | null } & { [k: string]: string | null | undefined };
 type NauBase = { id: number; locationId: number; lat?: number; lon?: number };
 type NauLoc  = { id: number; name?: NauName; lat?: number; lon?: number; regionId?: number };
 type NauReg  = { id: number; countryId: number };
@@ -69,15 +69,11 @@ async function main() {
   // 2) countries & regions maps
   const cntsRes = await post<CntsResponse>(CNTS_URL, {});
   const countries = Array.isArray(cntsRes?.countries) ? cntsRes.countries : [];
-  if (countries.length === 0) {
-    console.warn("[seedLocations] Countries payload is empty.");
-  }
+  if (countries.length === 0) console.warn("[seedLocations] Countries payload is empty.");
 
   const regRes = await post<RegsResponse>(REGS_URL, {});
   const regions = Array.isArray(regRes?.regions) ? regRes.regions : [];
-  if (regions.length === 0) {
-    console.warn("[seedLocations] Regions payload is empty.");
-  }
+  if (regions.length === 0) console.warn("[seedLocations] Regions payload is empty.");
 
   const countryMap = new Map<number, string>(); // countryId -> code2 (ISO-2)
   countries.forEach((c) => {
