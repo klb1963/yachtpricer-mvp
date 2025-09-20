@@ -6,18 +6,6 @@ import axios, {
   AxiosRequestHeaders,
 } from "axios";
 
-// ---- Глобальный тип для window.Clerk ----
-// declare global {
-//   interface Window {
-//     Clerk?: {
-//       session?: {
-//         getToken: (opts?: { refresh?: boolean }) => Promise<string | null>;
-//       };
-//     };
-//     __whoamiOnce?: () => Promise<any>;
-//   }
-// }
-
 // ---- Types ----
 export interface Yacht {
   id: string;
@@ -103,6 +91,7 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
         config.method?.toUpperCase(),
         config.baseURL + (config.url || "")
       );
+      // eslint-disable-next-line no-empty
     } catch {}
   } else {
     console.log("[api.ts] Clerk token missing (getToken() returned null)");
@@ -279,10 +268,42 @@ export async function listCompetitorPrices(params: { yachtId?: string; week?: st
   return data;
 }
 
-// // ---- DEV helper: ручной вызов whoami ----
-// async function __whoamiOnce() {
-//   const res = await api.get("/auth/whoami");
-//   console.log("[api.ts] whoami =>", res.data);
-//   return res.data;
-// }
-// if (import.meta.env.DEV) window.__whoamiOnce = __whoamiOnce;
+// --- GEO API ---
+export type Country = { code2: string; name: string; nausysId: number; code3?: string | null };
+export type LocationItem = {
+  id: string;
+  externalId: string | null;
+  name: string;
+  countryCode: string | null;
+  lat: number | null;
+  lon: number | null;
+  aliases: { alias: string }[];
+};
+
+export async function getCountries(): Promise<Country[]> {
+  const r = await fetch("/api/geo/countries");
+  if (!r.ok) throw new Error("Failed to load countries");
+  return r.json();
+}
+
+function toQuery(obj: Record<string, string | number | boolean | null | undefined>) {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined || v === null || v === "") continue;
+    sp.append(k, String(v));
+  }
+  return sp.toString();
+}
+
+export async function getLocations(params: {
+  q?: string;
+  countryCode?: string;
+  take?: number;
+  skip?: number;
+  orderBy?: "name" | "countryCode";
+}): Promise<{ items: LocationItem[]; total: number; skip: number; take: number }> {
+  const qs = toQuery(params);
+  const r = await fetch(`/api/geo/locations?${qs}`);
+  if (!r.ok) throw new Error("Failed to load locations");
+  return r.json();
+}

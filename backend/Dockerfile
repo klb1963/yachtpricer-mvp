@@ -1,7 +1,7 @@
 # ---------- base ----------
     FROM node:20-alpine AS base
     WORKDIR /app
-    RUN apk add --no-cache libc6-compat openssl
+    RUN apk add --no-cache libc6-compat openssl bash curl jq
     
     # ---------- deps (все зависимости, включая dev) ----------
     FROM base AS deps
@@ -9,6 +9,7 @@
     # ВАЖНО: копируем отдельными строками, чтобы кэш корректно инвалидировался
     COPY package.json ./
     COPY package-lock.json ./
+    RUN npm ci
 
     # Диагностика: проверим, что зависимость заявлена в package.json
     RUN node -e "const p=require('./package.json'); if(!p.dependencies || !p.dependencies['@clerk/backend']){console.error('NO @clerk/backend in package.json'); process.exit(1)}"
@@ -43,6 +44,7 @@
     COPY --from=build /app/dist ./dist
     COPY --from=build /app/prisma ./prisma
     COPY package*.json ./
+    COPY --from=build /app/tsconfig*.json ./
     
     # 👇 добавили entrypoint.sh
     COPY entrypoint.sh ./entrypoint.sh

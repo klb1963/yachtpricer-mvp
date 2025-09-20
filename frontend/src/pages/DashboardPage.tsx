@@ -8,8 +8,11 @@ import YachtCard from '../components/YachtCard';
 import type { YachtType } from '../types/yacht';
 import { weekIso } from '../utils/date';
 import WeekPicker from '../components/WeekPicker';
+import YachtListFilters from '@/components/YachtListFilters';
+import YachtTable from '../components/YachtTable';
+import Modal from '@/components/Modal';
+import CompetitorFiltersPage from '@/pages/CompetitorFiltersPage';
 
-// API скрапера и типы
 import {
   startScrape,
   getScrapeStatus,
@@ -17,23 +20,6 @@ import {
   listCompetitorPrices,
 } from '../api';
 import type { CompetitorPrice } from '../api';
-
-// Значения value должны совпадать с тем, как хранится в БД (см. backend)
-const TYPE_OPTIONS = [
-  { value: '',           label: 'Any type' },
-  { value: 'monohull',   label: 'Monohull' },
-  { value: 'catamaran',  label: 'Catamaran' },
-  { value: 'trimaran',   label: 'Trimaran' },
-  { value: 'compromis',  label: 'Compromis' },
-] as const;
-
-const SORT_OPTIONS = [
-  { value: 'createdDesc', label: 'Newest' },
-  { value: 'priceAsc', label: 'Price ↑' },
-  { value: 'priceDesc', label: 'Price ↓' },
-  { value: 'yearAsc', label: 'Year ↑' },
-  { value: 'yearDesc', label: 'Year ↓' },
-] as const;
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -48,7 +34,6 @@ const useViewMode = () => {
 
   const [view, setView] = useState<'cards' | 'table'>(initial);
 
-  // Синхроним URL и LS
   useEffect(() => {
     localStorage.setItem('dashboard:view', view);
     const sp = new URLSearchParams(loc.search);
@@ -96,6 +81,9 @@ export default function DashboardPage() {
     }),
     [q, type, minYear, maxYear, minPrice, maxPrice, sort, page, pageSize],
   );
+
+  // модалка фильтров конкуренток
+  const [isCompFiltersOpen, setCompFiltersOpen] = useState(false);
 
   // загрузка списка яхт
   useEffect(() => {
@@ -155,13 +143,10 @@ export default function DashboardPage() {
   async function handleScan(y: Yacht) {
     try {
       setBusyId(y.id);
-      // Берём выбранную неделю из WeekPicker (UTC ISO yyyy-mm-dd)
-      const week = weekStart || new Date().toISOString().slice(0,10); // YYYY-MM-DD
+      const week = weekStart || new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
-      // 1) старт мок-скрапера
       const { jobId } = await startScrape({ yachtId: y.id, weekStart: week, source: 'BOATAROUND' });
 
-      // 2) поллинг статуса (до ~15 секунд)
       let status: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED' = 'PENDING';
       for (let i = 0; i < 30; i++) {
         const { status: s } = await getScrapeStatus(jobId);
@@ -171,7 +156,6 @@ export default function DashboardPage() {
       }
       if (status !== 'DONE') throw new Error(`Scrape status: ${status}`);
 
-      // 3) агрегаты
       const snap = await aggregateSnapshot({ yachtId: y.id, week, source: 'BOATAROUND' });
       if (snap) {
         setAggByYacht((prev) => ({
@@ -180,7 +164,6 @@ export default function DashboardPage() {
         }));
       }
 
-      // 4) сырые карточки конкурентов — для Details
       const raw = await listCompetitorPrices({ yachtId: y.id, week });
       setRawByYacht((prev) => ({ ...prev, [y.id]: { prices: raw } }));
       setRowsOpen((prev) => ({ ...prev, [y.id]: true }));
@@ -191,6 +174,13 @@ export default function DashboardPage() {
       setBusyId(null);
     }
   }
+
+  // принимаем значения из формы конкурентных фильтров
+  const handleCompetitorFiltersSubmit = (filters: unknown) => {
+    // TODO: сохранить глобально (например, localStorage) или отправить на бэкенд
+    console.log('Competitor filters:', filters);
+    setCompFiltersOpen(false);
+  };
 
   return (
     <div className="mx-auto max-w-7xl p-6">
@@ -204,20 +194,18 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => setView('table')}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === 'table'
-                  ? 'bg-gray-900 text-white'
-                  : '!text-gray-800 hover:bg-gray-100'
-                }`}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                view === 'table' ? 'bg-gray-900 text-white' : '!text-gray-800 hover:bg-gray-100'
+              }`}
             >
               Table
             </button>
             <button
               type="button"
               onClick={() => setView('cards')}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === 'cards'
-                  ? 'bg-gray-900 text-white'
-                  : '!text-gray-800 hover:bg-gray-100'
-                }`}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                view === 'cards' ? 'bg-gray-900 text-white' : '!text-gray-800 hover:bg-gray-100'
+              }`}
             >
               Cards
             </button>
@@ -233,92 +221,28 @@ export default function DashboardPage() {
       </div>
 
       {/* Фильтры */}
-      <form onSubmit={applyFilters} className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-6">
-        <input
-          className="rounded border p-2 md:col-span-2"
-          placeholder="Search (name, model, location, owner)…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-
-        <select
-          className="rounded border p-2"
-          value={sort}
-          onChange={(e) => setSort(e.target.value as typeof sort)}
-        >
-          {SORT_OPTIONS.map((s) => (
-            <option key={s.value} value={s.value}>
-              Sort: {s.label}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className="rounded border p-2"
-          value={type}
-          onChange={(e) =>
-            setType((e.target.value as YachtType) || '')
-          }
-        >
-          {TYPE_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-
-        <input
-          className="rounded border p-2"
-          placeholder={`Min year (≤ ${CURRENT_YEAR})`}
-          inputMode="numeric"
-          value={minYear}
-          onChange={(e) => setMinYear(e.target.value)}
-        />
-        <input
-          className="rounded border p-2"
-          placeholder={`Max year (≤ ${CURRENT_YEAR})`}
-          inputMode="numeric"
-          value={maxYear}
-          onChange={(e) => setMaxYear(e.target.value)}
-        />
-
-        <input
-          className="rounded border p-2"
-          placeholder="Min price"
-          inputMode="numeric"
-          value={minPrice}
-          onChange={(e) => setMinPrice(e.target.value)}
-        />
-        <input
-          className="rounded border p-2"
-          placeholder="Max price"
-          inputMode="numeric"
-          value={maxPrice}
-          onChange={(e) => setMaxPrice(e.target.value)}
-        />
-
-        <button
-          type="submit"
-          className="rounded bg-gray-800 px-4 py-2 text-white hover:bg-gray-900 md:col-span-1"
-        >
-          Apply
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setQ('');
-            setType('');
-            setMinYear('');
-            setMaxYear('');
-            setMinPrice('');
-            setMaxPrice('');
-            setSort('createdDesc');
-            setPage(1);
-          }}
-          className="rounded bg-gray-300 px-4 py-2 text-black hover:bg-gray-400 md:col-span-1"
-        >
-          Reset
-        </button>
-      </form>
+      <YachtListFilters
+        q={q} setQ={setQ}
+        type={type} setType={setType}
+        minYear={minYear} setMinYear={setMinYear}
+        maxYear={maxYear} setMaxYear={setMaxYear}
+        minPrice={minPrice} setMinPrice={setMinPrice}
+        maxPrice={maxPrice} setMaxPrice={setMaxPrice}
+        sort={sort} setSort={setSort}
+        currentYear={CURRENT_YEAR}
+        onApply={applyFilters}
+        onReset={() => {
+          setQ('');
+          setType('');
+          setMinYear('');
+          setMaxYear('');
+          setMinPrice('');
+          setMaxPrice('');
+          setSort('createdDesc');
+          setPage(1);
+        }}
+        onOpenCompetitorFilters={() => setCompFiltersOpen(true)} // ← ОТКРЫВАЕМ МОДАЛКУ
+      />
 
       {/* Контент: таблица или карточки */}
       {loading ? (
@@ -326,182 +250,37 @@ export default function DashboardPage() {
       ) : err ? (
         <div className="mt-10 text-center text-red-600">{err}</div>
       ) : view === 'cards' ? (
-            // ✨ Карточная сетка (добавили кнопку Scan на карточки)
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
-              {items.map((y) => (
-                <YachtCard
-                  key={y.id}
-                  y={y}
-                  search={location.search}
-                  onScan={() => handleScan(y)}
-                  scanning={busyId === y.id}
-                  agg={aggByYacht[y.id]}
-                  details={rawByYacht[y.id]?.prices ?? []}
-                  open={!!rowsOpen[y.id]}
-                  onToggleDetails={() =>
-                    setRowsOpen((p) => ({ ...p, [y.id]: !p[y.id] }))
-                  }
-                />
-              ))}
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
+          {items.map((y) => (
+            <YachtCard
+              key={y.id}
+              y={y}
+              search={location.search}
+              onScan={() => handleScan(y)}
+              scanning={busyId === y.id}
+              agg={aggByYacht[y.id]}
+              details={rawByYacht[y.id]?.prices ?? []}
+              open={!!rowsOpen[y.id]}
+              onToggleDetails={() => setRowsOpen((p) => ({ ...p, [y.id]: !p[y.id] }))}
+            />
+          ))}
           {items.length === 0 && (
             <div className="col-span-full py-10 text-center text-gray-500">No results</div>
           )}
         </div>
       ) : (
-        // Таблица
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr className="[&>th]:px-4 [&>th]:py-2 [&>th]:font-semibold [&>th]:text-gray-800 text-left">
-                <th>Name</th>
-                <th>Model</th>
-                <th>Type</th>
-                <th>Length</th>
-                <th>
-                  <button
-                    type="button"
-                    onClick={() => onSortBy('year')}
-                    className="inline-flex items-center gap-1 rounded px-1 py-0.5 !text-gray-900 hover:!text-gray-900 hover:bg-gray-100"
-                    title="Sort by year"
-                  >
-                    Year
-                    <span
-                      className={
-                        sort.startsWith('year')
-                          ? 'text-blue-600 font-bold'
-                          : 'text-gray-400'
-                      }
-                    >
-                      {sort === 'yearAsc' ? '↑' : sort === 'yearDesc' ? '↓' : ''}
-                    </span>
-                  </button>
-                </th>
-                <th>Location</th>
-                <th>
-                  <button
-                    type="button"
-                    onClick={() => onSortBy('price')}
-                    className="inline-flex items-center gap-1 rounded px-1 py-0.5 !text-gray-900 hover:!text-gray-900 hover:bg-gray-100"
-                    title="Sort by price"
-                  >
-                    Price (base)
-                    <span
-                      className={
-                        sort.startsWith('price')
-                          ? 'text-blue-600 font-bold'
-                          : 'text-gray-400'
-                      }
-                    >
-                      {sort === 'priceAsc' ? '↑' : sort === 'priceDesc' ? '↓' : ''}
-                    </span>
-                  </button>
-                </th>
-
-                {/* добавили колонку Competitors */}
-                <th>Competitors</th>
-
-                <th className="px-4 py-2 text-left">Owner</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((y) => (
-                <tr key={y.id} className="border-t [&>td]:px-4 [&>td]:py-2">
-                  <td>
-                    <Link
-                      className="text-blue-600 hover:underline"
-                      to={{ pathname: `/yacht/${y.id}`, search: location.search }}
-                    >
-                      {y.name}
-                    </Link>
-                  </td>
-                  <td>
-                    {y.manufacturer} {y.model}
-                  </td>
-                  <td>{y.type}</td>
-                  <td>{y.length} m</td>
-                  <td>{y.builtYear}</td>
-                  <td>{y.location}</td>
-                  <td>
-                    {typeof y.basePrice === 'string'
-                      ? y.basePrice
-                      : Number.isFinite(y.basePrice)
-                      ? String(Math.round(Number(y.basePrice)))
-                      : '—'}
-                  </td>
-
-                  {/* ячейка Competitors */}
-                  <td className="whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleScan(y)}
-                        disabled={busyId === y.id}
-                        className={`rounded px-3 py-1 text-sm font-medium ${
-                          busyId === y.id
-                            ? 'bg-gray-400 text-white cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
-                        title="Fetch competitors and aggregate"
-                      >
-                        {busyId === y.id ? 'Scanning…' : 'Scan'}
-                      </button>
-
-                      {aggByYacht[y.id] ? (
-                        <span className="text-xs text-gray-800">
-                          TOP1: <b>{aggByYacht[y.id].top1} {aggByYacht[y.id].cur}</b>,&nbsp;
-                          AVG(Top3): <b>{aggByYacht[y.id].avg}</b>&nbsp;({aggByYacht[y.id].n})
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-
-                      {rawByYacht[y.id]?.prices?.length ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setRowsOpen((p) => ({ ...p, [y.id]: !p[y.id] }))
-                          }
-                          className="rounded border px-1.5 py-0.5 text-xs hover:bg-gray-100"
-                          title="Show raw competitor cards"
-                        >
-                          {rowsOpen[y.id] ? 'Hide' : 'Details'}
-                        </button>
-                      ) : null}
-                    </div>
-
-                    {rowsOpen[y.id] && rawByYacht[y.id]?.prices ? (
-                      <div className="mt-2 rounded border p-2">
-                        <div className="mb-1 text-[11px] text-gray-600">
-                          {rawByYacht[y.id].prices.length} offers:
-                        </div>
-                        <ul className="max-h-40 space-y-1 overflow-auto pr-1">
-                          {rawByYacht[y.id].prices.map((p) => (
-                            <li key={p.id} className="flex justify-between gap-2 text-[11px]">
-                              <span className="truncate">
-                                {p.competitorYacht ?? '—'} {p.year ? `(${p.year})` : ''} · {p.marina ?? '—'}
-                                {p.cabins != null ? ` · ${p.cabins}c` : ''}{p.heads != null ? `/${p.heads}h` : ''}
-                              </span>
-                              <span className="shrink-0">{p.price} {p.currency ?? ''}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                  </td>
-
-                  <td className="px-4 py-2">{y.ownerName ?? '—'}</td>
-                </tr>
-              ))}
-              {items.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="px-4 py-6 text-center text-gray-500">
-                    No results
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <YachtTable
+          items={items}
+          locationSearch={location.search}
+          sort={sort}
+          onSortBy={onSortBy}
+          busyId={busyId}
+          aggByYacht={aggByYacht}
+          rawByYacht={rawByYacht}
+          rowsOpen={rowsOpen}
+          onScan={handleScan}
+          onToggleDetails={(id) => setRowsOpen((p) => ({ ...p, [id]: !p[id] }))}
+        />
       )}
 
       {/* Пагинация */}
@@ -510,11 +289,7 @@ export default function DashboardPage() {
           Total: {total} • Page {page} of {Math.max(1, Math.ceil(total / pageSize))}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={goPrev}
-            disabled={page <= 1}
-            className="rounded border px-3 py-1 disabled:opacity-50"
-          >
+          <button onClick={goPrev} disabled={page <= 1} className="rounded border px-3 py-1 disabled:opacity-50">
             ← Prev
           </button>
           <select
@@ -540,6 +315,17 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+    {/* Модалка конкурентных фильтров */}
+      <Modal
+        open={isCompFiltersOpen}
+        onClose={() => setCompFiltersOpen(false)}
+        // title="Competitor filters"
+      >
+        <CompetitorFiltersPage
+          onSubmit={handleCompetitorFiltersSubmit}
+          onCancel={() => setCompFiltersOpen(false)}
+        />
+      </Modal>
     </div>
   );
 }

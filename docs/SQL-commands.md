@@ -1,4 +1,8 @@
-Удалить pricing_decision и с price_audit_logs
+# Запуск SQL-интерпритатора в Docker
+
+docker compose exec -T db psql -U postgres -d yachtpricer
+
+# Удалить pricing_decision и с price_audit_logs
 для яхты 411239cb-bf6b-4d5e-80dd-db2a7c896fe3 на выбранную неделю 2025-09-20T00:00:00Z:
 
 Посмотреть, что именно будем удалять (проверка):

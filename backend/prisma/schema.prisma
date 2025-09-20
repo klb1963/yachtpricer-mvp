@@ -7,6 +7,78 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// ─────────────────────────────────────────────────────────────
+/// ENUMS
+/// ─────────────────────────────────────────────────────────────
+
+enum WeekSlotStatus {
+  BOOKED
+  OPEN
+  OPTION
+}
+
+enum YachtType {
+  monohull
+  catamaran
+  trimaran
+  compromis
+}
+
+enum ScrapeSource {
+  BOATAROUND
+  SEARADAR
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+enum DecisionStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+// --- RBAC: роли пользователей ---
+enum Role {
+  ADMIN
+  FLEET_MANAGER
+  MANAGER
+  OWNER
+}
+
+// --- Режимы владельца для конкретной яхты ---
+enum OwnerMode {
+  ACTIVE
+  VIEW_ONLY
+  HIDDEN
+}
+
+// --- Аудит действий по workflow PricingDecision ---
+enum AuditAction {
+  SUBMIT
+  APPROVE
+  REJECT
+}
+
+enum FilterScope {
+  ORG // фильтры по умолчанию для всей орг.
+  USER // персональное переопределение
+}
+
+enum LocationSource {
+  NAUSYS
+  INTERNAL
+}
+
+/// ─────────────────────────────────────────────────────────────
+/// MODELS
+/// ─────────────────────────────────────────────────────────────
+
 model Organization {
   id   String @id @default(cuid())
   name String
@@ -23,6 +95,9 @@ model Organization {
 
   users       User[]
   ownerYachts OwnerYacht[] @relation("OrgOwnerYachts")
+
+  // 👇 обратная сторона связи к CompetitorFilters
+  competitorFilters CompetitorFilters[]
 
   createdAt DateTime @default(now())
 }
@@ -150,31 +225,6 @@ model ExtraServiceHistory {
   @@map("extra_service_history")
 }
 
-enum WeekSlotStatus {
-  BOOKED
-  OPEN
-  OPTION
-}
-
-enum YachtType {
-  monohull
-  catamaran
-  trimaran
-  compromis
-}
-
-enum ScrapeSource {
-  BOATAROUND
-  SEARADAR
-}
-
-enum JobStatus {
-  PENDING
-  RUNNING
-  DONE
-  FAILED
-}
-
 model CompetitorPrice {
   id      String  @id @default(uuid())
   yacht   Yacht?  @relation(fields: [yachtId], references: [id])
@@ -228,13 +278,6 @@ model ScrapeJob {
   @@map("scrape_jobs")
 }
 
-enum DecisionStatus {
-  DRAFT
-  SUBMITTED
-  APPROVED
-  REJECTED
-}
-
 model CompetitorSnapshot {
   id String @id @default(uuid())
 
@@ -284,21 +327,6 @@ model PricingDecision {
   @@map("pricing_decisions")
 }
 
-// --- RBAC: роли пользователей ---
-enum Role {
-  ADMIN
-  FLEET_MANAGER
-  MANAGER
-  OWNER
-}
-
-// --- Режимы владельца для конкретной яхты ---
-enum OwnerMode {
-  ACTIVE
-  VIEW_ONLY
-  HIDDEN
-}
-
 // --- Пользователь системы (идентификатор может быть clerkId/oidc sub) ---
 model User {
   id    String  @id @default(cuid())
@@ -306,14 +334,16 @@ model User {
   name  String?
   role  Role
 
-  // Организация по умолчанию (у тебя уже есть DEFAULT_ORG_SLUG=aquatoria)
+  // Организация по умолчанию (есть DEFAULT_ORG_SLUG=aquatoria)
   orgId String?
   org   Organization? @relation(fields: [orgId], references: [id])
 
   // связи
-  managerLinks ManagerYacht[]
-  ownerLinks   OwnerYacht[]
-  auditLogs    PriceAuditLog[] @relation("AuditActor")
+  // 👇 обратная сторона связи CompetitorFilters.user
+  competitorFilters CompetitorFilters[]
+  managerLinks      ManagerYacht[]
+  ownerLinks        OwnerYacht[]
+  auditLogs         PriceAuditLog[]     @relation("AuditActor")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -359,13 +389,6 @@ model OwnerYacht {
   @@map("owner_yachts")
 }
 
-// --- Аудит действий по workflow PricingDecision ---
-enum AuditAction {
-  SUBMIT
-  APPROVE
-  REJECT
-}
-
 model PriceAuditLog {
   id String @id @default(cuid())
 
@@ -386,4 +409,98 @@ model PriceAuditLog {
   @@index([decisionId])
   @@index([actorId])
   @@map("price_audit_logs")
+}
+
+model Location {
+  id          String         @id @default(cuid())
+  source      LocationSource @default(NAUSYS)
+  externalId  String? // например, locationId из NauSYS (как строка)
+  code        String?
+  name        String
+  countryCode String?        @db.Char(2) // ISO-2
+  lat         Float? // NEW
+  lon         Float? // NEW
+  parentId    String?
+  parent      Location?      @relation("LocationToChildren", fields: [parentId], references: [id])
+  children    Location[]     @relation("LocationToChildren")
+
+  competitorFilters CompetitorFilters[] @relation("FiltersLocations")
+  aliases           LocationAlias[]     @relation("LocationAliases")
+
+  // 👇 связь на Country по code2 (уникальное поле — это ок)
+  country Country? @relation("CountryCode2Locations", fields: [countryCode], references: [code2])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([source, externalId])
+  @@index([source])
+  @@index([countryCode])
+  @@map("locations")
+}
+
+model LocationAlias {
+  id         String @id @default(cuid())
+  alias      String
+  normalized String
+  locationId String
+
+  // 👇 связали с именованной связью "LocationAliases"
+  location Location @relation("LocationAliases", fields: [locationId], references: [id])
+
+  @@unique([normalized])
+  @@index([locationId])
+  @@map("location_aliases")
+}
+
+model CompetitorFilters {
+  id String @id @default(cuid())
+
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id])
+
+  scope FilterScope @default(ORG)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  lenFtMinus    Int   @default(3)
+  lenFtPlus     Int   @default(3)
+  yearMinus     Int   @default(2)
+  yearPlus      Int   @default(2)
+  peopleMinus   Int   @default(1)
+  peoplePlus    Int   @default(1)
+  cabinsMinus   Int   @default(1)
+  cabinsPlus    Int   @default(1)
+  headsMin      Int   @default(0)
+  pricePctRange Int   @default(20)
+  minRating     Float @default(4.0)
+
+  locations Location[] @relation("FiltersLocations")
+
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, scope, userId])
+  @@index([scope])
+  @@index([orgId])
+  @@index([userId])
+  @@map("competitor_filters")
+}
+
+model Country {
+  id        String   @id @default(cuid())
+  nausysId  Int      @unique // ID из /countries
+  code2     String   @unique @db.Char(2) // ISO-3166-1 alpha-2 (FR)
+  code3     String?  @db.Char(3) // ISO-3166-1 alpha-3 (FRA)
+  name      String // "France"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 👇 обратная сторона связи по ISO-2
+  locations Location[] @relation("CountryCode2Locations")
+
+  @@index([name])
+  @@map("countries")
 }

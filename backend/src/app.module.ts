@@ -24,6 +24,7 @@ import { OrgScopeMiddleware } from './org/org-scope.middleware';
 import { HeaderAuthMiddleware } from './auth/header-auth.middleware';
 import { RolesGuard } from './auth/roles.guard';
 import { ClerkAuthMiddleware } from './auth/clerk-auth.middleware';
+import { GeoModule } from './geo/geo.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { ClerkAuthMiddleware } from './auth/clerk-auth.middleware';
     OrgModule,
     AuthModule,
     UsersModule,
+    GeoModule,
   ],
   controllers: [AppController, YachtsController],
   providers: [
