@@ -12,7 +12,7 @@ function normalizeAlias(s: string) {
 }
 
 async function main() {
-  // берём NAUSYS-локации, чтобы не трогать прочие
+  // Берём только NAUSYS-локации
   const locs = await prisma.location.findMany({
     where: { source: LocationSource.NAUSYS },
     select: { id: true, name: true },
@@ -21,28 +21,27 @@ async function main() {
   let ok = 0, dup = 0, skip = 0, err = 0;
 
   for (const l of locs) {
-    // набор алиасов по месту — базово: само EN имя + несколько простых вариантов
+    const rawName = l.name?.trim() || "";
+    if (!rawName) { skip++; continue; }
+
+    // Кандидаты: само имя + варианты
     const candidates = new Set<string>([
-      l.name,
-      l.name.replace(/,.*$/, "").trim(),       // без хвоста после запятой
-      l.name.replace(/\s*[-/–]\s*.*/,'').trim() // до разделителей
+      rawName,
+      rawName.replace(/,.*$/, "").trim(),
+      rawName.replace(/\s*[-/–]\s*.*/, "").trim(),
     ]);
+
     for (const alias of candidates) {
       const normalized = normalizeAlias(alias);
       if (!normalized) { skip++; continue; }
 
       try {
         await prisma.locationAlias.create({
-          data: {
-            alias,
-            normalized,
-            locationId: l.id,
-          },
+          data: { alias, normalized, locationId: l.id },
         });
         ok++;
       } catch (e: any) {
-        // уникальный normalized уже существует (на другой локации/той же)
-        if (String(e?.message || "").includes("location_aliases_normalized_key")) {
+        if (e.code === "P2002") {
           dup++;
         } else {
           err++;
@@ -52,7 +51,9 @@ async function main() {
     }
   }
 
-  console.log(`done. ok: ${ok}, dup: ${dup}, skipped: ${skip}, errors: ${err}`);
+  console.log(
+    `done. locs: ${locs.length}, ok: ${ok}, dup: ${dup}, skipped: ${skip}, errors: ${err}`
+  );
 }
 
 main()
