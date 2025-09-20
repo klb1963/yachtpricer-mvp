@@ -44,6 +44,7 @@
     COPY --from=build /app/dist ./dist
     COPY --from=build /app/prisma ./prisma
     COPY package*.json ./
+    COPY --from=build /app/tsconfig*.json ./
     
     # 👇 добавили entrypoint.sh
     COPY entrypoint.sh ./entrypoint.sh
