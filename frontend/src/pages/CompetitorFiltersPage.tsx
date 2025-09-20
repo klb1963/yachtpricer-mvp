@@ -1,3 +1,5 @@
+// /frontend/src/pages/CompetitorFiltersPage.tsx
+
 import { useEffect, useRef, useState } from "react";
 import Select, { MultiValue, SingleValue } from "react-select";
 import { getCountries, getLocations, Country, LocationItem } from "../api";
