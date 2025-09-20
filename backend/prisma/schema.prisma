@@ -411,6 +411,22 @@ model PriceAuditLog {
   @@map("price_audit_logs")
 }
 
+model Country {
+  id        String   @id @default(cuid())
+  nausysId  Int      @unique // ID из /countries
+  code2     String   @unique @db.Char(2) // ISO-3166-1 alpha-2 (FR)
+  code3     String?  @db.Char(3) // ISO-3166-1 alpha-3 (FRA)
+  name      String // "France"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 👇 обратная сторона связи по ISO-2
+  locations Location[] @relation("CountryCode2Locations")
+
+  @@index([name])
+  @@map("countries")
+}
+
 model Location {
   id          String         @id @default(cuid())
   source      LocationSource @default(NAUSYS)
@@ -464,17 +480,15 @@ model CompetitorFilters {
   userId String?
   user   User?   @relation(fields: [userId], references: [id])
 
-  lenFtMinus    Int   @default(3)
-  lenFtPlus     Int   @default(3)
-  yearMinus     Int   @default(2)
-  yearPlus      Int   @default(2)
-  peopleMinus   Int   @default(1)
-  peoplePlus    Int   @default(1)
-  cabinsMinus   Int   @default(1)
-  cabinsPlus    Int   @default(1)
-  headsMin      Int   @default(0)
-  pricePctRange Int   @default(20)
-  minRating     Float @default(4.0)
+  lenFtMinus  Int @default(3)
+  lenFtPlus   Int @default(3)
+  yearMinus   Int @default(2)
+  yearPlus    Int @default(2)
+  peopleMinus Int @default(1)
+  peoplePlus  Int @default(1)
+  cabinsMinus Int @default(1)
+  cabinsPlus  Int @default(1)
+  headsMin    Int @default(0)
 
   locations Location[] @relation("FiltersLocations")
 
@@ -487,20 +501,4 @@ model CompetitorFilters {
   @@index([orgId])
   @@index([userId])
   @@map("competitor_filters")
-}
-
-model Country {
-  id        String   @id @default(cuid())
-  nausysId  Int      @unique // ID из /countries
-  code2     String   @unique @db.Char(2) // ISO-3166-1 alpha-2 (FR)
-  code3     String?  @db.Char(3) // ISO-3166-1 alpha-3 (FRA)
-  name      String // "France"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // 👇 обратная сторона связи по ISO-2
-  locations Location[] @relation("CountryCode2Locations")
-
-  @@index([name])
-  @@map("countries")
 }
