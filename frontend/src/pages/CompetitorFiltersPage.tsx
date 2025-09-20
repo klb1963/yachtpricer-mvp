@@ -1,254 +1,342 @@
-// /frontend/src/pages/CompetitorFiltersPage.tsx
+// frontend/src/pages/CompetitorFiltersPage.tsx
+import { useEffect, useMemo, useRef, useState } from "react";
+import Select from "react-select";
+import {
+  getCountries,
+  getLocations,
+  saveCompetitorFilters,
+  getCompetitorFilters,
+  type Country,
+  type LocationItem,
+} from "../api";
 
-import { useEffect, useRef, useState } from "react";
-import Select, { MultiValue, SingleValue } from "react-select";
-import { getCountries, getLocations, Country, LocationItem } from "../api";
-import type { YachtType } from "../types/yacht";
+// --- i18n-ready labels ---
+const t = {
+  title: "Competitor filters",
+  countries: "Countries",
+  locations: "Locations",
+  headsMin: "Heads (min)",
+  length: "Length ± (ft)",
+  year: "Year ±",
+  people: "People ±",
+  cabins: "Cabins ±",
+  applySave: "Apply & Save",
+  loading: "Loading…",
+  chooseCountries: "— choose countries —",
+  chooseLocations: "— choose locations —",
+};
 
-export interface CompetitorFilters {
-  lengthMin: number;
-  lengthMax: number;
-  capacity: number;
-  type: YachtType;
-  yearMin: number;
-  yearMax: number;
-  region: string[];          // reserved for future
-  priceRange: number;        // %
-  rating: number;            // min
-  countryCodes?: string[];   // ← MULTI countries
-  locationId?: string;       // only when exactly one country selected
-}
+type Scope = "USER" | "ORG";
+
+type SaveDto = {
+  scope: Scope;
+  locationIds?: string[];
+  countryCodes?: string[];
+  lenFtMinus: number;
+  lenFtPlus: number;
+  yearMinus: number;
+  yearPlus: number;
+  peopleMinus: number;
+  peoplePlus: number;
+  cabinsMinus: number;
+  cabinsPlus: number;
+  headsMin: number;
+};
+
+type CountryOpt = { value: string; label: string };
+type LocationOpt = { value: string; label: string; countryCode?: string };
 
 type Option = { value: string; label: string };
+const toLocOption = (l: { id: string; name: string; countryCode?: string | null }): Option => ({
+  value: l.id,
+  label: l.countryCode ? `${l.name} (${l.countryCode})` : l.name,
+});
 
 interface Props {
-  onSubmit?: (filters: CompetitorFilters) => void;
-  onCancel?: () => void;
+  scope?: Scope;
+  onSubmit?: (dto: SaveDto) => void;
+  onClose?: () => void;
 }
 
-export default function CompetitorFiltersPage({ onSubmit, onCancel }: Props) {
-  const [filters, setFilters] = useState<CompetitorFilters>({
-    lengthMin: 35,
-    lengthMax: 55,
-    capacity: 8,
-    type: "monohull",
-    yearMin: 2005,
-    yearMax: 2022,
-    region: [],
-    priceRange: 20,
-    rating: 4,
-  });
+export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClose }: Props) {
+  // --- form state ---
+  const [lenFtMinus, setLenFtMinus] = useState(3);
+  const [lenFtPlus, setLenFtPlus] = useState(3);
+  const [yearMinus, setYearMinus] = useState(2);
+  const [yearPlus, setYearPlus] = useState(2);
+  const [peopleMinus, setPeopleMinus] = useState(1);
+  const [peoplePlus, setPeoplePlus] = useState(1);
+  const [cabinsMinus, setCabinsMinus] = useState(1);
+  const [cabinsPlus, setCabinsPlus] = useState(1);
+  const [headsMin, setHeadsMin] = useState(1);
 
-  const [countries, setCountries] = useState<Country[]>([]);
-  const [locations, setLocations] = useState<LocationItem[]>([]);
+  // countries / locations
+  const [countries, setCountries] = useState<CountryOpt[]>([]);
+  const [selectedCountries, setSelectedCountries] = useState<CountryOpt[]>([]);
+  const [locations, setLocations] = useState<LocationOpt[]>([]);
+  const [selectedLocations, setSelectedLocations] = useState<LocationOpt[]>([]);
   const [locLoading, setLocLoading] = useState(false);
-  const locLoadToken = useRef(0);
+
+  const loadToken = useRef(0);
 
   // load countries once
   useEffect(() => {
+    let active = true;
     getCountries()
-      .then(setCountries)
+      .then((list: Country[]) => {
+        if (!active) return;
+        const opts = list
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((c) => ({ value: c.code2, label: c.name }));
+        setCountries(opts);
+      })
       .catch((e) => console.error("Failed to load countries:", e));
+    return () => { active = false; };
   }, []);
 
-  // when countries changed:
-  // - reset location
-  // - if exactly one country selected -> load its locations
+  // when countries change → reload locations union
   useEffect(() => {
-    setFilters((prev) => ({ ...prev, locationId: undefined }));
-
-    const codes = filters.countryCodes ?? [];
-    if (codes.length !== 1) {
+    const codes = selectedCountries.map((c) => c.value.toUpperCase());
+    if (codes.length === 0) {
       setLocations([]);
+      setSelectedLocations([]);
       setLocLoading(false);
       return;
     }
 
-    const code = codes[0];
+    const myToken = ++loadToken.current;
     setLocLoading(true);
-    const token = ++locLoadToken.current;
 
-    getLocations({ countryCode: code, take: 500, orderBy: "name" })
-      .then((r) => {
-        if (token === locLoadToken.current) setLocations(r.items);
+    Promise.all(
+      codes.map((code) =>
+        getLocations({ countryCode: code, take: 500, orderBy: "name" }).then((r) =>
+          r.items.map((l: LocationItem) => ({
+            value: l.id,
+            label: l.name,
+            countryCode: l.countryCode,
+          }))
+        )
+      )
+    )
+      .then((arrs) => {
+        if (myToken !== loadToken.current) return;
+        const merged: Record<string, LocationOpt> = {};
+        arrs.flat().forEach((opt) => { merged[opt.value] = merged[opt.value] || opt; });
+        const list = Object.values(merged).sort((a, b) => a.label.localeCompare(b.label));
+        setLocations(list);
+        setSelectedLocations((prev) => prev.filter((p) => merged[p.value]));
       })
       .catch((e) => console.error("Failed to load locations:", e))
       .finally(() => {
-        if (token === locLoadToken.current) setLocLoading(false);
+        if (myToken === loadToken.current) setLocLoading(false);
       });
-  }, [filters.countryCodes]);
+  }, [selectedCountries]);
 
-  // generic setter
-  function setField<K extends keyof CompetitorFilters>(field: K, value: CompetitorFilters[K]) {
-    setFilters((prev) => ({ ...prev, [field]: value }));
-  }
-
-  // utils
-  const toInt = (v: string) => {
+  // helpers
+  const toInt = (v: string, def = 0) => {
     const n = parseInt(v, 10);
-    return Number.isFinite(n) ? n : 0;
-  };
-  const toFloat = (v: string) => {
-    const n = parseFloat(v);
-    return Number.isFinite(n) ? n : 0;
+    return Number.isFinite(n) ? n : def;
   };
 
-  // react-select helpers
-  const countryOptions: Option[] = countries.map((c) => ({ value: c.code2, label: c.name }));
-  const selectedCountryOptions: Option[] =
-    (filters.countryCodes ?? []).map((code) => ({
-      value: code,
-      label: countries.find((c) => c.code2 === code)?.name ?? code,
-    }));
+  // build DTO
+  const dto: SaveDto = useMemo(
+    () => ({
+      scope,
+      countryCodes: selectedCountries.map((c) => c.value),
+      locationIds: selectedLocations.map((l) => l.value),
+      lenFtMinus,
+      lenFtPlus,
+      yearMinus,
+      yearPlus,
+      peopleMinus,
+      peoplePlus,
+      cabinsMinus,
+      cabinsPlus,
+      headsMin,
+    }),
+    [
+      scope,
+      selectedCountries,
+      selectedLocations,
+      lenFtMinus,
+      lenFtPlus,
+      yearMinus,
+      yearPlus,
+      peopleMinus,
+      peoplePlus,
+      cabinsMinus,
+      cabinsPlus,
+      headsMin,
+    ]
+  );
 
-  function handleSubmit() {
-    if (onSubmit) onSubmit(filters);
-    else console.log("Applied competitor filters:", filters);
+  async function handleApplySave() {
+    try {
+      onSubmit?.(dto);
+      await saveCompetitorFilters(dto);
+      alert("Filters applied and saved.");
+      onClose?.();
+    } catch (e) {
+      console.error("Apply & Save failed:", e);
+      alert("Failed to save filters.");
+    }
   }
+
+  // ===== Загрузка пресета при МОНТИРОВАНИИ компонента =====
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const preset = await getCompetitorFilters(); // может вернуть null
+        if (cancelled || !preset) return;
+
+        setLenFtMinus(preset.lenFtMinus ?? 3);
+        setLenFtPlus(preset.lenFtPlus ?? 3);
+        setYearMinus(preset.yearMinus ?? 2);
+        setYearPlus(preset.yearPlus ?? 2);
+        setPeopleMinus(preset.peopleMinus ?? 1);
+        setPeoplePlus(preset.peoplePlus ?? 1);
+        setCabinsMinus(preset.cabinsMinus ?? 1);
+        setCabinsPlus(preset.cabinsPlus ?? 1);
+        setHeadsMin(preset.headsMin ?? 1);
+
+        const locOpts: Option[] = (preset.locations ?? []).map(toLocOption);
+        setSelectedLocations(locOpts);
+
+        const codes = Array.from(
+          new Set((preset.locations ?? []).map((l) => l.countryCode).filter(Boolean))
+        ) as string[];
+        const countryOpts: Option[] = codes.map((c) => ({ value: c, label: c }));
+        setSelectedCountries(countryOpts as CountryOpt[]);
+      } catch (e) {
+        console.warn("[CompetitorFilters] failed to load preset:", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [scope]);
 
   return (
     <form
-      className="grid gap-4 p-4 bg-white rounded-xl shadow max-w-lg"
-      onSubmit={(e) => {
-        e.preventDefault();
-        handleSubmit();
-      }}
+      className="grid gap-4 p-4 bg-white rounded-xl shadow max-w-xl"
+      onSubmit={(e) => { e.preventDefault(); handleApplySave(); }}
     >
-      <h2 className="text-xl font-bold mb-2">⚓ Competitor filters</h2>
+      <h2 className="text-xl font-bold">{t.title}</h2>
 
       {/* Countries (multi) */}
-      <div className="flex flex-col gap-1">
-        <label className="font-medium">Country</label>
-        <Select
+      <label className="flex flex-col gap-1">
+        <span>{t.countries}</span>
+        <Select<CountryOpt, true>
           isMulti
-          options={countryOptions}
-          value={selectedCountryOptions}
-          onChange={(vals: MultiValue<Option>) =>
-            setField(
-              "countryCodes",
-              vals.map((v) => v.value)
-            )
-          }
-          placeholder="— select countries —"
+          options={countries}
+          value={selectedCountries}
+          onChange={(vals) => setSelectedCountries(vals as CountryOpt[])}
+          placeholder={t.chooseCountries}
+          classNamePrefix="rs"
         />
-        <small className="text-gray-500">
-          You can pick multiple countries. Location is available when exactly one country is selected.
-        </small>
-      </div>
+      </label>
 
-      {/* Location (only when exactly one country picked) */}
-      {(filters.countryCodes?.length ?? 0) === 1 && (
+      {/* Locations (multi) */}
+      <label className="flex flex-col gap-1">
+        <span>{t.locations}</span>
+        <Select<LocationOpt, true>
+          isMulti
+          isDisabled={selectedCountries.length === 0 || locLoading}
+          options={locations}
+          value={selectedLocations}
+          onChange={(vals) => setSelectedLocations(vals as LocationOpt[])}
+          placeholder={locLoading ? t.loading : t.chooseLocations}
+          classNamePrefix="rs"
+        />
+      </label>
+
+      {/* Ranges */}
+      <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col">
-          <span className="font-medium">Location</span>
-          <select
-            value={filters.locationId || ""}
-            onChange={(e) => setField("locationId", e.target.value || undefined)}
-            className="border rounded p-1"
-            disabled={locLoading}
-          >
-            <option value="">{locLoading ? "Loading…" : "— select location —"}</option>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
+          <span>{t.length}</span>
+          <div className="flex items-center gap-2">
+            <button type="button" className="border rounded px-2" onClick={() => setLenFtMinus((v) => Math.max(0, v - 1))}>−</button>
+            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
+              value={lenFtMinus} min={0} max={5}
+              onChange={(e) => setLenFtMinus(Math.min(5, Math.max(0, toInt(e.target.value, lenFtMinus))))}/>
+            <button type="button" className="border rounded px-2" onClick={() => setLenFtMinus((v) => Math.min(5, v + 1))}>+</button>
+            <span className="opacity-60">/</span>
+            <button type="button" className="border rounded px-2" onClick={() => setLenFtPlus((v) => Math.max(0, v - 1))}>−</button>
+            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
+              value={lenFtPlus} min={0} max={5}
+              onChange={(e) => setLenFtPlus(Math.min(5, Math.max(0, toInt(e.target.value, lenFtPlus))))}/>
+            <button type="button" className="border rounded px-2" onClick={() => setLenFtPlus((v) => Math.min(5, v + 1))}>+</button>
+          </div>
         </label>
-      )}
 
-      {/* Other filters */}
-      <div className="flex gap-2">
-        <label className="flex flex-col flex-1">
-          Length from
-          <input
-            type="number"
-            inputMode="numeric"
-            value={filters.lengthMin}
-            onChange={(e) => setField("lengthMin", toInt(e.target.value))}
-            className="border rounded p-1"
-            min={0}
-          />
+        <label className="flex flex-col">
+          <span>{t.year}</span>
+          <div className="flex items-center gap-2">
+            <button type="button" className="border rounded px-2" onClick={() => setYearMinus((v) => Math.max(0, v - 1))}>−</button>
+            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
+              value={yearMinus} min={0} max={5}
+              onChange={(e) => setYearMinus(Math.min(5, Math.max(0, toInt(e.target.value, yearMinus))))}/>
+            <button type="button" className="border rounded px-2" onClick={() => setYearMinus((v) => Math.min(5, v + 1))}>+</button>
+            <span className="opacity-60">/</span>
+            <button type="button" className="border rounded px-2" onClick={() => setYearPlus((v) => Math.max(0, v - 1))}>−</button>
+            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
+              value={yearPlus} min={0} max={5}
+              onChange={(e) => setYearPlus(Math.min(5, Math.max(0, toInt(e.target.value, yearPlus))))}/>
+            <button type="button" className="border rounded px-2" onClick={() => setYearPlus((v) => Math.min(5, v + 1))}>+</button>
+          </div>
         </label>
-        <label className="flex flex-col flex-1">
-          to
-          <input
-            type="number"
-            inputMode="numeric"
-            value={filters.lengthMax}
-            onChange={(e) => setField("lengthMax", toInt(e.target.value))}
-            className="border rounded p-1"
-            min={filters.lengthMin}
-          />
+
+        <label className="flex flex-col">
+          <span>{t.people}</span>
+          <div className="flex items-center gap-2">
+            <button type="button" className="border rounded px-2" onClick={() => setPeopleMinus((v) => Math.max(0, v - 1))}>−</button>
+            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
+              value={peopleMinus} min={0} max={5}
+              onChange={(e) => setPeopleMinus(Math.min(5, Math.max(0, toInt(e.target.value, peopleMinus))))}/>
+            <button type="button" className="border rounded px-2" onClick={() => setPeopleMinus((v) => Math.min(5, v + 1))}>+</button>
+            <span className="opacity-60">/</span>
+            <button type="button" className="border rounded px-2" onClick={() => setPeoplePlus((v) => Math.max(0, v - 1))}>−</button>
+            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
+              value={peoplePlus} min={0} max={5}
+              onChange={(e) => setPeoplePlus(Math.min(5, Math.max(0, toInt(e.target.value, peoplePlus))))}/>
+            <button type="button" className="border rounded px-2" onClick={() => setPeoplePlus((v) => Math.min(5, v + 1))}>+</button>
+          </div>
+        </label>
+
+        <label className="flex flex-col">
+          <span>{t.cabins}</span>
+          <div className="flex items-center gap-2">
+            <button type="button" className="border rounded px-2" onClick={() => setCabinsMinus((v) => Math.max(0, v - 1))}>−</button>
+            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
+              value={cabinsMinus} min={0} max={3}
+              onChange={(e) => setCabinsMinus(Math.min(3, Math.max(0, toInt(e.target.value, cabinsMinus))))}/>
+            <button type="button" className="border rounded px-2" onClick={() => setCabinsMinus((v) => Math.min(3, v + 1))}>+</button>
+            <span className="opacity-60">/</span>
+            <button type="button" className="border rounded px-2" onClick={() => setCabinsPlus((v) => Math.max(0, v - 1))}>−</button>
+            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
+              value={cabinsPlus} min={0} max={3}
+              onChange={(e) => setCabinsPlus(Math.min(3, Math.max(0, toInt(e.target.value, cabinsPlus))))}/>
+            <button type="button" className="border rounded px-2" onClick={() => setCabinsPlus((v) => Math.min(3, v + 1))}>+</button>
+          </div>
         </label>
       </div>
 
       <label className="flex flex-col">
-        Capacity (passengers)
+        <span>{t.headsMin}</span>
         <input
           type="number"
           inputMode="numeric"
-          value={filters.capacity}
-          onChange={(e) => setField("capacity", toInt(e.target.value))}
-          className="border rounded p-1"
-          min={1}
+          className="border rounded p-1 w-24"
+          value={headsMin}
+          min={0}
+          max={5}
+          onChange={(e) => setHeadsMin(Math.min(5, Math.max(0, toInt(e.target.value, headsMin))))}
         />
       </label>
 
-      <label className="flex flex-col">
-        Yacht type
-        <select
-          value={filters.type}
-          onChange={(e) => setField("type", e.target.value as YachtType)}
-          className="border rounded p-1"
-        >
-          <option value="monohull">Monohull</option>
-          <option value="catamaran">Catamaran</option>
-          <option value="trimaran">Trimaran</option>
-          <option value="compromis">Compromis</option>
-        </select>
-      </label>
-
-      <div className="flex gap-2">
-        <label className="flex flex-col flex-1">
-          Year from
-          <input
-            type="number"
-            inputMode="numeric"
-            value={filters.yearMin}
-            onChange={(e) => setField("yearMin", toInt(e.target.value))}
-            className="border rounded p-1"
-            min={1970}
-            max={filters.yearMax}
-          />
-        </label>
-        <label className="flex flex-col flex-1">
-          to
-          <input
-            type="number"
-            inputMode="numeric"
-            value={filters.yearMax}
-            onChange={(e) => setField("yearMax", toInt(e.target.value))}
-            className="border rounded p-1"
-            min={filters.yearMin}
-          />
-        </label>
-      </div>
-
-      <div className="mt-4 flex justify-end gap-3">
-        {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded bg-gray-300 px-4 py-2 text-black hover:bg-gray-400"
-          >
-            Cancel
-          </button>
-        )}
-        <button
-          type="submit"
-          className="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-700"
-        >
-          Apply filters
+      <div className="mt-3 flex justify-end">
+        <button type="submit" className="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-700">
+          {t.applySave}
         </button>
       </div>
     </form>
