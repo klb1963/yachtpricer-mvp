@@ -277,7 +277,7 @@ export type LocationItem = {
   countryCode: string | null;
   lat: number | null;
   lon: number | null;
-  aliases: { alias: string }[];
+  aliases?: { alias: string }[]; // ← опционально
 };
 
 export async function getCountries(): Promise<Country[]> {
@@ -306,4 +306,51 @@ export async function getLocations(params: {
   const r = await fetch(`/api/geo/locations?${qs}`);
   if (!r.ok) throw new Error("Failed to load locations");
   return r.json();
+}
+
+export async function saveCompetitorFilters(dto: {
+  scope: "USER" | "ORG";
+  locationIds?: string[];
+  countryCodes?: string[];
+  lenFtMinus: number;
+  lenFtPlus: number;
+  yearMinus: number;
+  yearPlus: number;
+  peopleMinus: number;
+  peoplePlus: number;
+  cabinsMinus: number;
+  cabinsPlus: number;
+  headsMin: number;
+}) {
+   const { data } = await api.patch("/filters/competitors", dto);
+  return data;
+}
+
+export type ServerCompetitorFilters = {
+  id: string;
+  orgId: string;
+  scope: "USER" | "ORG";
+  userId: string | null;
+  lenFtMinus: number;
+  lenFtPlus: number;
+  yearMinus: number;
+  yearPlus: number;
+  peopleMinus: number;
+  peoplePlus: number;
+  cabinsMinus: number;
+  cabinsPlus: number;
+  headsMin: number;
+  locations: Array<{ id: string; name: string; countryCode: string | null }>;
+};
+
+
+export async function getCompetitorFilters(): Promise<ServerCompetitorFilters | null> {
+  try {
+    const { data } = await api.get<ServerCompetitorFilters | null>("/filters/competitors");
+    return data ?? null;
+  } catch (e) {
+    // если реально 404 — вернём null, остальные ошибки пробросим в консоль
+    console.warn("[api.getCompetitorFilters] failed:", e);
+    return null;
+  }
 }
