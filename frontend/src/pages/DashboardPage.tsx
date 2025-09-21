@@ -315,7 +315,7 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
-    {/* Модалка конкурентных фильтров */}
+      {/* Модалка конкурентных фильтров */}
       <Modal
         open={isCompFiltersOpen}
         onClose={() => setCompFiltersOpen(false)}
@@ -323,7 +323,7 @@ export default function DashboardPage() {
       >
         <CompetitorFiltersPage
           onSubmit={handleCompetitorFiltersSubmit}
-          onCancel={() => setCompFiltersOpen(false)}
+          onClose={() => setCompFiltersOpen(false)}
         />
       </Modal>
     </div>

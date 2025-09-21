@@ -1,6 +1,9 @@
 // frontend/src/pages/CompetitorFiltersPage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import Select from "react-select";
+import RangePair from "../components/RangePair";
+import NumberField from "../components/NumberField";
+import ModalFooter from "../components/ModalFooter";
 import {
   getCountries,
   getLocations,
@@ -92,7 +95,9 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
         setCountries(opts);
       })
       .catch((e) => console.error("Failed to load countries:", e));
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
   // when countries change → reload locations union
@@ -115,14 +120,16 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
             value: l.id,
             label: l.name,
             countryCode: l.countryCode,
-          }))
-        )
-      )
+          })),
+        ),
+      ),
     )
       .then((arrs) => {
         if (myToken !== loadToken.current) return;
         const merged: Record<string, LocationOpt> = {};
-        arrs.flat().forEach((opt) => { merged[opt.value] = merged[opt.value] || opt; });
+        arrs.flat().forEach((opt) => {
+          merged[opt.value] = merged[opt.value] || opt;
+        });
         const list = Object.values(merged).sort((a, b) => a.label.localeCompare(b.label));
         setLocations(list);
         setSelectedLocations((prev) => prev.filter((p) => merged[p.value]));
@@ -132,12 +139,6 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
         if (myToken === loadToken.current) setLocLoading(false);
       });
   }, [selectedCountries]);
-
-  // helpers
-  const toInt = (v: string, def = 0) => {
-    const n = parseInt(v, 10);
-    return Number.isFinite(n) ? n : def;
-  };
 
   // build DTO
   const dto: SaveDto = useMemo(
@@ -168,7 +169,7 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
       cabinsMinus,
       cabinsPlus,
       headsMin,
-    ]
+    ],
   );
 
   async function handleApplySave() {
@@ -205,7 +206,7 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
         setSelectedLocations(locOpts);
 
         const codes = Array.from(
-          new Set((preset.locations ?? []).map((l) => l.countryCode).filter(Boolean))
+          new Set((preset.locations ?? []).map((l) => l.countryCode).filter(Boolean)),
         ) as string[];
         const countryOpts: Option[] = codes.map((c) => ({ value: c, label: c }));
         setSelectedCountries(countryOpts as CountryOpt[]);
@@ -213,14 +214,39 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
         console.warn("[CompetitorFilters] failed to load preset:", e);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [scope]);
 
+  // === Закрытие по Esc (capture, чтобы перебить stopPropagation в виджетах) ===
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose?.();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+
   return (
-    <form
-      className="grid gap-4 p-4 bg-white rounded-xl shadow max-w-xl"
-      onSubmit={(e) => { e.preventDefault(); handleApplySave(); }}
-    >
+        <form
+          role="dialog"
+          aria-modal="true"
+          className="grid gap-5 p-5 bg-white rounded-xl shadow max-w-xl"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              onClose?.();
+            }
+          }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleApplySave();
+          }}
+        >
       <h2 className="text-xl font-bold">{t.title}</h2>
 
       {/* Countries (multi) */}
@@ -250,95 +276,52 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
         />
       </label>
 
-      {/* Ranges */}
-      <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col">
-          <span>{t.length}</span>
-          <div className="flex items-center gap-2">
-            <button type="button" className="border rounded px-2" onClick={() => setLenFtMinus((v) => Math.max(0, v - 1))}>−</button>
-            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
-              value={lenFtMinus} min={0} max={5}
-              onChange={(e) => setLenFtMinus(Math.min(5, Math.max(0, toInt(e.target.value, lenFtMinus))))}/>
-            <button type="button" className="border rounded px-2" onClick={() => setLenFtMinus((v) => Math.min(5, v + 1))}>+</button>
-            <span className="opacity-60">/</span>
-            <button type="button" className="border rounded px-2" onClick={() => setLenFtPlus((v) => Math.max(0, v - 1))}>−</button>
-            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
-              value={lenFtPlus} min={0} max={5}
-              onChange={(e) => setLenFtPlus(Math.min(5, Math.max(0, toInt(e.target.value, lenFtPlus))))}/>
-            <button type="button" className="border rounded px-2" onClick={() => setLenFtPlus((v) => Math.min(5, v + 1))}>+</button>
-          </div>
-        </label>
-
-        <label className="flex flex-col">
-          <span>{t.year}</span>
-          <div className="flex items-center gap-2">
-            <button type="button" className="border rounded px-2" onClick={() => setYearMinus((v) => Math.max(0, v - 1))}>−</button>
-            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
-              value={yearMinus} min={0} max={5}
-              onChange={(e) => setYearMinus(Math.min(5, Math.max(0, toInt(e.target.value, yearMinus))))}/>
-            <button type="button" className="border rounded px-2" onClick={() => setYearMinus((v) => Math.min(5, v + 1))}>+</button>
-            <span className="opacity-60">/</span>
-            <button type="button" className="border rounded px-2" onClick={() => setYearPlus((v) => Math.max(0, v - 1))}>−</button>
-            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
-              value={yearPlus} min={0} max={5}
-              onChange={(e) => setYearPlus(Math.min(5, Math.max(0, toInt(e.target.value, yearPlus))))}/>
-            <button type="button" className="border rounded px-2" onClick={() => setYearPlus((v) => Math.min(5, v + 1))}>+</button>
-          </div>
-        </label>
-
-        <label className="flex flex-col">
-          <span>{t.people}</span>
-          <div className="flex items-center gap-2">
-            <button type="button" className="border rounded px-2" onClick={() => setPeopleMinus((v) => Math.max(0, v - 1))}>−</button>
-            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
-              value={peopleMinus} min={0} max={5}
-              onChange={(e) => setPeopleMinus(Math.min(5, Math.max(0, toInt(e.target.value, peopleMinus))))}/>
-            <button type="button" className="border rounded px-2" onClick={() => setPeopleMinus((v) => Math.min(5, v + 1))}>+</button>
-            <span className="opacity-60">/</span>
-            <button type="button" className="border rounded px-2" onClick={() => setPeoplePlus((v) => Math.max(0, v - 1))}>−</button>
-            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
-              value={peoplePlus} min={0} max={5}
-              onChange={(e) => setPeoplePlus(Math.min(5, Math.max(0, toInt(e.target.value, peoplePlus))))}/>
-            <button type="button" className="border rounded px-2" onClick={() => setPeoplePlus((v) => Math.min(5, v + 1))}>+</button>
-          </div>
-        </label>
-
-        <label className="flex flex-col">
-          <span>{t.cabins}</span>
-          <div className="flex items-center gap-2">
-            <button type="button" className="border rounded px-2" onClick={() => setCabinsMinus((v) => Math.max(0, v - 1))}>−</button>
-            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
-              value={cabinsMinus} min={0} max={3}
-              onChange={(e) => setCabinsMinus(Math.min(3, Math.max(0, toInt(e.target.value, cabinsMinus))))}/>
-            <button type="button" className="border rounded px-2" onClick={() => setCabinsMinus((v) => Math.min(3, v + 1))}>+</button>
-            <span className="opacity-60">/</span>
-            <button type="button" className="border rounded px-2" onClick={() => setCabinsPlus((v) => Math.max(0, v - 1))}>−</button>
-            <input type="number" inputMode="numeric" className="border rounded p-1 w-20 text-center"
-              value={cabinsPlus} min={0} max={3}
-              onChange={(e) => setCabinsPlus(Math.min(3, Math.max(0, toInt(e.target.value, cabinsPlus))))}/>
-            <button type="button" className="border rounded px-2" onClick={() => setCabinsPlus((v) => Math.min(3, v + 1))}>+</button>
-          </div>
-        </label>
-      </div>
-
-      <label className="flex flex-col">
-        <span>{t.headsMin}</span>
-        <input
-          type="number"
-          inputMode="numeric"
-          className="border rounded p-1 w-24"
-          value={headsMin}
+      {/* Ranges — ВЕРТИКАЛЬНЫЙ СТЕК */}
+      <div className="grid gap-3">
+        <RangePair
+          label={t.length}
+          minus={lenFtMinus}
+          plus={lenFtPlus}
+          setMinus={setLenFtMinus}
+          setPlus={setLenFtPlus}
           min={0}
           max={5}
-          onChange={(e) => setHeadsMin(Math.min(5, Math.max(0, toInt(e.target.value, headsMin))))}
         />
-      </label>
-
-      <div className="mt-3 flex justify-end">
-        <button type="submit" className="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-700">
-          {t.applySave}
-        </button>
+        <RangePair
+          label={t.year}
+          minus={yearMinus}
+          plus={yearPlus}
+          setMinus={setYearMinus}
+          setPlus={setYearPlus}
+          min={0}
+          max={5}
+        />
+        <RangePair
+          label={t.people}
+          minus={peopleMinus}
+          plus={peoplePlus}
+          setMinus={setPeopleMinus}
+          setPlus={setPeoplePlus}
+          min={0}
+          max={5}
+        />
+        <RangePair
+          label={t.cabins}
+          minus={cabinsMinus}
+          plus={cabinsPlus}
+          setMinus={setCabinsMinus}
+          setPlus={setCabinsPlus}
+          min={0}
+          max={3}
+        />
+        <NumberField label={t.headsMin} value={headsMin} onChange={setHeadsMin} min={0} max={5} />
       </div>
+
+      <ModalFooter
+        onCancel={onClose!}
+        submitLabel="Apply & Save"
+        submitting={false /* или saving */}
+      />
     </form>
   );
 }
