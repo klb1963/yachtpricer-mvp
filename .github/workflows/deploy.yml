@@ -77,6 +77,9 @@ jobs:
               exit 1
             fi
 
+            # Перезапуск Prisma Studio, чтобы подхватил свежую схему/миграции
+            docker compose -f docker-compose.yml restart prisma-studio || true
+
             docker compose -f docker-compose.yml ps
 
             # Опционально: чистка подвисших/неиспользуемых слоёв
