@@ -27,6 +27,7 @@ enum YachtType {
 enum ScrapeSource {
   BOATAROUND
   SEARADAR
+  NAUSYS
 }
 
 enum JobStatus {

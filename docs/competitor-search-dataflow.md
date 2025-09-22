@@ -121,3 +121,13 @@ Availability/Prices
 	4.	Фильтруем по длине/типу/параметрам ±.
 	5.	На выборку → availability/prices для weekStart..weekEnd.
 	6.	Считаем метрики → сохраняем snapshot.
+
+
+___________________
+# шаг 1: bases -> companies -> yachts (фильтр по нашим локациям)
+docker compose exec \
+  -e NAUSYS_USERNAME='rest388@TTTTT' \
+  -e NAUSYS_PASSWORD='e2THubBC' \
+  backend npx ts-node prisma/seed/scanCompetitors.step1.ts
+
+  

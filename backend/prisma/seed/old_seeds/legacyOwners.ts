@@ -162,8 +162,102 @@ export async function seedLegacyOwners() {
     },
   });
 
+    const yacht4 = await prisma.yacht.upsert({
+    where: { nausysId: 'LEG-4' },
+    update: {
+      name: 'Bavaria Cruiser 46',
+      manufacturer: 'Bavaria',
+      model: 'Cruiser 46',
+      type: YachtType.monohull,
+      length: 14.27,
+      builtYear: 2019,
+      cabins: 4,
+      heads: 3,
+      basePrice: new Prisma.Decimal(4000),
+      location: 'Marina Kastela',
+      fleet: 'EN',
+      charterCompany: 'Adriatic Charter',
+      ownerId: owner2.id,
+      ownerName: owner2.name,
+      currentExtraServices: [
+        { name: 'Outboard engine', price: 80 },
+        { name: 'WiFi', price: 50 },
+      ],
+      imageUrl: '/images/yachts/monohull.jpg',
+    },
+    create: {
+      nausysId: 'LEG-4',
+      name: 'Bavaria Cruiser 46',
+      manufacturer: 'Bavaria',
+      model: 'Cruiser 46',
+      type: YachtType.monohull,
+      length: 14.27,
+      builtYear: 2019,
+      cabins: 4,
+      heads: 3,
+      basePrice: new Prisma.Decimal(4000),
+      location: 'Marina Kastela',
+      fleet: 'EN',
+      charterCompany: 'Adriatic Charter',
+      ownerId: owner2.id,
+      ownerName: owner2.name,
+      currentExtraServices: [
+        { name: 'Outboard engine', price: 80 },
+        { name: 'WiFi', price: 50 },
+      ],
+      imageUrl: '/images/yachts/monohull.jpg',
+    },
+  });
+
+  const yacht5 = await prisma.yacht.upsert({
+    where: { nausysId: 'LEG-5' },
+    update: {
+      name: 'Bali 4.2',
+      manufacturer: 'Bali',
+      model: '4.2',
+      type: YachtType.catamaran,
+      length: 12.85,
+      builtYear: 2021,
+      cabins: 4,
+      heads: 4,
+      basePrice: new Prisma.Decimal(5500),
+      location: 'Marina Kastela',
+      fleet: 'EN',
+      charterCompany: 'Adriatic Charter',
+      ownerId: owner1.id,
+      ownerName: owner1.name,
+      currentExtraServices: [
+        { name: 'Skipper', price: 180 },
+        { name: 'Final cleaning', price: 150 },
+      ],
+      imageUrl: '/images/yachts/catamaran.jpg',
+    },
+    create: {
+      nausysId: 'LEG-5',
+      name: 'Bali 4.2',
+      manufacturer: 'Bali',
+      model: '4.2',
+      type: YachtType.catamaran,
+      length: 12.85,
+      builtYear: 2021,
+      cabins: 4,
+      heads: 4,
+      basePrice: new Prisma.Decimal(5500),
+      location: 'Marina Kastela',
+      fleet: 'EN',
+      charterCompany: 'Adriatic Charter',
+      ownerId: owner1.id,
+      ownerName: owner1.name,
+      currentExtraServices: [
+        { name: 'Skipper', price: 180 },
+        { name: 'Final cleaning', price: 150 },
+      ],
+      imageUrl: '/images/yachts/catamaran.jpg',
+    },
+  });
+
   // WeekSlots за август 2025 — upsert по композитному уникальному
-  const yachts = [yacht1, yacht2, yacht3];
+  const yachts = [yacht1, yacht2, yacht3, yacht4, yacht5];
   const augustStart = new Date('2025-08-02'); // суббота
   for (const y of yachts) {
     for (let i = 0; i < 4; i++) {
