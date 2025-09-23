@@ -1,32 +1,45 @@
-// /workspace/backend/prisma/seed.t
+// prisma/seed.ts
 
-import { seedCountries } from './seed/seedCountries';
-import { seedLocations } from './seed/seedLocations';
-import { seedLocationAliases } from './seed/seedLocationAliases';
-import { seedRbacUsers } from './seed/rbacUsers';
+async function callSeed(modulePathNoExt: string, candidates: string[]) {
+  // Для ESM/ts-node: пробуем с .ts и без — на разных машинах бывает по-разному
+  let mod: any;
+  try {
+    mod = await import(`${modulePathNoExt}.ts`);
+  } catch {
+    mod = await import(modulePathNoExt);
+  }
 
-// сиды лодок
-import { seedYachtsMonohulls45ft } from './seed/seedYachts.monohulls';
-import { seedYachtsCats42 } from './seed/seedYachts.cats42';
+  const fn =
+    candidates.map((n) => mod?.[n]).find(Boolean) ||
+    mod?.default;
 
-// опциональные связки/воркфлоу
-import { seedRbacDemoLinks } from './seed/rbacDemoLinks';
-
-async function main() {
-  console.log('🌱 Seeding database…');
-
-  await seedCountries();
-  await seedLocations();
-  await seedLocationAliases();
-
-  await seedRbacUsers();            // ← только орг и пользователи
-
-  await seedYachtsMonohulls45ft();  // ← сами лодки
-  await seedYachtsCats42();
-
-  await seedRbacDemoLinks();        // ← привязки/решения (если лодки есть)
-
-  console.log('✅ Seeding done!');
+  if (typeof fn !== 'function') {
+    throw new Error(
+      `Seed module "${modulePathNoExt}" не экспортирует функцию (${candidates.join(
+        ' | ',
+      )} | default)`,
+    );
+  }
+  return fn();
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+async function main() {
+  // GEO
+  // await callSeed('./seed/seedCountries', ['seedCountries']);
+  // await callSeed('./seed/seedLocations', ['seedLocations']);
+  // await callSeed('./seed/seedLocationAliases', ['seedLocationAliases']);
+
+  // Демо-лодки
+  // await callSeed('./seed/seedLegacyMonohulls', ['seedLegacyMonohulls45ft']);
+  // await callSeed('./seed/seedLegacyCats', ['seedLegacyCats42']);
+
+  // Недельные слоты (если в файле export default — подхватится; если named — укажи имя)
+  // await callSeed('./seed/seedWeekSlotsAll', ['seedWeekSlotsAll']);
+}
+
+main()
+  .then(() => console.log('✅ Seeding done!'))
+  .catch((e) => {
+    console.error('❌ Seeding failed:', e);
+    process.exit(1);
+  });

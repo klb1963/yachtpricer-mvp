@@ -38,3 +38,14 @@ export async function seedRbacUsers() {
 
   console.log('✅ RBAC org & users seeded');
 }
+// ── self-run block ──
+if (require.main === module) {
+  seedRbacUsers()
+    .catch((e) => {
+      console.error('❌ RBAC seed failed:', e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}
