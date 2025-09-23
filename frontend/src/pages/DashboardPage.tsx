@@ -19,7 +19,7 @@ import {
   aggregateSnapshot,
   listCompetitorPrices,
 } from '../api';
-import type { CompetitorPrice } from '../api';
+import type { CompetitorPrice, StartResponseDto } from '../api';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -113,6 +113,7 @@ export default function DashboardPage() {
     setAggByYacht({});
     setRawByYacht({});
     setRowsOpen({});
+    setLastWarningByYacht({});
   }, [weekStart]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -140,38 +141,68 @@ export default function DashboardPage() {
   const [rowsOpen, setRowsOpen] = useState<Record<string, boolean>>({});
   const [rawByYacht, setRawByYacht] = useState<Record<string, { prices: CompetitorPrice[] }>>({});
 
+  // предупреждение от бэкенда: «нет конкурентов, причины …»
+  const [lastWarningByYacht, setLastWarningByYacht] = useState<Record<string, string | null>>({});
+
   async function handleScan(y: Yacht) {
     try {
-      setBusyId(y.id);
-      const week = weekStart || new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+      setBusyId(y.id)
+      const week = weekStart || new Date().toISOString().slice(0, 10) // YYYY-MM-DD
 
-      const { jobId } = await startScrape({ yachtId: y.id, weekStart: week, source: 'BOATAROUND' });
+      // можно передать source: 'INNERDB' если сканим только внутри своей БД
+      const startRes: StartResponseDto = await startScrape({
+        yachtId: y.id,
+        weekStart: week,
+        source: 'INNERDB',
+      })
+      const { jobId } = startRes
 
-      let status: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED' = 'PENDING';
+      let status: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED' = 'PENDING'
       for (let i = 0; i < 30; i++) {
-        const { status: s } = await getScrapeStatus(jobId);
-        status = s;
-        if (status === 'DONE' || status === 'FAILED') break;
-        await new Promise((res) => setTimeout(res, 500));
+        const { status: s } = await getScrapeStatus(jobId)
+        status = s
+        if (status === 'DONE' || status === 'FAILED') break
+        await new Promise((res) => setTimeout(res, 500))
       }
-      if (status !== 'DONE') throw new Error(`Scrape status: ${status}`);
+      if (status !== 'DONE') throw new Error(`Scrape status: ${status}`)
 
-      const snap = await aggregateSnapshot({ yachtId: y.id, week, source: 'BOATAROUND' });
+      // если бэк сразу вернул, что никого не оставили — сохраним читаемую строку причин
+      if (startRes.kept === 0) {
+        const text =
+          startRes.reasons && startRes.reasons.length > 0
+            ? `No competitors found. Reasons: ${startRes.reasons.join(' | ')}`
+            : 'No competitors matched filters'
+        setLastWarningByYacht((prev) => ({ ...prev, [y.id]: text }))
+      } else {
+        // очистим прошлые предупреждения при успешном результате
+        setLastWarningByYacht((prev) => {
+          const { [y.id]: _omit, ...rest } = prev
+          return rest
+        })
+      }
+
+      const snap = await aggregateSnapshot({ yachtId: y.id, week, source: 'BOATAROUND' })
       if (snap) {
         setAggByYacht((prev) => ({
           ...prev,
-          [y.id]: { top1: snap.top1Price, avg: snap.top3Avg, cur: snap.currency, n: snap.sampleSize },
-        }));
+          [y.id]: {
+            top1: snap.top1Price,
+            avg: snap.top3Avg,
+            cur: snap.currency,
+            n: snap.sampleSize,
+          },
+        }))
       }
 
-      const raw = await listCompetitorPrices({ yachtId: y.id, week });
-      setRawByYacht((prev) => ({ ...prev, [y.id]: { prices: raw } }));
-      setRowsOpen((prev) => ({ ...prev, [y.id]: true }));
+      const raw = await listCompetitorPrices({ yachtId: y.id, week })
+      setRawByYacht((prev) => ({ ...prev, [y.id]: { prices: raw } }))
+      // раскрываем строку/карточку в любом случае — даже если пусто, покажем предупреждение
+      setRowsOpen((prev) => ({ ...prev, [y.id]: true }))
     } catch (e) {
-      console.error(e);
-      alert(e instanceof Error ? e.message : 'Scan failed');
+      console.error(e)
+      alert(e instanceof Error ? e.message : 'Scan failed')
     } finally {
-      setBusyId(null);
+      setBusyId(null)
     }
   }
 
@@ -260,6 +291,7 @@ export default function DashboardPage() {
               scanning={busyId === y.id}
               agg={aggByYacht[y.id]}
               details={rawByYacht[y.id]?.prices ?? []}
+              warning={lastWarningByYacht[y.id] ?? null}
               open={!!rowsOpen[y.id]}
               onToggleDetails={() => setRowsOpen((p) => ({ ...p, [y.id]: !p[y.id] }))}
             />
@@ -277,6 +309,7 @@ export default function DashboardPage() {
           busyId={busyId}
           aggByYacht={aggByYacht}
           rawByYacht={rawByYacht}
+          lastWarningByYacht={lastWarningByYacht}
           rowsOpen={rowsOpen}
           onScan={handleScan}
           onToggleDetails={(id) => setRowsOpen((p) => ({ ...p, [id]: !p[id] }))}

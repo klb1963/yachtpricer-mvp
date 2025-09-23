@@ -13,6 +13,7 @@ import {
 import { ScraperService } from './scraper.service';
 import {
   StartScrapeDto,
+  StartResponseDto,
   ScrapeStatusQueryDto,
   CompetitorsQueryDto,
   AggregateDto,
@@ -37,7 +38,7 @@ export class ScraperController {
    */
   @Post('start')
   @Roles('MANAGER', 'ADMIN')
-  start(@Body() dto: StartScrapeDto) {
+  start(@Body() dto: StartScrapeDto): Promise<StartResponseDto> {
     this.logger.log('hit /scrape/start', {
       yachtId: dto.yachtId,
       weekStart: dto.weekStart,

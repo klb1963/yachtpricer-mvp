@@ -25,6 +25,8 @@ interface Props {
 
   onScan: (yacht: Yacht) => void;
   onToggleDetails: (id: string) => void;
+
+  lastWarningByYacht?: Record<string, string | string[] | null>;
 }
 
 const YachtTable: React.FC<Props> = ({
@@ -38,6 +40,7 @@ const YachtTable: React.FC<Props> = ({
   rowsOpen,
   onScan,
   onToggleDetails,
+  lastWarningByYacht,
 }) => {
   return (
     <div className="overflow-x-auto rounded-lg border">
@@ -89,11 +92,16 @@ const YachtTable: React.FC<Props> = ({
             return (
               <tr key={y.id} className="border-t [&>td]:px-4 [&>td]:py-2">
                 <td>
-                  <Link className="text-blue-600 hover:underline" to={{ pathname: `/yacht/${y.id}`, search: locationSearch }}>
+                  <Link
+                    className="text-blue-600 hover:underline"
+                    to={{ pathname: `/yacht/${y.id}`, search: locationSearch }}
+                  >
                     {y.name}
                   </Link>
                 </td>
-                <td>{y.manufacturer} {y.model}</td>
+                <td>
+                  {y.manufacturer} {y.model}
+                </td>
                 <td>{y.type}</td>
                 <td>{y.length} m</td>
                 <td>{y.builtYear}</td>
@@ -102,8 +110,8 @@ const YachtTable: React.FC<Props> = ({
                   {typeof y.basePrice === 'string'
                     ? y.basePrice
                     : Number.isFinite(y.basePrice)
-                    ? String(Math.round(Number(y.basePrice)))
-                    : '—'}
+                      ? String(Math.round(Number(y.basePrice)))
+                      : '—'}
                 </td>
 
                 {/* Competitors cell */}
@@ -114,7 +122,9 @@ const YachtTable: React.FC<Props> = ({
                       onClick={() => onScan(y)}
                       disabled={busyId === y.id}
                       className={`rounded px-3 py-1 text-sm font-medium ${
-                        busyId === y.id ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'
+                        busyId === y.id
+                          ? 'bg-gray-400 text-white cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
                       }`}
                       title="Fetch competitors and aggregate"
                     >
@@ -123,7 +133,11 @@ const YachtTable: React.FC<Props> = ({
 
                     {agg ? (
                       <span className="text-xs text-gray-800">
-                        TOP1: <b>{agg.top1} {agg.cur}</b>,&nbsp; AVG(Top3): <b>{agg.avg}</b>&nbsp;({agg.n})
+                        TOP1:{' '}
+                        <b>
+                          {agg.top1} {agg.cur}
+                        </b>
+                        ,&nbsp; AVG(Top3): <b>{agg.avg}</b>&nbsp;({agg.n})
                       </span>
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
@@ -141,6 +155,14 @@ const YachtTable: React.FC<Props> = ({
                     )}
                   </div>
 
+                  {lastWarningByYacht?.[y.id] && (
+                    <div className="mt-2 rounded bg-yellow-100 p-2 text-xs text-yellow-800">
+                      {Array.isArray(lastWarningByYacht[y.id])
+                        ? lastWarningByYacht[y.id]!.join(', ')
+                        : lastWarningByYacht[y.id]}
+                    </div>
+                  )}
+
                   {open && raw.length > 0 && (
                     <div className="mt-2 rounded border p-2">
                       <div className="mb-1 text-[11px] text-gray-600">{raw.length} offers:</div>
@@ -148,10 +170,14 @@ const YachtTable: React.FC<Props> = ({
                         {raw.map((p) => (
                           <li key={p.id} className="flex justify-between gap-2 text-[11px]">
                             <span className="truncate">
-                              {p.competitorYacht ?? '—'} {p.year ? `(${p.year})` : ''} · {p.marina ?? '—'}
-                              {p.cabins != null ? ` · ${p.cabins}c` : ''}{p.heads != null ? `/${p.heads}h` : ''}
+                              {p.competitorYacht ?? '—'} {p.year ? `(${p.year})` : ''} ·{' '}
+                              {p.marina ?? '—'}
+                              {p.cabins != null ? ` · ${p.cabins}c` : ''}
+                              {p.heads != null ? `/${p.heads}h` : ''}
                             </span>
-                            <span className="shrink-0">{p.price} {p.currency ?? ''}</span>
+                            <span className="shrink-0">
+                              {p.price} {p.currency ?? ''}
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -161,7 +187,7 @@ const YachtTable: React.FC<Props> = ({
 
                 <td className="px-4 py-2">{y.ownerName ?? '—'}</td>
               </tr>
-            );
+            )
           })}
 
           {items.length === 0 && (

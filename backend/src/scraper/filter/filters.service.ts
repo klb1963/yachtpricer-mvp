@@ -170,8 +170,13 @@ export class FiltersService {
    * Главный фильтр кандидата.
    * Использует КЕШИРОВАННУЮ конфигурацию (this.cfg), которую загрузили через loadConfig().
    * Сигнатура: passes(candidate, ctx) — именно так ты вызываешь из scraper.service.ts.
+   * Возвращает объект с флагом и короткой причиной (для UI/логов).
+   * Сигнатура: passes(candidate, ctx): { ok: boolean; reason?: string }
    */
-  passes(candidate: CandidateLite, ctx: PassCtx): boolean {
+  passes(
+    candidate: CandidateLite,
+    ctx: PassCtx,
+  ): { ok: boolean; reason?: string } {
     const reasons: string[] = [];
 
     // Тип корпуса — если у таргета задан, требуем точного совпадения
@@ -234,10 +239,11 @@ export class FiltersService {
 
     if (reasons.length) {
       this.log.log(`[${ctx.jobId ?? '-'}] DROP: ${reasons.join(' | ')}`);
-      return false;
+      // Вернём объединённую строку причин (подходит для toast/логов)
+      return { ok: false, reason: reasons.join(' | ') };
     }
     this.log.log(`[${ctx.jobId ?? '-'}] KEEP`);
-    return true;
+    return { ok: true };
   }
 
   /**

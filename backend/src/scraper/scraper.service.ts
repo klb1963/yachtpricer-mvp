@@ -2,7 +2,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { StartScrapeDto, AggregateDto } from './scraper.dto';
+import { StartScrapeDto, AggregateDto, StartResponseDto } from './scraper.dto';
 import {
   Prisma,
   JobStatus,
@@ -41,10 +41,6 @@ function dtoToJson(dto: StartScrapeDto): Prisma.InputJsonObject {
   };
 }
 
-// ====================
-
-// ====================
-
 @Injectable()
 export class ScraperService {
   private readonly logger = new Logger(ScraperService.name);
@@ -57,21 +53,27 @@ export class ScraperService {
   }
 
   /** Старт скрейпа (генерация «конкурентов» из нашей БД вместо моков). */
-  async start(
-    dto: StartScrapeDto,
-  ): Promise<{ jobId: string; status: JobStatus }> {
-    const sourceEnum =
-      PrismaScrapeSource[
-        (dto.source ?? 'BOATAROUND') as keyof typeof PrismaScrapeSource
-      ];
+  async start(dto: StartScrapeDto): Promise<StartResponseDto> {
+    // Поддерживаем "виртуальный" source 'INNERDB' без изменения Prisma enum.
+    // Маппим INNERDB -> BOATAROUND для поля source в БД.
+    const srcRaw = (dto.source ?? 'BOATAROUND') as
+      | 'BOATAROUND'
+      | 'SEARADAR'
+      | 'INNERDB';
+    const srcKey = srcRaw === 'INNERDB' ? 'BOATAROUND' : srcRaw;
+    const sourceEnum: PrismaScrapeSource = PrismaScrapeSource[srcKey];
 
     const job: ScrapeJob = await this.prisma.scrapeJob.create({
       data: {
         source: sourceEnum,
-        params: dtoToJson(dto),
+        params: dtoToJson(dto), // в params останется исходный source (включая INNERDB)
         status: JobStatus.PENDING,
       },
     });
+
+    // Для ответа наружу
+    let keptCount = 0;
+    let reasonsOut: string[] = [];
 
     try {
       this.logger.log(`[${job.id}] set RUNNING`);
@@ -117,12 +119,10 @@ export class ScraperService {
 
       const eff: StartScrapeDto = { ...dto };
       if (target) {
-        // тип у Prisma сгенерирован строго, так что можно напрямую
         eff.type ??= target.type ?? undefined;
         eff.location ??= target.location ?? undefined;
 
         // ВНИМАНИЕ: eff.* не влияет на фильтрацию — фильтры берут исходный dto (в ФУТАХ).
-        // Этот блок оставлен для совместимости/дальнейшего расширения и не используется при отборе.
         if (
           typeof eff.minLength !== 'number' &&
           typeof eff.maxLength !== 'number'
@@ -132,7 +132,6 @@ export class ScraperService {
           eff.maxLength = L + 1;
         }
 
-        // год: окно ±3, если явно не задано
         if (
           typeof eff.minYear !== 'number' &&
           typeof eff.maxYear !== 'number'
@@ -144,7 +143,6 @@ export class ScraperService {
           }
         }
 
-        // точные совпадения по cabins/heads, если у target заданы
         if (eff.cabins == null && target.cabins != null)
           eff.cabins = target.cabins;
         if (eff.heads == null && target.heads != null) eff.heads = target.heads;
@@ -165,7 +163,6 @@ export class ScraperService {
         const bp = (y as { basePrice?: unknown }).basePrice;
 
         if (bp instanceof Prisma.Decimal) {
-          // у Decimal есть toNumber()
           basePriceNum = bp.toNumber();
         } else {
           basePriceNum = Number(bp ?? 0);
@@ -186,8 +183,11 @@ export class ScraperService {
         };
       });
 
-      const filtered = rawCandidates.filter((c) =>
-        this.filters.passes(c, {
+      // собираем кандидатов и причины отбраковки
+      const kept: typeof rawCandidates = [];
+      const dropReasons: string[] = [];
+      for (const c of rawCandidates) {
+        const res = this.filters.passes(c, {
           jobId: job.id,
           dto,
           targetLenFt,
@@ -196,18 +196,40 @@ export class ScraperService {
           targetHeads: target?.heads ?? null,
           targetYear: target?.builtYear ?? null,
           targetLocation: target?.location ?? null,
-        }),
-      );
+        });
+        if (res.ok) {
+          kept.push(c);
+        } else if (res.reason) {
+          dropReasons.push(res.reason);
+        }
+      }
+
+      // немного агрегируем причины (уникальные, топ-5 по встречаемости)
+      const reasonCounts = new Map<string, number>();
+      for (const r of dropReasons)
+        reasonCounts.set(r, (reasonCounts.get(r) ?? 0) + 1);
+      const topReasons = [...reasonCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([r, n]) => `${r} ×${n}`);
+
+      keptCount = kept.length;
+      reasonsOut = topReasons;
 
       this.logger.log(
-        `[${job.id}] candidates=${rawCandidates.length} filtered=${filtered.length} (${weekStart.toISOString()})`,
+        `[${job.id}] candidates=${rawCandidates.length} kept=${kept.length} (${weekStart.toISOString()})`,
       );
+      if (kept.length === 0 && topReasons.length) {
+        this.logger.warn(
+          `[${job.id}] all dropped. Top reasons: ${topReasons.join(' | ')}`,
+        );
+      }
 
       // ===== устойчивые вставки: upsert по @@unique([source, link, weekStart])
       const yachtIdToWrite = yachtIdForInsert ?? dto.yachtId ?? null;
       let upserts = 0;
 
-      for (const c of filtered) {
+      for (const c of kept) {
         await this.prisma.competitorPrice.upsert({
           where: {
             source_link_weekStart: {
@@ -250,10 +272,46 @@ export class ScraperService {
 
       if (upserts === 0) {
         this.logger.warn(`[${job.id}] no candidates passed filters`);
+        if (topReasons.length) {
+          const reasonsSummary = topReasons.join(' | ');
+          this.logger.warn(`[${job.id}] reasons summary: ${reasonsSummary}`);
+
+          // Сохраняем причины в scrapeJob.error чтобы фронт мог их прочитать.
+          try {
+            await this.prisma.scrapeJob.update({
+              where: { id: job.id },
+              data: { error: reasonsSummary },
+            });
+          } catch (e) {
+            this.logger.error(`[${job.id}] failed to write reasons to job`, e);
+          }
+        } else {
+          // Нет конкретных причин — просто пометим, что нет кандидатов
+          try {
+            await this.prisma.scrapeJob.update({
+              where: { id: job.id },
+              data: { error: 'no candidates passed filters' },
+            });
+          } catch (e) {
+            this.logger.error(
+              `[${job.id}] failed to write empty-reason to job`,
+              e,
+            );
+          }
+        }
       } else {
         this.logger.log(
           `[${job.id}] upserted competitorPrice rows: ${upserts}`,
         );
+        // При успешном результате можно очистить поле error на всякий случай
+        try {
+          await this.prisma.scrapeJob.update({
+            where: { id: job.id },
+            data: { error: null },
+          });
+        } catch (e) {
+          this.logger.error(`[${job.id}] failed to clear job.error`, e);
+        }
       }
 
       await this.prisma.scrapeJob.update({
@@ -261,6 +319,14 @@ export class ScraperService {
         data: { status: JobStatus.DONE, finishedAt: new Date() },
       });
       this.logger.log(`[${job.id}] job DONE`);
+
+      // успешный ответ
+      return {
+        jobId: job.id,
+        status: JobStatus.DONE,
+        kept: keptCount,
+        reasons: reasonsOut,
+      };
     } catch (err) {
       this.logger.error(`[${job.id}] job FAILED`, err);
       await this.prisma.scrapeJob.update({
@@ -271,9 +337,14 @@ export class ScraperService {
           error: String(err),
         },
       });
+      // ответ при ошибке
+      return {
+        jobId: job.id,
+        status: JobStatus.FAILED,
+        kept: keptCount,
+        reasons: reasonsOut,
+      };
     }
-
-    return { jobId: job.id, status: job.status };
   }
 
   /** Статус job. */
@@ -304,8 +375,12 @@ export class ScraperService {
     const base = new Date(dto.week);
     const weekStart = getCharterWeekStartSaturdayUTC(base);
 
-    const srcKey = (dto.source ??
-      'BOATAROUND') as keyof typeof PrismaScrapeSource;
+    // Поддерживаем виртуальный source INNERDB так же, как в start()
+    const srcRaw = (dto.source ?? 'BOATAROUND') as
+      | 'BOATAROUND'
+      | 'SEARADAR'
+      | 'INNERDB';
+    const srcKey = srcRaw === 'INNERDB' ? 'BOATAROUND' : srcRaw;
     const source: PrismaScrapeSource = PrismaScrapeSource[srcKey];
 
     const prices = await this.prisma.competitorPrice.findMany({

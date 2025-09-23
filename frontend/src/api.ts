@@ -180,7 +180,7 @@ export async function deleteYacht(id: string): Promise<{ success: boolean }> {
 // Scraper API (mock backend)
 // ============================
 
-export type ScrapeSource = "BOATAROUND" | "SEARADAR";
+export type ScrapeSource = "INNERDB" | "BOATAROUND" | "SEARADAR";
 export type JobStatus = "PENDING" | "RUNNING" | "DONE" | "FAILED";
 
 export type ScrapeJobDTO = {
@@ -191,8 +191,8 @@ export type ScrapeJobDTO = {
 
 export type StartScrapePayload = {
   source?: ScrapeSource;
-  yachtId?: string;
-  weekStart?: string; // ISO YYYY-MM-DD
+  yachtId: string;
+  weekStart: string; // ISO YYYY-MM-DD
   location?: string;
   type?: string;
   minYear?: number;
@@ -204,13 +204,16 @@ export type StartScrapePayload = {
   heads?: number;
 };
 
-export type StartScrapeResult = {
+// --- NEW: ответ старта сканирования (совпадает с бэком)
+export type StartResponseDto = {
   jobId: string;
-  status: "PENDING" | "RUNNING" | "DONE" | "FAILED";
+  status: JobStatus;
+  kept: number;
+  reasons?: string[];
 };
 
-export async function startScrape(payload: StartScrapePayload): Promise<StartScrapeResult> {
-  const { data } = await api.post<StartScrapeResult>("/scrape/start", payload);
+export async function startScrape(payload: StartScrapePayload): Promise<StartResponseDto> {
+  const { data } = await api.post<StartResponseDto>("/scrape/start", payload);
   return data;
 }
 

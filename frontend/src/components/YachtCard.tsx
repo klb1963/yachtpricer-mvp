@@ -20,6 +20,7 @@ type Props = {
   details?: CompetitorPrice[];
   open?: boolean;
   onToggleDetails?: () => void;
+  warning?: string | string[] | null;
 };
 
 // Карта типов -> картинка из /public/images/yachts
@@ -71,6 +72,7 @@ export default function YachtCard({
   details = [],
   open = false,
   onToggleDetails,
+  warning,
 }: Props) {
   const isNew =
     y.createdAt ? Date.now() - new Date(y.createdAt).getTime() < 7 * 24 * 3600 * 1000 : false;
@@ -88,7 +90,7 @@ export default function YachtCard({
           className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
           loading="lazy"
           onError={(e) => {
-            (e.currentTarget as HTMLImageElement).src = pickByType(y.type);
+            ;(e.currentTarget as HTMLImageElement).src = pickByType(y.type)
           }}
         />
         {isNew && (
@@ -128,7 +130,11 @@ export default function YachtCard({
           {agg ? (
             <div className="flex items-center justify-between text-[12px] text-gray-800">
               <div className="whitespace-normal break-words">
-                TOP1: <b>{agg.top1} {agg.cur}</b>,&nbsp; AVG(Top3): <b>{agg.avg}</b>&nbsp;({agg.n})
+                TOP1:{' '}
+                <b>
+                  {agg.top1} {agg.cur}
+                </b>
+                ,&nbsp; AVG(Top3): <b>{agg.avg}</b>&nbsp;({agg.n})
               </div>
               {details.length > 0 && onToggleDetails && (
                 <button
@@ -146,6 +152,13 @@ export default function YachtCard({
           )}
         </div>
 
+        {/* Предупреждение от фильтров */}
+        {warning && (
+          <div className="mt-2 rounded bg-yellow-100 p-2 text-sm text-yellow-800">
+            {Array.isArray(warning) ? warning.join(", ") : warning}
+          </div>
+        )}
+
         {open && details.length > 0 && (
           <div className="mt-2 rounded border p-2">
             <div className="mb-1 text-[11px] text-gray-600">{details.length} offers:</div>
@@ -154,9 +167,12 @@ export default function YachtCard({
                 <li key={p.id} className="flex justify-between gap-2 text-[11px]">
                   <span className="truncate">
                     {p.competitorYacht ?? '—'} {p.year ? `(${p.year})` : ''} · {p.marina ?? '—'}
-                    {p.cabins != null ? ` · ${p.cabins}c` : ''}{p.heads != null ? `/${p.heads}h` : ''}
+                    {p.cabins != null ? ` · ${p.cabins}c` : ''}
+                    {p.heads != null ? `/${p.heads}h` : ''}
                   </span>
-                  <span className="shrink-0">{p.price} {p.currency ?? ''}</span>
+                  <span className="shrink-0">
+                    {p.price} {p.currency ?? ''}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -199,5 +215,5 @@ export default function YachtCard({
         </div>
       </div>
     </div>
-  );
+  )
 }

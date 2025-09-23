@@ -1,5 +1,3 @@
-// backend/src/scraper/scraper.dto.ts
-
 import {
   IsEnum,
   IsISO8601,
@@ -10,11 +8,13 @@ import {
   Min,
   Max,
 } from 'class-validator';
+import { JobStatus } from '@prisma/client';
 
-export type ScrapeSourceLiteral = 'BOATAROUND' | 'SEARADAR';
+export type ScrapeSourceLiteral = 'BOATAROUND' | 'SEARADAR' | 'INNERDB';
 export const ScrapeSource = {
   BOATAROUND: 'BOATAROUND',
   SEARADAR: 'SEARADAR',
+  INNERDB: 'INNERDB',
 } as const;
 
 // Запуск скрапинга + фильтры отбора конкурентных яхт
@@ -29,7 +29,7 @@ export class StartScrapeDto {
   @IsString()
   yachtId?: string;
 
-  /** Начало недели (ISO‑строка), позже преобразуем в Date */
+  /** Начало недели (ISO-строка), позже преобразуем в Date */
   @IsOptional()
   @IsISO8601({ strict: true })
   weekStart?: string;
@@ -86,7 +86,7 @@ export class StartScrapeDto {
   heads?: number;
 }
 
-// Вспомогательные DTO под query‑параметры контроллера
+// Вспомогательные DTO под query-параметры контроллера
 export class ScrapeStatusQueryDto {
   @IsString()
   jobId!: string; // если у вас UUID — замените на @IsUUID()
@@ -114,3 +114,11 @@ export class AggregateDto {
   @IsEnum(ScrapeSource)
   source?: ScrapeSourceLiteral; // по умолчанию BOATAROUND
 }
+
+// Новый тип ответа для /scrape/start
+export type StartResponseDto = {
+  jobId: string;
+  status: JobStatus;
+  kept: number; // сколько кандидатов прошло фильтры
+  reasons: string[]; // топ-причины отбраковки (агрегированные)
+};
