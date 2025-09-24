@@ -1,10 +1,6 @@
 // backend/src/pricing/pricing.service.ts
 
-import {
-  Injectable,
-  ForbiddenException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   PricingRowsQueryDto,
@@ -29,16 +25,13 @@ import {
 } from '@prisma/client';
 import { toNum } from '../common/decimal';
 import { PricingRepo } from './pricing.repo';
+import type { PricingRowDto } from './pricing-row.dto';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 import {
   weekStartUTC,
   isPrismaDecimal,
-  isNum,
-  calcFinal,
-  calcDiscountPct,
   resolveDiscountPair,
-  exceedsMaxDiscount,
   ensureWithinMaxDiscount,
   asDecimalPair,
 } from './pricing-utils';
@@ -70,7 +63,7 @@ export class PricingService {
   /** Табличка по флоту на неделю: базовая цена, снапшот, черновик решения,
    *  perms, комментарии и предложка mlReco
    */
-  async rows(q: PricingRowsQueryDto, user: User) {
+  async rows(q: PricingRowsQueryDto, user: User): Promise<PricingRowDto[]> {
     const ws = weekStartUTC(new Date(q.week));
 
     // 1) Яхты
@@ -168,9 +161,11 @@ export class PricingService {
           priceFetchedAt,
           maxDiscountPct,
 
-          // последние комментарий и время действия
+          // последние комментарий и время действия (ISO-строка под DTO)
           lastComment: lastAudit?.comment ?? null,
-          lastActionAt: lastAudit?.createdAt ?? null,
+          lastActionAt: lastAudit?.createdAt
+            ? lastAudit.createdAt.toISOString()
+            : null,
 
           mlReco,
           finalPrice,
