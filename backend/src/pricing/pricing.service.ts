@@ -13,7 +13,12 @@ import {
 import { AccessCtxService } from '../auth/access-ctx.service';
 import { canSubmit, canApproveOrReject, canEditDraft } from '../auth/policies';
 import type { AccessCtx } from '../auth/access-ctx.service';
-import { mapActualFields } from './pricing-mappers';
+import {
+  mapActualFields,
+  mapSnapshot,
+  mapDecision,
+  buildMaps,
+} from './pricing-mappers';
 import {
   Prisma,
   DecisionStatus,
@@ -87,9 +92,11 @@ export class PricingService {
       }),
     ]);
 
-    const snapByYacht = new Map(snaps.map((s) => [s.yachtId, s]));
-    const decByYacht = new Map(decisions.map((d) => [d.yachtId, d]));
-    const slotByYacht = new Map(weekSlots.map((w) => [w.yachtId, w]));
+    const { snapByYacht, decByYacht, slotByYacht } = buildMaps({
+      snaps,
+      decisions,
+      weekSlots,
+    });
 
     // ✨ Подтянем последний комментарий/время действия по каждому решению
     const decisionIds = decisions.map((d) => d.id);
@@ -162,22 +169,9 @@ export class PricingService {
           yachtId: y.id,
           name: y.name,
           basePrice: y.basePrice,
-          snapshot: s
-            ? {
-                top1Price: s.top1Price,
-                top3Avg: s.top3Avg,
-                currency: s.currency,
-                sampleSize: s.sampleSize,
-                collectedAt: s.collectedAt,
-              }
-            : null,
-          decision: d
-            ? {
-                discountPct: d.discountPct,
-                finalPrice: d.finalPrice,
-                status: d.status,
-              }
-            : null,
+
+          snapshot: mapSnapshot(s),
+          decision: mapDecision(d),
 
           // ✨ новые поля (примитивы)
           actualPrice,
