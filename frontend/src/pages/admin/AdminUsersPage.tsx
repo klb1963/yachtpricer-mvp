@@ -78,6 +78,17 @@ export default function AdminUsersPage() {
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Users (Admin)</h1>
 
+      <div className="mb-4">
+        <a
+          href="/debug/whoami"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700"
+        >
+          🔍 Open Debug /whoami
+        </a>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <input
           value={q}
@@ -90,8 +101,8 @@ export default function AdminUsersPage() {
         </button>
         <button
           onClick={() => {
-            setQ("");
-            setPage(1);
+            setQ('')
+            setPage(1)
           }}
           className="px-4 py-2 rounded bg-gray-200"
         >
@@ -103,8 +114,8 @@ export default function AdminUsersPage() {
           <select
             value={limit}
             onChange={(e) => {
-              setLimit(Number(e.target.value));
-              setPage(1);
+              setLimit(Number(e.target.value))
+              setPage(1)
             }}
             className="border px-2 py-1 rounded"
           >
@@ -137,16 +148,16 @@ export default function AdminUsersPage() {
               {data.items.map((u) => (
                 <tr key={u.id} className="border-t">
                   <td className="p-2">{u.email}</td>
-                  <td className="p-2">{u.name ?? "—"}</td>
+                  <td className="p-2">{u.name ?? '—'}</td>
                   <td className="p-2">{u.role}</td>
-                  <td className="p-2">{u.org?.slug ?? "—"}</td>
+                  <td className="p-2">{u.org?.slug ?? '—'}</td>
                   <td className="p-2">
                     <select
                       defaultValue={u.role}
                       onChange={(e) => changeRole(u.id, e.target.value as Role)}
                       className="border px-2 py-1 rounded"
                     >
-                      {(["ADMIN", "FLEET_MANAGER", "MANAGER", "OWNER"] as Role[]).map((r) => (
+                      {(['ADMIN', 'FLEET_MANAGER', 'MANAGER', 'OWNER'] as Role[]).map((r) => (
                         <option key={r} value={r}>
                           {r}
                         </option>
@@ -171,7 +182,7 @@ export default function AdminUsersPage() {
         <button
           disabled={page <= 1}
           onClick={() => setPage((p) => Math.max(1, p - 1))}
-          className={`px-3 py-1 rounded border ${page <= 1 ? "opacity-50 cursor-not-allowed" : ""}`}
+          className={`px-3 py-1 rounded border ${page <= 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           ◀ Prev
         </button>
@@ -181,11 +192,11 @@ export default function AdminUsersPage() {
         <button
           disabled={page >= totalPages}
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          className={`px-3 py-1 rounded border ${page >= totalPages ? "opacity-50 cursor-not-allowed" : ""}`}
+          className={`px-3 py-1 rounded border ${page >= totalPages ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           Next ▶
         </button>
       </div>
     </div>
-  );
+  )
 }
