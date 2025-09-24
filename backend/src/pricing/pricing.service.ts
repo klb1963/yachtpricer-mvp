@@ -39,6 +39,8 @@ import {
   calcDiscountPct,
   resolveDiscountPair,
   exceedsMaxDiscount,
+  ensureWithinMaxDiscount,
+  asDecimalPair,
 } from './pricing-utils';
 
 // ==========================================
@@ -204,13 +206,17 @@ export class PricingService {
       throw new ForbiddenException('Недостаточно прав для изменения черновика');
     }
 
-    const basePriceDecimal = yacht.basePrice ?? new Prisma.Decimal(0);
-
-    // приводим входные числа к Decimal (или null)
-    const discountDec =
-      dto.discountPct != null ? new Prisma.Decimal(dto.discountPct) : null;
-    const finalPriceDec =
-      dto.finalPrice != null ? new Prisma.Decimal(dto.finalPrice) : null;
+    const base = (yacht.basePrice ?? new Prisma.Decimal(0)).toNumber();
+    // нормализуем пару (если задан один параметр)
+    const normalized = resolveDiscountPair(
+      base,
+      dto.discountPct,
+      dto.finalPrice,
+    );
+    const decPair = asDecimalPair({
+      discountPct: normalized.discountPct ?? dto.discountPct,
+      finalPrice: normalized.finalPrice ?? dto.finalPrice,
+    });
 
     // upsert
     await this.prisma.pricingDecision.upsert({
@@ -218,14 +224,14 @@ export class PricingService {
       create: {
         yachtId: dto.yachtId,
         weekStart: ws,
-        basePrice: basePriceDecimal,
-        discountPct: discountDec,
-        finalPrice: finalPriceDec,
+        basePrice: new Prisma.Decimal(base),
+        discountPct: decPair.discountPct ?? null,
+        finalPrice: decPair.finalPrice ?? null,
         status: DecisionStatus.DRAFT,
       },
       update: {
-        discountPct: discountDec,
-        finalPrice: finalPriceDec,
+        discountPct: decPair.discountPct ?? null,
+        finalPrice: decPair.finalPrice ?? null,
       },
     });
 
@@ -289,11 +295,7 @@ export class PricingService {
           ? current.discountPct.toNumber()
           : undefined);
 
-      if (exceedsMaxDiscount(maxLimit, effectiveDiscount)) {
-        throw new UnprocessableEntityException(
-          `Discount exceeds yacht max limit (${maxLimit}%).`,
-        );
-      }
+      ensureWithinMaxDiscount(maxLimit, effectiveDiscount);
     }
 
     // 4) Транзакция: (а) при SUBMIT — обновить пару; (б) обновить статус; (в) аудит

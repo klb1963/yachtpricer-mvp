@@ -1,5 +1,6 @@
 // backend/src/pricing/pricing-utils.ts
 import { Prisma } from '@prisma/client';
+import { UnprocessableEntityException } from '@nestjs/common';
 
 /** Суббота 00:00 UTC для заданной даты */
 export function weekStartUTC(d: Date) {
@@ -69,4 +70,34 @@ export function exceedsMaxDiscount(
     effectiveDiscount != null &&
     effectiveDiscount > maxLimit
   );
+}
+
+/** Бросает 422, если скидка превышает лимит яхты */
+export function ensureWithinMaxDiscount(
+  maxLimit: number | null | undefined,
+  effectiveDiscount: number | undefined,
+) {
+  if (exceedsMaxDiscount(maxLimit, effectiveDiscount)) {
+    throw new UnprocessableEntityException(
+      `Discount exceeds yacht max limit (${maxLimit}%).`,
+    );
+  }
+}
+
+/** Упаковывает числовую пару в Prisma.Decimal-пару (только заданные поля) */
+export function asDecimalPair(input: {
+  discountPct?: number;
+  finalPrice?: number;
+}): {
+  discountPct?: Prisma.Decimal;
+  finalPrice?: Prisma.Decimal;
+} {
+  const out: { discountPct?: Prisma.Decimal; finalPrice?: Prisma.Decimal } = {};
+  if (typeof input.discountPct === 'number') {
+    out.discountPct = new Prisma.Decimal(input.discountPct);
+  }
+  if (typeof input.finalPrice === 'number') {
+    out.finalPrice = new Prisma.Decimal(input.finalPrice);
+  }
+  return out;
 }
