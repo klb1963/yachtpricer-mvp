@@ -176,6 +176,7 @@ export default function DashboardPage() {
       } else {
         // очистим прошлые предупреждения при успешном результате
         setLastWarningByYacht((prev) => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { [y.id]: _omit, ...rest } = prev
           return rest
         })

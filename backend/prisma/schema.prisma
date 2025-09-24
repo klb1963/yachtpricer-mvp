@@ -76,6 +76,13 @@ enum LocationSource {
   INTERNAL
 }
 
+enum PriceSource {
+  INTERNAL
+  NAUSYS
+  BOOKING_MANAGER
+  OTHER
+}
+
 /// ─────────────────────────────────────────────────────────────
 /// MODELS
 /// ─────────────────────────────────────────────────────────────
@@ -129,6 +136,7 @@ model Yacht {
   cabins               Int
   heads                Int
   basePrice            Decimal   @db.Decimal(12, 2)
+  maxDiscountPct Decimal? @db.Decimal(5, 2)
   location             String
   fleet                String
   charterCompany       String
@@ -181,8 +189,14 @@ model WeekSlot {
 
   startDate       DateTime
   status          WeekSlotStatus
+
+  // Фактическая текущая цена/скидка на текущую неделю (это "Actual price")
   currentPrice    Decimal        @db.Decimal(12, 2)
-  currentDiscount Decimal        @db.Decimal(12, 2)
+  currentDiscount Decimal        @db.Decimal(5, 2)
+
+  // НОВОЕ: откуда взяли цену и когда
+  priceSource     PriceSource?
+  priceFetchedAt  DateTime?
 
   priceHistory PriceHistory[]
 
@@ -202,6 +216,10 @@ model PriceHistory {
   date     DateTime @default(now())
   price    Decimal  @db.Decimal(12, 2)
   discount Decimal  @db.Decimal(12, 2)
+
+  // НОВОЕ: источник записи
+  source   PriceSource?
+
   authorId String?
   note     String?
 
