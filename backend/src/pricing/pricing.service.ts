@@ -1,4 +1,5 @@
 // backend/src/pricing/pricing.service.ts
+
 import {
   Injectable,
   ForbiddenException,
@@ -27,6 +28,7 @@ import {
   Yacht,
 } from '@prisma/client';
 import { toNum } from '../common/decimal';
+import { PricingRepo } from './pricing.repo';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 import {
@@ -58,38 +60,26 @@ export class PricingService {
   constructor(
     private prisma: PrismaService,
     private accessCtx: AccessCtxService,
+    private repo: PricingRepo,
   ) {}
 
-  /** Табличка по флоту на неделю: базовая цена, снапшот, черновик решения, perms, комментарии и предложка mlReco */
+  /** Табличка по флоту на неделю: базовая цена, снапшот, черновик решения,
+   *  perms, комментарии и предложка mlReco
+   */
   async rows(q: PricingRowsQueryDto, user: User) {
     const ws = weekStartUTC(new Date(q.week));
 
-    const yachts: Yacht[] = await this.prisma.yacht.findMany({
-      orderBy: { name: 'asc' },
-    });
+    // 1) Яхты
+    const yachts: Yacht[] = await this.repo.listYachts();
+    if (yachts.length === 0) return [];
 
-    // Снимки конкурентов, решения и слоты на эту неделю
+    const yachtIds = yachts.map((y) => y.id);
+
+    // 2) Данные недели (снимки конкурентов, решения, слоты)
     const [snaps, decisions, weekSlots] = await Promise.all([
-      this.prisma.competitorSnapshot.findMany({
-        where: { weekStart: ws },
-        orderBy: { collectedAt: 'desc' },
-      }),
-      this.prisma.pricingDecision.findMany({
-        where: { weekStart: ws },
-      }),
-      this.prisma.weekSlot.findMany({
-        where: {
-          startDate: ws,
-          yachtId: { in: yachts.map((y) => y.id) },
-        },
-        select: {
-          yachtId: true,
-          currentPrice: true,
-          currentDiscount: true,
-          priceSource: true,
-          priceFetchedAt: true,
-        },
-      }),
+      this.repo.listSnapshots(ws),
+      this.repo.listDecisions(ws),
+      this.repo.listWeekSlots(ws, yachtIds),
     ]);
 
     const { snapByYacht, decByYacht, slotByYacht } = buildMaps({
@@ -98,19 +88,16 @@ export class PricingService {
       weekSlots,
     });
 
-    // ✨ Подтянем последний комментарий/время действия по каждому решению
-    const decisionIds = decisions.map((d) => d.id);
+    // 3) Последний аудит на каждое решение
+    const decisionIds = Array.from(new Set(decisions.map((d) => d.id)));
     const lastAuditByDecision = new Map<
       string,
       { comment: string | null; createdAt: Date }
     >();
+
     if (decisionIds.length > 0) {
-      const audits = await this.prisma.priceAuditLog.findMany({
-        where: { decisionId: { in: decisionIds } },
-        orderBy: { createdAt: 'desc' },
-      });
+      const audits = await this.repo.listLastAudits(decisionIds);
       for (const a of audits) {
-        // запомним только самый свежий по decisionId
         if (!lastAuditByDecision.has(a.decisionId)) {
           lastAuditByDecision.set(a.decisionId, {
             comment: a.comment ?? null,
@@ -120,11 +107,11 @@ export class PricingService {
       }
     }
 
-    // Собираем финальную строку по каждой лодке
+    // 4) Сборка строк
     return Promise.all(
       yachts.map(async (y) => {
-        const s = snapByYacht.get(y.id);
-        const d = decByYacht.get(y.id);
+        const s = snapByYacht.get(y.id) ?? null;
+        const d = decByYacht.get(y.id) ?? null;
         const status = d?.status ?? DecisionStatus.DRAFT;
 
         // контекст доступа для этой лодки
@@ -133,14 +120,14 @@ export class PricingService {
           y.id,
         );
 
-        // права на действия (только вычисляем и возвращаем во фронт)
+        // права на действия
         const perms = {
           canEditDraft: canEditDraft(user, { status }, ctx),
           canSubmit: canSubmit(user, { status }, ctx),
           canApproveOrReject: canApproveOrReject(user, { status }, ctx),
         };
 
-        // простая эвристика: рекомендация = top3Avg, если есть
+        // рекомендация = top3Avg, если есть
         const mlReco = s?.top3Avg ?? null;
 
         // если у решения есть discountPct, пересчитаем итог (если finalPrice не задан)
@@ -152,35 +139,32 @@ export class PricingService {
         }
 
         const lastAudit = d?.id ? lastAuditByDecision.get(d.id) : undefined;
-
-        // слот на эту неделю для этой яхты
         const slot = slotByYacht.get(y.id);
 
-        // Приводим к примитивам через toNum (безопасно для eslint)
+        // маппинги к примитивам
+        const snapshot = mapSnapshot(s);
+        const decision = mapDecision(d);
         const { actualPrice, actualDiscountPct, priceSource, priceFetchedAt } =
           mapActualFields(slot);
 
-        // Decimal → number | null (через промежуточную переменную для ESLint)
-        const yy: Yacht = y;
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        const maxDiscountPct = toNum(yy.maxDiscountPct);
+        // Decimal → number | null
+        const maxDiscountPct = toNum(y.maxDiscountPct);
 
         return {
           yachtId: y.id,
           name: y.name,
-          basePrice: y.basePrice,
+          basePrice: y.basePrice, // Prisma.Decimal — фронт сам показывает (как и раньше)
+          snapshot,
+          decision,
 
-          snapshot: mapSnapshot(s),
-          decision: mapDecision(d),
-
-          // ✨ новые поля (примитивы)
+          // новые поля (примитивы)
           actualPrice,
           actualDiscountPct,
           priceSource,
           priceFetchedAt,
           maxDiscountPct,
 
-          // ✨ последние комментарий и время действия
+          // последние комментарий и время действия
           lastComment: lastAudit?.comment ?? null,
           lastActionAt: lastAudit?.createdAt ?? null,
 

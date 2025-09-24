@@ -5,10 +5,11 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { PricingController } from './pricing.controller';
 import { PricingService } from './pricing.service';
+import { PricingRepo } from './pricing.repo';
 
 @Module({
   imports: [PrismaModule, AuthModule],
   controllers: [PricingController],
-  providers: [PricingService],
+  providers: [PricingService, PricingRepo],
 })
 export class PricingModule {}
