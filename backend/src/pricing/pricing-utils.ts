@@ -40,3 +40,33 @@ export const calcDiscountPct = (base: number, finalPrice: number): number => {
   const pct = (1 - finalPrice / base) * 100;
   return Number(pct.toFixed(1));
 };
+
+/** Разрешение входной пары (discountPct | finalPrice) в согласованную пару */
+export function resolveDiscountPair(
+  base: number,
+  nextDisc?: number,
+  nextFinal?: number,
+): { discountPct?: number; finalPrice?: number } {
+  if (isNum(nextDisc)) {
+    return { discountPct: nextDisc, finalPrice: calcFinal(base, nextDisc) };
+  }
+  if (isNum(nextFinal)) {
+    return {
+      finalPrice: nextFinal,
+      discountPct: calcDiscountPct(base, nextFinal),
+    };
+  }
+  return {};
+}
+
+/** Превышает ли фактическая скидка лимит яхты */
+export function exceedsMaxDiscount(
+  maxLimit: number | null | undefined,
+  effectiveDiscount: number | undefined,
+): boolean {
+  return (
+    maxLimit != null &&
+    effectiveDiscount != null &&
+    effectiveDiscount > maxLimit
+  );
+}
