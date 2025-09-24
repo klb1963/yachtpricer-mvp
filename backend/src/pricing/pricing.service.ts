@@ -1,6 +1,9 @@
 // backend/src/pricing/pricing.service.ts
-import { Injectable, ForbiddenException } from '@nestjs/common';
-import { Prisma, DecisionStatus, User, AuditAction } from '@prisma/client';
+import {
+  Injectable,
+  ForbiddenException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   PricingRowsQueryDto,
@@ -10,6 +13,15 @@ import {
 import { AccessCtxService } from '../auth/access-ctx.service';
 import { canSubmit, canApproveOrReject, canEditDraft } from '../auth/policies';
 import type { AccessCtx } from '../auth/access-ctx.service';
+import { mapActualFields } from './pricing-mappers';
+import {
+  Prisma,
+  DecisionStatus,
+  User,
+  AuditAction,
+  Yacht,
+} from '@prisma/client';
+import { toNum } from '../common/decimal';
 
 /** Суббота 00:00 UTC для заданной даты */
 function weekStartUTC(d: Date) {
@@ -23,7 +35,7 @@ function weekStartUTC(d: Date) {
   return x;
 }
 
-// ── helpers: расчёт пары и пр. ───────────────────────────────────────────────
+// ── helpers ──────────────────────────────────────────────────────────────────
 
 // Тайп-guard: это Prisma.Decimal (или совместимый объект с toNumber(): number)
 function isPrismaDecimal(x: unknown): x is Prisma.Decimal {
@@ -35,18 +47,6 @@ function isPrismaDecimal(x: unknown): x is Prisma.Decimal {
       typeof (x as { toNumber: unknown }).toNumber === 'function')
   );
 }
-
-// Привести unknown/Decimal/String к числу (если не получится — 0)
-export const toNumberSafe = (v: unknown): number => {
-  if (v == null) return 0;
-  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
-  if (typeof v === 'string') {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : 0;
-  }
-  if (isPrismaDecimal(v)) return v.toNumber();
-  return 0;
-};
 
 // type-guard: валидное число
 export const isNum = (x: unknown): x is number =>
@@ -73,6 +73,13 @@ type DecisionWithMeta = Prisma.PricingDecisionGetPayload<{
   lastActionAt: Date | null;
 };
 
+// 1) Вверху файла (рядом с type DecisionWithMeta) добавь алиас
+type DecisionWithYacht = Prisma.PricingDecisionGetPayload<{
+  include: {
+    yacht: { select: { id: true; basePrice: true; maxDiscountPct: true } };
+  };
+}>;
+
 @Injectable()
 export class PricingService {
   constructor(
@@ -84,22 +91,12 @@ export class PricingService {
   async rows(q: PricingRowsQueryDto, user: User) {
     const ws = weekStartUTC(new Date(q.week));
 
-    const yachts = await this.prisma.yacht.findMany({
+    const yachts: Yacht[] = await this.prisma.yacht.findMany({
       orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        basePrice: true,
-        location: true,
-        builtYear: true,
-        length: true,
-        type: true,
-        orgId: true,
-      },
     });
 
-    // Снимки конкурентов и текущие решения на эту неделю
-    const [snaps, decisions] = await Promise.all([
+    // Снимки конкурентов, решения и слоты на эту неделю
+    const [snaps, decisions, weekSlots] = await Promise.all([
       this.prisma.competitorSnapshot.findMany({
         where: { weekStart: ws },
         orderBy: { collectedAt: 'desc' },
@@ -107,10 +104,24 @@ export class PricingService {
       this.prisma.pricingDecision.findMany({
         where: { weekStart: ws },
       }),
+      this.prisma.weekSlot.findMany({
+        where: {
+          startDate: ws,
+          yachtId: { in: yachts.map((y) => y.id) },
+        },
+        select: {
+          yachtId: true,
+          currentPrice: true,
+          currentDiscount: true,
+          priceSource: true,
+          priceFetchedAt: true,
+        },
+      }),
     ]);
 
     const snapByYacht = new Map(snaps.map((s) => [s.yachtId, s]));
     const decByYacht = new Map(decisions.map((d) => [d.yachtId, d]));
+    const slotByYacht = new Map(weekSlots.map((w) => [w.yachtId, w]));
 
     // ✨ Подтянем последний комментарий/время действия по каждому решению
     const decisionIds = decisions.map((d) => d.id);
@@ -167,6 +178,18 @@ export class PricingService {
 
         const lastAudit = d?.id ? lastAuditByDecision.get(d.id) : undefined;
 
+        // слот на эту неделю для этой яхты
+        const slot = slotByYacht.get(y.id);
+
+        // Приводим к примитивам через toNum (безопасно для eslint)
+        const { actualPrice, actualDiscountPct, priceSource, priceFetchedAt } =
+          mapActualFields(slot);
+
+        // Decimal → number | null (через промежуточную переменную для ESLint)
+        const yy: Yacht = y;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+        const maxDiscountPct = toNum(yy.maxDiscountPct);
+
         return {
           yachtId: y.id,
           name: y.name,
@@ -187,9 +210,18 @@ export class PricingService {
                 status: d.status,
               }
             : null,
+
+          // ✨ новые поля (примитивы)
+          actualPrice,
+          actualDiscountPct,
+          priceSource,
+          priceFetchedAt,
+          maxDiscountPct,
+
           // ✨ последние комментарий и время действия
           lastComment: lastAudit?.comment ?? null,
           lastActionAt: lastAudit?.createdAt ?? null,
+
           mlReco,
           finalPrice,
           perms,
@@ -266,10 +298,16 @@ export class PricingService {
     console.log('[SVC] changeStatus input DTO:', JSON.stringify({ ...dto }));
 
     // пробуем найти текущую запись
-    let current = await this.prisma.pricingDecision.findUnique({
-      where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
-      include: { yacht: { select: { id: true, basePrice: true } } },
-    });
+    // 2) В changeStatus() вместо "let current = await this.prisma.pricingDecision.findUnique(...)" сделай:
+    let current: DecisionWithYacht | null =
+      await this.prisma.pricingDecision.findUnique({
+        where: { yachtId_weekStart: { yachtId: dto.yachtId, weekStart: ws } },
+        include: {
+          yacht: {
+            select: { id: true, basePrice: true, maxDiscountPct: true },
+          },
+        },
+      });
 
     console.log(
       '[SVC] current decision:',
@@ -296,7 +334,11 @@ export class PricingService {
           basePrice: yacht.basePrice ?? new Prisma.Decimal(0),
           status: DecisionStatus.DRAFT,
         },
-        include: { yacht: { select: { id: true, basePrice: true } } },
+        include: {
+          yacht: {
+            select: { id: true, basePrice: true, maxDiscountPct: true },
+          },
+        },
       });
       console.log('[SVC] created new decision draft:', {
         id: current.id,
@@ -347,11 +389,11 @@ export class PricingService {
     const updated = await this.prisma.$transaction(async (tx) => {
       // 1) при SUBMIT пробуем обновить discount/final
       if (toStatus === DecisionStatus.SUBMITTED) {
-        const base = toNumberSafe(current?.yacht?.basePrice);
+        // базовая цена как number (через промежуточную переменную для ESLint)
+        const base = toNum(current?.yacht?.basePrice) ?? 0;
+
         const nextDisc = dto.discountPct;
         const nextFinal = dto.finalPrice;
-
-        console.log('[SVC] incoming pair:', { base, nextDisc, nextFinal });
 
         let newDiscountPct: number | undefined;
         let newFinalPrice: number | undefined;
@@ -364,7 +406,25 @@ export class PricingService {
           newDiscountPct = calcDiscountPct(base, nextFinal);
         }
 
-        console.log('[SVC] resolved pair:', { newDiscountPct, newFinalPrice });
+        // лимит скидки как number|null (через промежуточную переменную для ESLint)
+        const maxLimit = toNum(current?.yacht?.maxDiscountPct);
+
+        // какая скидка фактически пойдёт в SUBMIT
+        const effectiveDiscount =
+          newDiscountPct ??
+          (isPrismaDecimal(current?.discountPct)
+            ? current.discountPct.toNumber()
+            : undefined);
+
+        if (
+          maxLimit != null &&
+          effectiveDiscount != null &&
+          effectiveDiscount > maxLimit
+        ) {
+          throw new UnprocessableEntityException(
+            `Discount exceeds yacht max limit (${maxLimit}%).`,
+          );
+        }
 
         if (newDiscountPct !== undefined || newFinalPrice !== undefined) {
           await tx.pricingDecision.update({
