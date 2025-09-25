@@ -10,14 +10,48 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
+/**
+ * Унифицированный тип решения c подгруженной лодкой
+ * (ровно тот shape, который мы действительно используем в сервисе).
+ */
+export type DecisionWithYacht = PricingDecision & {
+  yacht: {
+    id: string;
+    basePrice: Prisma.Decimal | null;
+    maxDiscountPct: Prisma.Decimal | null;
+  };
+};
+
+/**
+ * Облегчённый тип для WeekSlot, который нужен только для списка строк:
+ * берём лишь поля, реально используемые фронтом.
+ *
+ * В БД priceSource — enum PriceSource. Чтобы не ловить проблемы
+ * с типами клиента Prisma при генерации, помечаем здесь как string|null.
+ */
+export type WeekSlotLight = {
+  yachtId: string;
+  currentPrice: Prisma.Decimal;
+  currentDiscount: Prisma.Decimal;
+  priceSource: string | null;
+  priceFetchedAt: Date | null;
+};
+
 @Injectable()
 export class PricingRepo {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * Полный список яхт (используем для построения таблицы за неделю).
+   * Важно: выдаём без select — сервису нужны и Decimal-поля как есть.
+   */
   async listYachts(): Promise<Yacht[]> {
     return this.prisma.yacht.findMany({ orderBy: { name: 'asc' } });
   }
 
+  /**
+   * Снимки конкурентов для недели.
+   */
   async listSnapshots(weekStart: Date): Promise<CompetitorSnapshot[]> {
     return this.prisma.competitorSnapshot.findMany({
       where: { weekStart },
@@ -25,36 +59,39 @@ export class PricingRepo {
     });
   }
 
+  /**
+   * Решения (draft/submitted/…) на выбранную неделю.
+   */
   async listDecisions(weekStart: Date): Promise<PricingDecision[]> {
     return this.prisma.pricingDecision.findMany({
       where: { weekStart },
     });
   }
 
+  /**
+   * Слоты недели по списку яхт.
+   * Возвращаем ровно те поля, которые нужны для отображения «Actual price».
+   */
   async listWeekSlots(
     weekStart: Date,
     yachtIds: string[],
-  ): Promise<
-    Array<{
-      yachtId: string;
-      currentPrice: Prisma.Decimal;
-      currentDiscount: Prisma.Decimal;
-      priceSource: string | null;
-      priceFetchedAt: Date | null;
-    }>
-  > {
+  ): Promise<WeekSlotLight[]> {
     return this.prisma.weekSlot.findMany({
       where: { startDate: weekStart, yachtId: { in: yachtIds } },
       select: {
         yachtId: true,
         currentPrice: true,
         currentDiscount: true,
-        priceSource: true,
+        priceSource: true, // enum в БД, здесь достаточно string|null
         priceFetchedAt: true,
       },
     });
   }
 
+  /**
+   * Аудит-логи по решениям, отсортированные по убыванию даты.
+   * Сервис забирает «самый свежий на решение» сам.
+   */
   async listLastAudits(decisionIds: string[]): Promise<PriceAuditLog[]> {
     return this.prisma.priceAuditLog.findMany({
       where: { decisionId: { in: decisionIds } },
@@ -62,39 +99,29 @@ export class PricingRepo {
     });
   }
 
+  /**
+   * Найти решение (если есть) вместе с нужными полями яхты.
+   */
   async getDecisionWithYacht(
     yachtId: string,
     weekStart: Date,
-  ): Promise<
-    | (PricingDecision & {
-        yacht: {
-          id: string;
-          basePrice: Prisma.Decimal | null;
-          maxDiscountPct: Prisma.Decimal | null;
-        };
-      })
-    | null
-  > {
+  ): Promise<DecisionWithYacht | null> {
     return this.prisma.pricingDecision.findUnique({
       where: { yachtId_weekStart: { yachtId, weekStart } },
       include: {
         yacht: { select: { id: true, basePrice: true, maxDiscountPct: true } },
       },
-    });
+    }) as Promise<DecisionWithYacht | null>;
   }
 
+  /**
+   * Создать черновик решения на неделю для указанной яхты
+   * (если его ещё не было), сразу с подгруженной яхтой.
+   */
   async createDraftForYacht(
     yachtId: string,
     weekStart: Date,
-  ): Promise<
-    PricingDecision & {
-      yacht: {
-        id: string;
-        basePrice: Prisma.Decimal | null;
-        maxDiscountPct: Prisma.Decimal | null;
-      };
-    }
-  > {
+  ): Promise<DecisionWithYacht> {
     const yacht = await this.prisma.yacht.findUniqueOrThrow({
       where: { id: yachtId },
       select: { id: true, basePrice: true },
@@ -112,9 +139,13 @@ export class PricingRepo {
           select: { id: true, basePrice: true, maxDiscountPct: true },
         },
       },
-    });
+    }) as Promise<DecisionWithYacht>;
   }
 
+  /**
+   * Точечное обновление пары полей discountPct/finalPrice
+   * (используется при SUBMIT).
+   */
   async upsertDecisionPair(
     yachtId: string,
     weekStart: Date,
@@ -129,6 +160,10 @@ export class PricingRepo {
     });
   }
 
+  /**
+   * Обновить статус решения и (если APPROVED) — approvedAt.
+   * Возвращаем решение с полной лодкой (на случай дальнейших шагов).
+   */
   async updateStatus(
     yachtId: string,
     weekStart: Date,
@@ -144,6 +179,9 @@ export class PricingRepo {
     });
   }
 
+  /**
+   * Создать запись аудита для решения.
+   */
   async createAudit(
     decisionId: string,
     data: Omit<Prisma.PriceAuditLogCreateInput, 'decision'>,
@@ -154,8 +192,8 @@ export class PricingRepo {
   }
 
   /**
-   * Выполняет callback в транзакции.
-   * Используем корректный тип Prisma.TransactionClient.
+   * Унифицированный метод запуска кода в транзакции.
+   * Важно использовать корректный тип клиента: Prisma.TransactionClient.
    */
   tx<T>(cb: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     return this.prisma.$transaction(cb);

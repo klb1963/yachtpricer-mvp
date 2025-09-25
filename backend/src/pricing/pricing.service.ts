@@ -45,13 +45,6 @@ type DecisionWithMeta = Prisma.PricingDecisionGetPayload<{
   lastActionAt: Date | null;
 };
 
-// 1) Вверху файла (рядом с type DecisionWithMeta) добавь алиас
-type DecisionWithYacht = Prisma.PricingDecisionGetPayload<{
-  include: {
-    yacht: { select: { id: true; basePrice: true; maxDiscountPct: true } };
-  };
-}>;
-
 @Injectable()
 export class PricingService {
   constructor(
