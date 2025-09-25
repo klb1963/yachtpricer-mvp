@@ -1,0 +1,40 @@
+{
+  "title": "Cijene",
+  "table": "Tablica",
+  "cards": "Kartice",
+  "prevWeek": "Prethodni tjedan",
+  "nextWeek": "Sljedeći tjedan",
+  "yacht": "Jahta",
+  "base": "Osnovna cijena",
+  "actuals": "Stvarno",
+  "actualPrice": "Stvarna cijena",
+  "actualDiscount": "Stvarni popust",
+  "fetchedAt": "Dohvaćeno",
+  "maxDiscount": "Maks. popust %",
+  "top1": "Top1",
+  "avgTop3": "Prosj.(Top3)",
+  "mlReco": "ML preporuka",
+  "discountFinal": "Popust % / Konačno €",
+  "status": "Status",
+  "lastComment": "Zadnji komentar",
+  "actions": "Radnje",
+  "loading": "Učitavanje…",
+  "noRows": "Nema redaka za ovaj tjedan.",
+  "discount": "Popust",
+  "finalPrice": "Konačna cijena",
+  "calculated": "Izračunato",
+  "submit": "Pošalji",
+  "approve": "Odobri",
+  "reject": "Odbij",
+  "confirm": "Potvrdi",
+  "dialog": {
+    "submitForApproval": "Pošalji na odobrenje",
+    "approveDecision": "Odobri odluku",
+    "rejectDecision": "Odbij odluku",
+    "changeStatus": "Promijeni status"
+  },
+  "placeholders": {
+    "rejectWhy": "Zašto je odbijeno? (neobavezno)…",
+    "comment": "Komentar (neobavezno)…"
+  }
+}

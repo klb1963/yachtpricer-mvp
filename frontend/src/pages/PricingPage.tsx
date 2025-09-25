@@ -288,7 +288,7 @@ export default function PricingPage() {
           onBlur={() => { if (canEditByStatus) onChangeFinalPrice(r.yachtId); }}
           disabled={isDisabled}
         />
-        <span className="ml-1 text-gray-600">€</span>
+        {/* <span className="ml-1 text-gray-600">€</span> */}
         <div className="text-xs text-gray-500 mt-1">
           Calculated: {asMoney(r.finalPrice)}
         </div>
