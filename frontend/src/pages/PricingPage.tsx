@@ -12,6 +12,12 @@ function asMoney(n: number | null | undefined) {
   if (n == null) return '—';
   return `€ ${n.toLocaleString('en-EN', { maximumFractionDigits: 0 })}`;
 }
+
+function asPercent(n: number | null | undefined) {
+  if (n == null || !Number.isFinite(n as number)) return '—';
+  return `${n}%`;
+}
+
 function fmtWhen(iso: string | null | undefined) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -353,15 +359,19 @@ export default function PricingPage() {
       ) : rows.length === 0 ? (
         <div className="text-gray-500">No rows for this week.</div>
       ) : viewMode === 'table' ? (
-        <div className="overflow-x-auto border rounded-lg">
-          <table className="min-w-full text-sm">
+        <div className="overflow-x-auto border rounded-lg relative">
+          <table className="min-w-full text-sm table-fixed">
             <thead className="bg-gray-50">
               <tr className="text-left">
-                <th className="p-3">Yacht</th>
-                <th className="p-3">Base</th>
-                <th className="p-3">Top1</th>
-                <th className="p-3">Avg(Top3)</th>
-                <th className="p-3">ML reco</th>
+
+                <th className="p-3 w-56 sticky left-0 bg-gray-50 z-10">Yacht</th>
+                <th className="p-3 w-28 text-right">Base</th>
+                <th className="p-3 w-44">Actuals</th>
+                <th className="p-3 w-32 text-right">Max disc %</th>
+                <th className="p-3 w-28 text-right">Top1</th>
+                <th className="p-3 w-32 text-right">Avg(Top3)</th>
+                <th className="p-3 w-28 text-right">ML reco</th>
+
                 <th className="p-3">Discount % / Final €</th>
                 <th className="p-3">Status</th>
                 <th className="p-3 w-[18rem]">Last comment</th>
@@ -375,31 +385,45 @@ export default function PricingPage() {
                 const canApproveReject = st === 'SUBMITTED';
                 return (
                   <tr key={r.yachtId} className="border-t">
-                    <td className="p-3">
+                    <td className="p-3 sticky left-0 bg-white z-10">
                       <div className="font-medium">{r.name}</div>
                       <div className="text-xs text-gray-500">{r.snapshot?.currency ?? 'EUR'}</div>
                     </td>
-                    <td className="p-3">{asMoney(r.basePrice)}</td>
-                    <td className="p-3">{asMoney(r.snapshot?.top1Price)}</td>
-                    <td className="p-3">{asMoney(r.snapshot?.top3Avg)}</td>
-                    <td className="p-3">{asMoney(r.mlReco)}</td>
+                    <td className="p-3 text-right tabular-nums">{asMoney(r.basePrice)}</td>
+                    {/* NEW: Actuals column */}
+                    <td className="p-3 align-top">
+                      <div className="text-[11px] leading-4 text-gray-500">Actual price</div>
+                      <div className="mb-1 text-right tabular-nums">{asMoney(r.actualPrice)}</div>
+
+                      <div className="text-[11px] leading-4 text-gray-500">Actual discount</div>
+                      <div className="mb-1 text-right tabular-nums">{asPercent(r.actualDiscountPercent)}</div>
+
+                      <div className="text-[11px] leading-4 text-gray-500">Fetched at</div>
+                      <div
+                        className="text-[11px] leading-4 text-gray-500 text-right"
+                        title={r.fetchedAt ?? ''}
+                      >
+                        {fmtWhen(r.fetchedAt ?? null)}
+                      </div>
+                    </td>
+                    {/* NEW: Max discount % */}
+
+                    <td className="p-3 text-right tabular-nums">{asPercent(r.maxDiscountPercent)}</td>
+                    <td className="p-3 text-right tabular-nums">{asMoney(r.snapshot?.top1Price)}</td>
+                    <td className="p-3 text-right tabular-nums">{asMoney(r.snapshot?.top3Avg)}</td>
+                    <td className="p-3 text-right tabular-nums">{asMoney(r.mlReco)}</td>
+
                     <td className="p-3">{renderEditors(r)}</td>
 
                     {/* Status */}
                     <td className="p-3">
-                      <span className="px-2 py-1 text-xs rounded bg-gray-100">
-                        {st}
-                      </span>
+                      <span className="px-2 py-1 text-xs rounded bg-gray-100">{st}</span>
                     </td>
 
                     {/* Last comment */}
                     <td className="p-3 align-top">
-                      <div className="line-clamp-2 break-words">
-                        {r.lastComment ?? '—'}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {fmtWhen(r.lastActionAt)}
-                      </div>
+                      <div className="line-clamp-2 break-words">{r.lastComment ?? '—'}</div>
+                      <div className="text-xs text-gray-500 mt-1">{fmtWhen(r.lastActionAt)}</div>
                     </td>
 
                     {/* Actions */}
@@ -432,7 +456,7 @@ export default function PricingPage() {
                       </div>
                     </td>
                   </tr>
-                );
+                )
               })}
             </tbody>
           </table>
@@ -452,6 +476,13 @@ export default function PricingPage() {
 
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                   <div className="text-gray-500">Base</div><div>{asMoney(r.basePrice)}</div>
+                 {/* NEW (cards): Actuals */}
+                  <div className="text-gray-500">Actual price</div><div>{asMoney(r.actualPrice)}</div>
+                  <div className="text-gray-500">Actual discount</div><div>{asPercent(r.actualDiscountPercent)}</div>
+                  <div className="text-gray-500">Fetched at</div>
+                  <div className="text-xs text-gray-500">{fmtWhen(r.fetchedAt ?? null)}</div>
+                  {/* NEW (cards): Max discount */}
+                  <div className="text-gray-500">Max discount %</div><div>{asPercent(r.maxDiscountPercent)}</div>
                   <div className="text-gray-500">Top1</div><div>{asMoney(r.snapshot?.top1Price)}</div>
                   <div className="text-gray-500">Avg(Top3)</div><div>{asMoney(r.snapshot?.top3Avg)}</div>
                   <div className="text-gray-500">ML reco</div><div>{asMoney(r.mlReco)}</div>
