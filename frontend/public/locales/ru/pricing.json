@@ -1,0 +1,40 @@
+{
+  "title": "Pricing",
+  "table": "Таблица",
+  "cards": "Карточки",
+  "prevWeek": "Пред. неделя",
+  "nextWeek": "След. неделя",
+  "yacht": "Яхта",
+  "base": "База",
+  "actuals": "Фактические",
+  "actualPrice": "Фактическая цена",
+  "actualDiscount": "Фактическая скидка",
+  "fetchedAt": "Загружено",
+  "maxDiscount": "Макс. скидка %",
+  "top1": "Top1",
+  "avgTop3": "Avg(Top3)",
+  "mlReco": "ML reco",
+  "discountFinal": "Скидка % / Итог €",
+  "status": "Статус",
+  "lastComment": "Комментарий",
+  "actions": "Действия",
+  "loading": "Загрузка…",
+  "noRows": "Нет строк на эту неделю.",
+  "discount": "Скидка",
+  "finalPrice": "Итоговая цена",
+  "calculated": "Рассчитано",
+  "submit": "Отправить",
+  "approve": "Одобрить",
+  "reject": "Отклонить",
+  "confirm": "Подтвердить",
+  "dialog": {
+    "submitForApproval": "Отправить на согласование",
+    "approveDecision": "Одобрить решение",
+    "rejectDecision": "Отклонить решение",
+    "changeStatus": "Сменить статус"
+  },
+  "placeholders": {
+    "rejectWhy": "Почему отклонено? (необязательно)…",
+    "comment": "Комментарий (необязательно)…"
+  }
+}

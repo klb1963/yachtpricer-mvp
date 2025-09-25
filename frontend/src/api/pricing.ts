@@ -12,33 +12,38 @@ export type RowPerms = {
 };
 
 export type PricingRow = {
-  yachtId: string;
-  name: string;
-  basePrice: number;
+  yachtId: string
+  name: string
+  basePrice: number
 
   snapshot: null | {
-    top1Price: number | null;
-    top3Avg: number | null;
-    currency: string | null;
-    sampleSize: number | null;
-    collectedAt: string | null; // ISO
-  };
+    top1Price: number | null
+    top3Avg: number | null
+    currency: string | null
+    sampleSize: number | null
+    collectedAt: string | null // ISO
+  }
 
   decision: null | {
-    discountPct: number | null;
-    finalPrice: number | null;
-    status: DecisionStatus;
-  };
+    discountPct: number | null
+    finalPrice: number | null
+    status: DecisionStatus
+  }
 
-  mlReco: number | null;
-  finalPrice: number | null;
+  mlReco: number | null
+  finalPrice: number | null
 
-  perms?: RowPerms;
+  perms?: RowPerms
 
   // новое:
-  lastComment?: string | null;
-  lastActionAt?: string | null; // ISO
-};
+  lastComment?: string | null
+  lastActionAt?: string | null // ISO
+  // ─ добавленные колонки (Actuals + Max %) ─
+  maxDiscountPercent?: number | null
+  actualPrice?: number | null
+  actualDiscountPercent?: number | null
+  fetchedAt?: string | null // ISO
+}
 
 // — “сырой” ответ бэка (подстроен так, чтобы принять разные варианты) —
 type RawPricingRow = {
@@ -67,6 +72,11 @@ type RawPricingRow = {
 
   lastComment?: string | null;
   lastActionAt?: string | null;
+  // ─ новые поля с бэка (могут быть строками) ─
+  maxDiscountPercent?: number | string | null;
+  actualPrice?: number | string | null;
+  actualDiscountPercent?: number | string | null;
+  fetchedAt?: string | null; 
 };
 
 // — helpers —
@@ -112,6 +122,11 @@ function normalizeRow(raw: RawPricingRow): PricingRow {
 
     lastComment: raw.lastComment ?? null,
     lastActionAt: raw.lastActionAt ?? null,
+    // ─ новые поля ─
+    maxDiscountPercent: toNum(raw.maxDiscountPercent),
+    actualPrice: toNum(raw.actualPrice),
+    actualDiscountPercent: toNum(raw.actualDiscountPercent),
+    fetchedAt: raw.fetchedAt ?? null,
   };
 }
 

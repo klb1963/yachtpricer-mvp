@@ -1,0 +1,40 @@
+{
+  "title": "Pricing",
+  "table": "Table",
+  "cards": "Cards",
+  "prevWeek": "Prev week",
+  "nextWeek": "Next week",
+  "yacht": "Yacht",
+  "base": "Base",
+  "actuals": "Actuals",
+  "actualPrice": "Actual price",
+  "actualDiscount": "Actual discount",
+  "fetchedAt": "Fetched at",
+  "maxDiscount": "Max discount %",
+  "top1": "Top1",
+  "avgTop3": "Avg(Top3)",
+  "mlReco": "ML reco",
+  "discountFinal": "Discount % / Final €",
+  "status": "Status",
+  "lastComment": "Last comment",
+  "actions": "Actions",
+  "loading": "Loading…",
+  "noRows": "No rows for this week.",
+  "discount": "Discount",
+  "finalPrice": "Final price",
+  "calculated": "Calculated",
+  "submit": "Submit",
+  "approve": "Approve",
+  "reject": "Reject",
+  "confirm": "Confirm",
+  "dialog": {
+    "submitForApproval": "Submit for approval",
+    "approveDecision": "Approve decision",
+    "rejectDecision": "Reject decision",
+    "changeStatus": "Change status"
+  },
+  "placeholders": {
+    "rejectWhy": "Why is it rejected? (optional)…",
+    "comment": "Comment (optional)…"
+  }
+}
