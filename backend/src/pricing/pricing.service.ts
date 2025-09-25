@@ -16,15 +16,9 @@ import {
   mapDecision,
   buildMaps,
 } from './pricing-mappers';
-import {
-  Prisma,
-  DecisionStatus,
-  User,
-  AuditAction,
-  Yacht,
-} from '@prisma/client';
+import { Prisma, DecisionStatus, User, AuditAction } from '@prisma/client';
+import { PricingRepo, type YachtForRows } from './pricing.repo';
 import { toNum } from '../common/decimal';
-import { PricingRepo } from './pricing.repo';
 import type { PricingRowDto } from './pricing-row.dto';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -60,7 +54,7 @@ export class PricingService {
     const ws = weekStartUTC(new Date(q.week));
 
     // 1) Яхты
-    const yachts: Yacht[] = await this.repo.listYachts();
+    const yachts: YachtForRows[] = await this.repo.listYachts();
     if (yachts.length === 0) return [];
 
     const yachtIds = yachts.map((y) => y.id);
