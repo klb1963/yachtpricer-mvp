@@ -5,6 +5,7 @@ import { changeStatus, fetchRows, upsertDecision, pairFromRow } from '../api/pri
 import type { PricingRow, DecisionStatus } from '../api/pricing';
 import { toYMD, nextSaturday, prevSaturday, toSaturdayUTC } from '../utils/week';
 import ConfirmActionModal from '@/components/ConfirmActionModal';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
 // ─ helpers ─
@@ -47,6 +48,9 @@ function calcFinal(base: number, discountPct: number | null | undefined) {
 }
 
 export default function PricingPage() {
+  // i18n
+  const { t } = useTranslation('pricing');
+
   // ────────────────────────────────────────────────────────────
   // 1) Неделя всегда в формате YYYY-MM-DD (plain date)
   // ────────────────────────────────────────────────────────────
@@ -221,7 +225,9 @@ export default function PricingPage() {
       // Тихо подтянем свежие значения с бэка (без спиннера)
       fetchRows(weekISO)
         .then(fresh => setRows(fresh))
-        .catch(() => { /* игнорируем, оптимистичное состояние уже есть */ });
+        .catch(() => {
+          /* игнорируем, оптимистичное состояние уже есть */
+        });
 
       closeDialog();
     } catch (e) {
@@ -238,10 +244,10 @@ export default function PricingPage() {
 
   function dialogTitle() {
     const s = dialog.status;
-    if (s === 'SUBMITTED') return 'Submit for approval';
-    if (s === 'APPROVED') return 'Approve decision';
-    if (s === 'REJECTED') return 'Reject decision';
-    return 'Change status';
+    if (s === 'SUBMITTED') return t('dialog.submitForApproval');
+    if (s === 'APPROVED') return t('dialog.approveDecision');
+    if (s === 'REJECTED') return t('dialog.rejectDecision');
+    return t('dialog.changeStatus');
   }
 
   function onPickDate(value: string) {
@@ -264,33 +270,42 @@ export default function PricingPage() {
 
     return (
       <>
-        <input
-          className="w-20 px-2 py-1 border rounded"
-          type="number"
-          step="0.1"
-          placeholder="—"
-          value={discountValue as number | string}
-          onChange={(e) => canEditByStatus && onDraftDiscountChange(r.yachtId, e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-          onBlur={() => { if (canEditByStatus) onChangeDiscount(r.yachtId); }}
-          disabled={isDisabled}
-        />
-        <span className="ml-1 text-gray-600">%</span>
+        <label className="block text-xs mb-1">{t('discount')}</label>
+        <div className="flex items-center">
+          <input
+            className="w-20 px-2 py-1 border rounded"
+            type="number"
+            step="0.1"
+            placeholder="—"
+            value={discountValue as number | string}
+            onChange={(e) => canEditByStatus && onDraftDiscountChange(r.yachtId, e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+            onBlur={() => { if (canEditByStatus) onChangeDiscount(r.yachtId); }}
+            disabled={isDisabled}
+          />
+          <span className="ml-1 text-gray-600">%</span>
+        </div>
+
         <div className="h-2" />
-        <input
-          className="w-28 px-2 py-1 border rounded"
-          type="number"
-          step="1"
-          placeholder="—"
-          value={finalValue as number | string}
-          onChange={(e) => canEditByStatus && onDraftFinalChange(r.yachtId, e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-          onBlur={() => { if (canEditByStatus) onChangeFinalPrice(r.yachtId); }}
-          disabled={isDisabled}
-        />
-        {/* <span className="ml-1 text-gray-600">€</span> */}
+
+        <label className="block text-xs mb-1">{t('finalPrice')}</label>
+        <div className="flex items-center">
+          <input
+            className="w-28 px-2 py-1 border rounded"
+            type="number"
+            step="1"
+            placeholder="—"
+            value={finalValue as number | string}
+            onChange={(e) => canEditByStatus && onDraftFinalChange(r.yachtId, e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+            onBlur={() => { if (canEditByStatus) onChangeFinalPrice(r.yachtId); }}
+            disabled={isDisabled}
+          />
+          <span className="ml-1 text-gray-600">€</span>
+        </div>
+
         <div className="text-xs text-gray-500 mt-1">
-          Calculated: {asMoney(r.finalPrice)}
+          {t('calculated')}: {asMoney(r.finalPrice)}
         </div>
       </>
     );
@@ -299,7 +314,7 @@ export default function PricingPage() {
   return (
     <div className="container mx-auto px-6 py-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-        <h1 className="text-3xl font-bold">Pricing</h1>
+        <h1 className="text-3xl font-bold">{t('title')}</h1>
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Переключатель вида */}
@@ -312,7 +327,7 @@ export default function PricingPage() {
                   ? 'bg-gray-900 text-white'
                   : '!text-gray-800 hover:bg-gray-100'}`}
               >
-                Table
+                {t('table')}
               </button>
               <button
                 type="button"
@@ -321,7 +336,7 @@ export default function PricingPage() {
                   ? 'bg-gray-900 text-white'
                   : '!text-gray-800 hover:bg-gray-100'}`}
               >
-                Cards
+                {t('cards')}
               </button>
             </div>
           </div>
@@ -331,7 +346,7 @@ export default function PricingPage() {
             onClick={() => setWeek(toYMD(prevSaturday(weekDate)))}
             disabled={loading}
           >
-            ◀ Prev week
+            ◀ {t('prevWeek')}
           </button>
 
           <input
@@ -347,7 +362,7 @@ export default function PricingPage() {
             onClick={() => setWeek(toYMD(nextSaturday(weekDate)))}
             disabled={loading}
           >
-            Next week ▶
+            {t('nextWeek')} ▶
           </button>
         </div>
       </div>
@@ -355,27 +370,25 @@ export default function PricingPage() {
       {error && <div className="text-red-600 mb-3">{error}</div>}
 
       {loading ? (
-        <div className="text-gray-500">Loading…</div>
+        <div className="text-gray-500">{t('loading')}</div>
       ) : rows.length === 0 ? (
-        <div className="text-gray-500">No rows for this week.</div>
+        <div className="text-gray-500">{t('noRows')}</div>
       ) : viewMode === 'table' ? (
         <div className="overflow-x-auto border rounded-lg relative">
           <table className="min-w-full text-sm table-fixed">
             <thead className="bg-gray-50">
               <tr className="text-left">
-
-                <th className="p-3 w-56 sticky left-0 bg-gray-50 z-10">Yacht</th>
-                <th className="p-3 w-28 text-right">Base</th>
-                <th className="p-3 w-44">Actuals</th>
-                <th className="p-3 w-32 text-right">Max disc %</th>
-                <th className="p-3 w-28 text-right">Top1</th>
-                <th className="p-3 w-32 text-right">Avg(Top3)</th>
-                <th className="p-3 w-28 text-right">ML reco</th>
-
-                <th className="p-3">Discount % / Final €</th>
-                <th className="p-3">Status</th>
-                <th className="p-3 w-[18rem]">Last comment</th>
-                <th className="p-3 w-48">Actions</th>
+                <th className="p-3 w-56 sticky left-0 bg-gray-50 z-10">{t('yacht')}</th>
+                <th className="p-3 w-28 text-right">{t('base')}</th>
+                <th className="p-3 w-44">{t('actuals')}</th>
+                <th className="p-3 w-32 text-right">{t('maxDiscount')}</th>
+                <th className="p-3 w-28 text-right">{t('top1')}</th>
+                <th className="p-3 w-32 text-right">{t('avgTop3')}</th>
+                <th className="p-3 w-28 text-right">{t('mlReco')}</th>
+                <th className="p-3">{t('discountFinal')}</th>
+                <th className="p-3">{t('status')}</th>
+                <th className="p-3 w-[18rem]">{t('lastComment')}</th>
+                <th className="p-3 w-48">{t('actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -392,13 +405,13 @@ export default function PricingPage() {
                     <td className="p-3 text-right tabular-nums">{asMoney(r.basePrice)}</td>
                     {/* NEW: Actuals column */}
                     <td className="p-3 align-top">
-                      <div className="text-[11px] leading-4 text-gray-500">Actual price</div>
+                      <div className="text-[11px] leading-4 text-gray-500">{t('actualPrice')}</div>
                       <div className="mb-1 text-right tabular-nums">{asMoney(r.actualPrice)}</div>
 
-                      <div className="text-[11px] leading-4 text-gray-500">Actual discount</div>
+                      <div className="text-[11px] leading-4 text-gray-500">{t('actualDiscount')}</div>
                       <div className="mb-1 text-right tabular-nums">{asPercent(r.actualDiscountPercent)}</div>
 
-                      <div className="text-[11px] leading-4 text-gray-500">Fetched at</div>
+                      <div className="text-[11px] leading-4 text-gray-500">{t('fetchedAt')}</div>
                       <div
                         className="text-[11px] leading-4 text-gray-500 text-right"
                         title={r.fetchedAt ?? ''}
@@ -407,7 +420,6 @@ export default function PricingPage() {
                       </div>
                     </td>
                     {/* NEW: Max discount % */}
-
                     <td className="p-3 text-right tabular-nums">{asPercent(r.maxDiscountPercent)}</td>
                     <td className="p-3 text-right tabular-nums">{asMoney(r.snapshot?.top1Price)}</td>
                     <td className="p-3 text-right tabular-nums">{asMoney(r.snapshot?.top3Avg)}</td>
@@ -433,30 +445,30 @@ export default function PricingPage() {
                           className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
                           onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
                           disabled={savingId === r.yachtId || !canSubmit}
-                          title="Submit"
+                          title={t('submit')}
                         >
-                          Submit
+                          {t('submit')}
                         </button>
                         <button
                           className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
                           onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
                           disabled={savingId === r.yachtId || !canApproveReject}
-                          title="Approve"
+                          title={t('approve')}
                         >
-                          Approve
+                          {t('approve')}
                         </button>
                         <button
                           className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
                           onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
                           disabled={savingId === r.yachtId || !canApproveReject}
-                          title="Reject"
+                          title={t('reject')}
                         >
-                          Reject
+                          {t('reject')}
                         </button>
                       </div>
                     </td>
                   </tr>
-                )
+                );
               })}
             </tbody>
           </table>
@@ -475,21 +487,21 @@ export default function PricingPage() {
                 <h2 className="font-semibold text-lg mb-2">{r.name}</h2>
 
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  <div className="text-gray-500">Base</div><div>{asMoney(r.basePrice)}</div>
-                 {/* NEW (cards): Actuals */}
-                  <div className="text-gray-500">Actual price</div><div>{asMoney(r.actualPrice)}</div>
-                  <div className="text-gray-500">Actual discount</div><div>{asPercent(r.actualDiscountPercent)}</div>
-                  <div className="text-gray-500">Fetched at</div>
+                  <div className="text-gray-500">{t('base')}</div><div>{asMoney(r.basePrice)}</div>
+                  {/* NEW (cards): Actuals */}
+                  <div className="text-gray-500">{t('actualPrice')}</div><div>{asMoney(r.actualPrice)}</div>
+                  <div className="text-gray-500">{t('actualDiscount')}</div><div>{asPercent(r.actualDiscountPercent)}</div>
+                  <div className="text-gray-500">{t('fetchedAt')}</div>
                   <div className="text-xs text-gray-500">{fmtWhen(r.fetchedAt ?? null)}</div>
                   {/* NEW (cards): Max discount */}
-                  <div className="text-gray-500">Max discount %</div><div>{asPercent(r.maxDiscountPercent)}</div>
-                  <div className="text-gray-500">Top1</div><div>{asMoney(r.snapshot?.top1Price)}</div>
-                  <div className="text-gray-500">Avg(Top3)</div><div>{asMoney(r.snapshot?.top3Avg)}</div>
-                  <div className="text-gray-500">ML reco</div><div>{asMoney(r.mlReco)}</div>
+                  <div className="text-gray-500">{t('maxDiscount')}</div><div>{asPercent(r.maxDiscountPercent)}</div>
+                  <div className="text-gray-500">{t('top1')}</div><div>{asMoney(r.snapshot?.top1Price)}</div>
+                  <div className="text-gray-500">{t('avgTop3')}</div><div>{asMoney(r.snapshot?.top3Avg)}</div>
+                  <div className="text-gray-500">{t('mlReco')}</div><div>{asMoney(r.mlReco)}</div>
                 </div>
 
                 <div className="mt-3">
-                  <label className="block text-xs mb-1">Discount</label>
+                  <label className="block text-xs mb-1">{t('discount')}</label>
                   <input
                     className="w-24 px-2 py-1 border rounded"
                     type="number"
@@ -505,7 +517,7 @@ export default function PricingPage() {
                 </div>
 
                 <div className="mt-3">
-                  <label className="block text-xs mb-1">Final price</label>
+                  <label className="block text-xs mb-1">{t('finalPrice')}</label>
                   <input
                     className="w-32 px-2 py-1 border rounded"
                     type="number"
@@ -519,7 +531,7 @@ export default function PricingPage() {
                   />
                   <span className="ml-1 text-gray-600">€</span>
                   <div className="text-xs text-gray-500 mt-1">
-                    Calculated: {asMoney(r.finalPrice)}
+                    {t('calculated')}: {asMoney(r.finalPrice)}
                   </div>
                 </div>
 
@@ -533,30 +545,30 @@ export default function PricingPage() {
                       className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
                       onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
                       disabled={isSaving || !canSubmit}
-                      title="Submit"
+                      title={t('submit')}
                     >
-                      Submit
+                      {t('submit')}
                     </button>
                     <button
                       className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
                       onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
                       disabled={isSaving || !canApproveReject}
-                      title="Approve"
+                      title={t('approve')}
                     >
-                      Approve
+                      {t('approve')}
                     </button>
                     <button
                       className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
                       onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
                       disabled={isSaving || !canApproveReject}
-                      title="Reject"
+                      title={t('reject')}
                     >
-                      Reject
+                      {t('reject')}
                     </button>
                   </div>
                   {/* Last comment + time */}
                   <div className="mt-3 border-t pt-3">
-                    <div className="text-xs text-gray-500 mb-1">Last comment</div>
+                    <div className="text-xs text-gray-500 mb-1">{t('lastComment')}</div>
                     <div className="text-sm">
                       {r.lastComment ?? '—'}
                     </div>
@@ -577,17 +589,17 @@ export default function PricingPage() {
         title={dialogTitle()}
         confirmLabel={
           dialog.status === 'SUBMITTED'
-            ? 'Submit'
+            ? t('submit')
             : dialog.status === 'APPROVED'
-            ? 'Approve'
+            ? t('approve')
             : dialog.status === 'REJECTED'
-            ? 'Reject'
-            : 'Confirm'
+            ? t('reject')
+            : t('confirm')
         }
         placeholder={
           dialog.status === 'REJECTED'
-            ? 'Why is it rejected? (optional)…'
-            : 'Comment (optional)…'
+            ? t('placeholders.rejectWhy')
+            : t('placeholders.comment')
         }
         submitting={submitting}
         onCancel={closeDialog}
