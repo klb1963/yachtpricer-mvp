@@ -17,7 +17,7 @@ i18n
     supportedLngs: ['en', 'ru', 'hr'],
 
     // включаем namespaces: базовый translation и наш pricing
-    ns: ['translation', 'pricing'],
+    ns: ['translation', 'pricing', 'yacht'],
     defaultNS: 'translation',
 
     interpolation: { escapeValue: false },

@@ -1,0 +1,58 @@
+{
+  "actions": {
+    "addYacht": "Добавить яхту",
+    "editYacht": "Редактировать яхту",
+    "back": "Назад",
+    "create": "Создать",
+    "creating": "Создание…",
+    "save": "Сохранить",
+    "saving": "Сохранение…",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "deleting": "Удаление…",
+    "deleteTitle": "Удалить эту яхту",
+    "deleteConfirm": "Удалить «{{name}}»? Это действие нельзя отменить."
+  },
+  "sections": {
+    "general": "Общие данные",
+    "specs": "Характеристики",
+    "pricing": "Цены",
+    "extraServices": "Доп. услуги (JSON)"
+  },
+  "fields": {
+    "name": "Название",
+    "manufacturer": "Производитель",
+    "model": "Модель",
+    "type": "Тип",
+    "location": "Локация",
+    "fleet": "Флот",
+    "company": "Чартерная компания",
+    "owner": "Владелец",
+    "length": "Длина",
+    "built": "Год постройки",
+    "cabins": "Каюты",
+    "heads": "Туалеты",
+    "basePrice": "Базовая цена",
+    "maxDiscountPct": "Макс. скидка %",
+    "actualPrice": "Актуальная цена",
+    "actualDiscount": "Актуальная скидка",
+    "fetchedAt": "Дата получения"
+  },
+  "placeholders": {
+    "chooseType": "Выберите тип…",
+    "chooseLength": "Выберите длину…",
+    "chooseYear": "Выберите год…",
+    "chooseCabins": "Выберите количество кают…",
+    "chooseHeads": "Выберите количество туалетов…"
+  },
+  "hints": {
+    "extraServicesJsonHint": "Можно оставить строкой — сервер сам сохранит."
+  },
+  "errors": {
+    "loadFailed": "Ошибка загрузки",
+    "saveFailed": "Ошибка сохранения",
+    "deleteFailed": "Ошибка удаления"
+  },
+  "thisYacht": "эта яхта",
+  "loading": "Загрузка…"
+}

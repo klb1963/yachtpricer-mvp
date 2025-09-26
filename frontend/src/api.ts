@@ -8,24 +8,29 @@ import axios, {
 
 // ---- Types ----
 export interface Yacht {
-  id: string;
-  name: string;
-  manufacturer: string;
-  model: string;
-  type: string;
-  length: number;
-  builtYear: number;
-  cabins: number;
-  heads: number;
-  basePrice: string | number;
-  location: string;
-  fleet: string;
-  charterCompany: string;
-  currentExtraServices: string | Array<{ name: string; price: number }>;
-  ownerId: string | null;
-  ownerName?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
+  id: string
+  name: string
+  manufacturer: string
+  model: string
+  type: string
+  length: number
+  builtYear: number
+  cabins: number
+  heads: number
+  basePrice: string | number
+  location: string
+  fleet: string
+  charterCompany: string
+  currentExtraServices: string | Array<{ name: string; price: number }>
+  ownerId: string | null
+  ownerName?: string | null
+  createdAt?: string
+  updatedAt?: string
+  // ─ Pricing additions for Yacht Details ─
+  maxDiscountPct?: number | null
+  actualPrice?: number | null
+  actualDiscountPct?: number | null
+  fetchedAt?: string | null
 }
 
 export type YachtListParams = {
@@ -57,6 +62,13 @@ export const api = axios.create({ baseURL: API_BASE });
 
 // 🔊 Лог — убеждаемся, что подхватился именно этот модуль
 console.log("[api.ts] module loaded, baseURL =", API_BASE);
+
+// Helper: безопасно привести к числу или вернуть null
+function toNum(v: unknown): number | null {
+  if (v == null) return null;
+  const n = typeof v === "string" ? Number(v) : (v as number);
+  return Number.isFinite(n) ? (n as number) : null;
+}
 
 // Helper: гарантируем AxiosHeaders
 function ensureHeaders(headers?: AxiosRequestHeaders): AxiosHeaders {
@@ -129,19 +141,73 @@ api.interceptors.response.use(
 // Yachts API
 // ============================
 
+// Сырой ответ может приходить с разными именами полей (Pct/Percent, currentPrice/Discount, priceFetchedAt/fetchedAt)
+type YachtRaw = {
+  id: string;
+  name: string;
+  manufacturer: string;
+  model: string;
+  type: string;
+  length: number;
+  builtYear: number;
+  cabins: number;
+  heads: number;
+  basePrice: string | number;
+  location: string;
+  fleet: string;
+  charterCompany: string;
+  currentExtraServices: string | Array<{ name: string; price: number }>;
+  ownerId: string | null;
+  ownerName?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  // возможные варианты pricing-полей:
+  maxDiscountPct?: number | string | null;
+  maxDiscountPercent?: number | string | null;
+  actualPrice?: number | string | null;
+  currentPrice?: number | string | null;
+  actualDiscountPct?: number | string | null;
+  actualDiscountPercent?: number | string | null;
+  currentDiscount?: number | string | null;
+  fetchedAt?: string | null;
+  priceFetchedAt?: string | null;
+};
+
+
 export async function listYachts(params: YachtListParams): Promise<YachtListResponse> {
   const { data } = await api.get<YachtListResponse>("/yachts", { params });
   return data;
 }
 
 export async function getYachts(): Promise<Yacht[]> {
+  // Вернём список яхт
   const { data } = await api.get("/yachts");
-  return Array.isArray(data) ? (data as Yacht[]) : ((data as { items?: Yacht[] })?.items ?? []);
+  return Array.isArray(data)
+    ? (data as Yacht[])
+    : ((data as { items?: Yacht[] })?.items ?? []);
 }
 
 export async function getYacht(id: string): Promise<Yacht> {
-  const { data } = await api.get<Yacht>(`/yachts/${id}`);
-  return data;
+  // Грузим деталь и нормализуем возможные имена полей (Pct/Percent, currentPrice/Discount, priceFetchedAt/fetchedAt)
+  const { data } = await api.get<YachtRaw>(`/yachts/${id}`);
+  const normalized: Yacht = {
+    ...data,
+    maxDiscountPct:
+      toNum(data?.maxDiscountPct) ??
+      toNum(data?.maxDiscountPercent) ??
+      null,
+    actualPrice:
+      toNum(data?.actualPrice) ??
+      toNum(data?.currentPrice) ??
+      null,
+    actualDiscountPct:
+      toNum(data?.actualDiscountPct) ??
+      toNum(data?.actualDiscountPercent) ??
+      toNum(data?.currentDiscount) ??
+      null,
+    fetchedAt: data?.fetchedAt ?? data?.priceFetchedAt ?? null,
+  };
+  return normalized
 }
 
 export type YachtUpdatePayload = {
@@ -159,6 +225,8 @@ export type YachtUpdatePayload = {
   heads?: string;
   basePrice?: string;
   currentExtraServices?: string | Array<{ name: string; price: number }>;
+  // NEW: allow updating max discount %
+  maxDiscountPct?: number | string | null;
 };
 
 export async function updateYacht(id: string, payload: YachtUpdatePayload): Promise<Yacht> {

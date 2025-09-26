@@ -1,0 +1,58 @@
+{
+  "actions": {
+    "addYacht": "Add yacht",
+    "editYacht": "Edit yacht",
+    "back": "Back",
+    "create": "Create",
+    "creating": "Creating…",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleting": "Deleting…",
+    "deleteTitle": "Delete this yacht",
+    "deleteConfirm": "Delete \"{{name}}\"? This cannot be undone."
+  },
+  "sections": {
+    "general": "General",
+    "specs": "Specs",
+    "pricing": "Pricing",
+    "extraServices": "Extra services (JSON)"
+  },
+  "fields": {
+    "name": "Name",
+    "manufacturer": "Manufacturer",
+    "model": "Model",
+    "type": "Type",
+    "location": "Location",
+    "fleet": "Fleet",
+    "company": "Charter company",
+    "owner": "Owner name",
+    "length": "Length",
+    "built": "Built year",
+    "cabins": "Cabins",
+    "heads": "Heads",
+    "basePrice": "Base price",
+    "maxDiscountPct": "Max discount %",
+    "actualPrice": "Actual price",
+    "actualDiscount": "Actual discount",
+    "fetchedAt": "Fetched at"
+  },
+  "placeholders": {
+    "chooseType": "Choose type…",
+    "chooseLength": "Choose length…",
+    "chooseYear": "Choose year…",
+    "chooseCabins": "Choose cabins…",
+    "chooseHeads": "Choose heads…"
+  },
+  "hints": {
+    "extraServicesJsonHint": "You may keep it as plain text — the server will handle it."
+  },
+  "errors": {
+    "loadFailed": "Failed to load",
+    "saveFailed": "Failed to save",
+    "deleteFailed": "Failed to delete"
+  },
+  "thisYacht": "this yacht",
+  "loading": "Loading…"
+}

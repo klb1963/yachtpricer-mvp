@@ -1,0 +1,58 @@
+{
+  "actions": {
+    "addYacht": "Dodaj jahtu",
+    "editYacht": "Uredi jahtu",
+    "back": "Natrag",
+    "create": "Stvori",
+    "creating": "Stvaranje…",
+    "save": "Spremi",
+    "saving": "Spremanje…",
+    "cancel": "Otkaži",
+    "delete": "Izbriši",
+    "deleting": "Brisanje…",
+    "deleteTitle": "Izbriši ovu jahtu",
+    "deleteConfirm": "Izbrisati \"{{name}}\"? Ovu radnju nije moguće poništiti."
+  },
+  "sections": {
+    "general": "Općenito",
+    "specs": "Specifikacije",
+    "pricing": "Cijene",
+    "extraServices": "Dodatne usluge (JSON)"
+  },
+  "fields": {
+    "name": "Naziv",
+    "manufacturer": "Proizvođač",
+    "model": "Model",
+    "type": "Tip",
+    "location": "Lokacija",
+    "fleet": "Flota",
+    "company": "Čarter kompanija",
+    "owner": "Vlasnik",
+    "length": "Duljina",
+    "built": "Godina gradnje",
+    "cabins": "Kabine",
+    "heads": "WC-i",
+    "basePrice": "Osnovna cijena",
+    "maxDiscountPct": "Maks. popust %",
+    "actualPrice": "Stvarna cijena",
+    "actualDiscount": "Stvarni popust",
+    "fetchedAt": "Datum dohvaćanja"
+  },
+  "placeholders": {
+    "chooseType": "Odaberite tip…",
+    "chooseLength": "Odaberite duljinu…",
+    "chooseYear": "Odaberite godinu…",
+    "chooseCabins": "Odaberite broj kabina…",
+    "chooseHeads": "Odaberite broj WC-a…"
+  },
+  "hints": {
+    "extraServicesJsonHint": "Možete ostaviti kao tekst — poslužitelj će spremiti."
+  },
+  "errors": {
+    "loadFailed": "Greška pri učitavanju",
+    "saveFailed": "Greška pri spremanju",
+    "deleteFailed": "Greška pri brisanju"
+  },
+  "thisYacht": "ova jahta",
+  "loading": "Učitavanje…"
+}
