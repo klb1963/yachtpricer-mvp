@@ -521,3 +521,68 @@ model CompetitorFilters {
   @@index([userId])
   @@map("competitor_filters")
 }
+
+// Справочник категорий яхт из NauSYS
+model YachtCategory {
+  id        Int          @id @default(autoincrement())
+  nausysId  Int          @unique
+  names     Json
+  nameEn    String?      @map("name_en")
+  nameDe    String?      @map("name_de")
+  nameRu    String?      @map("name_ru")
+
+  models    YachtModel[] @relation("CategoryModels")
+
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@map("yacht_categories")
+}
+
+// Справочник производителей из NauSYS
+model YachtBuilder {
+  id         Int       @id @default(autoincrement())
+  /// ID производителя в NauSYS (поле `builders[].id`), уникален
+  nausysId   Int       @unique
+  /// Имя производителя (поле `builders[].name`)
+  name       String
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Заранее оставим связь на будущие модели (когда добавим их загрузку)
+  models     YachtModel[]
+  @@index([name])
+  @@map("yacht_builders")
+}
+
+// Справочник моделей яхт из NauSYS
+model YachtModel {
+  id            Int           @id @default(autoincrement())
+  nausysId      Int           @unique
+  name          String
+
+  builderId     Int?
+  builder       YachtBuilder? @relation(fields: [builderId], references: [id])
+
+  categoryId    Int?
+  category      YachtCategory? @relation("CategoryModels", fields: [categoryId], references: [id])
+
+  loa           Decimal?      @db.Decimal(6,2)
+  beam          Decimal?      @db.Decimal(5,2)
+  draft         Decimal?      @db.Decimal(4,2)
+  cabins        Int?
+  wc            Int?
+  waterTank     Int?
+  fuelTank      Int?
+  displacement  Int?
+  virtualLength Int?
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([name])
+  @@index([builderId])
+  @@index([categoryId])
+  @@map("yacht_models")
+}
