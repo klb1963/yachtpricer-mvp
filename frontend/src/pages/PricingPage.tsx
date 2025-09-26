@@ -193,6 +193,16 @@ export default function PricingPage() {
     const row = rows.find(r => r.yachtId === dialog.yachtId);
     const { discountPct, finalPrice } = row ? pairFromRow(row) : { discountPct: null, finalPrice: null };
 
+     // 👉 Клиентская проверка лимита
+    if (
+      dialog.status === 'SUBMITTED' &&
+      row?.maxDiscountPercent != null &&
+      discountPct != null &&
+      discountPct > row.maxDiscountPercent
+    ) {
+      alert(`Скидка ${discountPct}% превышает лимит ${row.maxDiscountPercent}%.`);
+      return; // не уходим в сеть
+    }
     setSubmitting(true);
     setSavingId(dialog.yachtId);
     try {
@@ -267,13 +277,30 @@ export default function PricingPage() {
     const st = r.decision?.status ?? 'DRAFT';
     const canEditByStatus = st === 'DRAFT' || st === 'REJECTED';
     const isDisabled = (savingId === r.yachtId) || !canEditByStatus;
+    // лимит и флаг превышения
+    const limit = r.maxDiscountPercent ?? null;
+    const isOver =
+      typeof discountValue === 'number' &&
+      limit != null &&
+      discountValue > limit;
 
     return (
       <>
-        <label className="block text-xs mb-1">{t('discount')}</label>
+          <label className="block text-xs mb-1">
+          {t('discount')}
+          {limit != null && (
+            <span className="ml-2 text-[11px] text-gray-500">
+              ({t('maxDiscount')} {limit}%)
+            </span>
+          )}
+        </label>
         <div className="flex items-center">
           <input
-            className="w-20 px-2 py-1 border rounded"
+            className={`w-20 px-2 py-1 border rounded ${
+              isOver
+                ? 'border-2 border-red-500 outline-red-500 ring-1 ring-red-300 bg-red-50'
+                : ''
+            }`}
             type="number"
             step="0.1"
             placeholder="—"
@@ -285,6 +312,11 @@ export default function PricingPage() {
           />
           <span className="ml-1 text-gray-600">%</span>
         </div>
+        {isOver && (
+          <div className="mt-1 text-xs text-red-600">
+            {t('maxDiscount')}: {limit}%
+          </div>
+        )}
 
         <div className="h-2" />
 
@@ -323,18 +355,22 @@ export default function PricingPage() {
               <button
                 type="button"
                 onClick={() => setViewMode('table')}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium ${viewMode === 'table'
-                  ? 'bg-gray-900 text-white'
-                  : '!text-gray-800 hover:bg-gray-100'}`}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                  viewMode === 'table'
+                    ? 'bg-gray-900 text-white'
+                    : '!text-gray-800 hover:bg-gray-100'
+                }`}
               >
                 {t('table')}
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode('cards')}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium ${viewMode === 'cards'
-                  ? 'bg-gray-900 text-white'
-                  : '!text-gray-800 hover:bg-gray-100'}`}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                  viewMode === 'cards'
+                    ? 'bg-gray-900 text-white'
+                    : '!text-gray-800 hover:bg-gray-100'
+                }`}
               >
                 {t('cards')}
               </button>
@@ -392,10 +428,10 @@ export default function PricingPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map(r => {
-                const st = r.decision?.status ?? 'DRAFT';
-                const canSubmit = st === 'DRAFT' || st === 'REJECTED';
-                const canApproveReject = st === 'SUBMITTED';
+              {rows.map((r) => {
+                const st = r.decision?.status ?? 'DRAFT'
+                const canSubmit = st === 'DRAFT' || st === 'REJECTED'
+                const canApproveReject = st === 'SUBMITTED'
                 return (
                   <tr key={r.yachtId} className="border-t">
                     <td className="p-3 sticky left-0 bg-white z-10">
@@ -408,8 +444,12 @@ export default function PricingPage() {
                       <div className="text-[11px] leading-4 text-gray-500">{t('actualPrice')}</div>
                       <div className="mb-1 text-right tabular-nums">{asMoney(r.actualPrice)}</div>
 
-                      <div className="text-[11px] leading-4 text-gray-500">{t('actualDiscount')}</div>
-                      <div className="mb-1 text-right tabular-nums">{asPercent(r.actualDiscountPercent)}</div>
+                      <div className="text-[11px] leading-4 text-gray-500">
+                        {t('actualDiscount')}
+                      </div>
+                      <div className="mb-1 text-right tabular-nums">
+                        {asPercent(r.actualDiscountPercent)}
+                      </div>
 
                       <div className="text-[11px] leading-4 text-gray-500">{t('fetchedAt')}</div>
                       <div
@@ -420,8 +460,12 @@ export default function PricingPage() {
                       </div>
                     </td>
                     {/* NEW: Max discount % */}
-                    <td className="p-3 text-right tabular-nums">{asPercent(r.maxDiscountPercent)}</td>
-                    <td className="p-3 text-right tabular-nums">{asMoney(r.snapshot?.top1Price)}</td>
+                    <td className="p-3 text-right tabular-nums">
+                      {asPercent(r.maxDiscountPercent)}
+                    </td>
+                    <td className="p-3 text-right tabular-nums">
+                      {asMoney(r.snapshot?.top1Price)}
+                    </td>
                     <td className="p-3 text-right tabular-nums">{asMoney(r.snapshot?.top3Avg)}</td>
                     <td className="p-3 text-right tabular-nums">{asMoney(r.mlReco)}</td>
 
@@ -468,7 +512,7 @@ export default function PricingPage() {
                       </div>
                     </td>
                   </tr>
-                );
+                )
               })}
             </tbody>
           </table>
@@ -476,11 +520,15 @@ export default function PricingPage() {
       ) : (
         // Cards
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {rows.map(r => {
-            const st = r.decision?.status ?? 'DRAFT';
-            const canSubmit = st === 'DRAFT' || st === 'REJECTED';
-            const canApproveReject = st === 'SUBMITTED';
-            const isSaving = savingId === r.yachtId;
+          {rows.map((r) => {
+            const st = r.decision?.status ?? 'DRAFT'
+            const canSubmit = st === 'DRAFT' || st === 'REJECTED'
+            const canApproveReject = st === 'SUBMITTED'
+            const isSaving = savingId === r.yachtId
+            const limit = r.maxDiscountPercent ?? null;
+            const discVal = r.decision?.discountPct ?? '';
+            const isOver =
+              typeof discVal === 'number' && limit != null && discVal > limit;
 
             return (
               <div key={r.yachtId} className="border rounded-lg p-4 shadow bg-white">
@@ -510,11 +558,15 @@ export default function PricingPage() {
                 <div className="mt-3">
                   <div className="relative inline-flex">
                     <input
-                      className="w-24 pr-6 px-2 py-1 border rounded"
+                      className={`w-24 pr-6 px-2 py-1 border rounded ${
+                        isOver
+                          ? 'border-2 border-red-500 outline-red-500 ring-1 ring-red-300 bg-red-50'
+                          : ''
+                      }`}
                       type="number"
                       step="0.1"
                       placeholder="—"
-                      value={(r.decision?.discountPct ?? '') as number | string}
+                      value={discVal as number | string}
                       onChange={(e) =>
                         (st === 'DRAFT' || st === 'REJECTED') &&
                         onDraftDiscountChange(r.yachtId, e.target.value)
@@ -531,6 +583,11 @@ export default function PricingPage() {
                       %
                     </span>
                   </div>
+                  {isOver && (
+                    <div className="mt-1 text-xs text-red-600">
+                      {t('maxDiscount')}: {limit}%
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-3">
@@ -566,43 +623,43 @@ export default function PricingPage() {
                 </div>
 
                 {/* Footer: статус + кнопки */}
-               <div className="mt-4 flex items-center gap-2">
-                    <span className="px-2 py-1 text-xs rounded bg-gray-100">{st}</span>
-                    <div className="flex gap-2 ml-auto">
-                      <button
-                        className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
-                        onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
-                        disabled={isSaving || !canSubmit}
-                        title={t('submit')}
-                      >
-                        {t('submit')}
-                      </button>
-                      <button
-                        className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
-                        onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
-                        disabled={isSaving || !canApproveReject}
-                        title={t('approve')}
-                      >
-                        {t('approve')}
-                      </button>
-                      <button
-                        className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
-                        onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
-                        disabled={isSaving || !canApproveReject}
-                        title={t('reject')}
-                      >
-                        {t('reject')}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Last comment + time */}
-                  <div className="mt-3 border-t pt-3">
-                    <div className="text-xs text-gray-500 mb-1">{t('lastComment')}</div>
-                    <div className="text-sm break-words">{r.lastComment ?? '—'}</div>
-                    <div className="text-xs text-gray-500 mt-1">{fmtWhen(r.lastActionAt)}</div>
+                <div className="mt-4 flex items-center gap-2">
+                  <span className="px-2 py-1 text-xs rounded bg-gray-100">{st}</span>
+                  <div className="flex gap-2 ml-auto">
+                    <button
+                      className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
+                      onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
+                      disabled={isSaving || !canSubmit || isOver}
+                      title={t('submit')}
+                    >
+                      {t('submit')}
+                    </button>
+                    <button
+                      className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
+                      onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
+                      disabled={isSaving || !canApproveReject}
+                      title={t('approve')}
+                    >
+                      {t('approve')}
+                    </button>
+                    <button
+                      className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
+                      onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
+                      disabled={isSaving || !canApproveReject}
+                      title={t('reject')}
+                    >
+                      {t('reject')}
+                    </button>
                   </div>
                 </div>
+
+                {/* Last comment + time */}
+                <div className="mt-3 border-t pt-3">
+                  <div className="text-xs text-gray-500 mb-1">{t('lastComment')}</div>
+                  <div className="text-sm break-words">{r.lastComment ?? '—'}</div>
+                  <div className="text-xs text-gray-500 mt-1">{fmtWhen(r.lastActionAt)}</div>
+                </div>
+              </div>
             )
           })}
         </div>
@@ -616,20 +673,18 @@ export default function PricingPage() {
           dialog.status === 'SUBMITTED'
             ? t('submit')
             : dialog.status === 'APPROVED'
-            ? t('approve')
-            : dialog.status === 'REJECTED'
-            ? t('reject')
-            : t('confirm')
+              ? t('approve')
+              : dialog.status === 'REJECTED'
+                ? t('reject')
+                : t('confirm')
         }
         placeholder={
-          dialog.status === 'REJECTED'
-            ? t('placeholders.rejectWhy')
-            : t('placeholders.comment')
+          dialog.status === 'REJECTED' ? t('placeholders.rejectWhy') : t('placeholders.comment')
         }
         submitting={submitting}
         onCancel={closeDialog}
         onConfirm={confirmDialog}
       />
     </div>
-  );
+  )
 }
