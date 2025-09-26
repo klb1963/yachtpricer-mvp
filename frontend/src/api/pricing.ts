@@ -72,11 +72,16 @@ type RawPricingRow = {
 
   lastComment?: string | null;
   lastActionAt?: string | null;
-  // ─ новые поля с бэка (могут быть строками) ─
+  // ─ новые поля с бэка (могут приходить под разными именами) ─
   maxDiscountPercent?: number | string | null;
+  maxDiscountPct?: number | string | null;
   actualPrice?: number | string | null;
+  currentPrice?: number | string | null;
   actualDiscountPercent?: number | string | null;
-  fetchedAt?: string | null; 
+  actualDiscountPct?: number | string | null;
+  currentDiscount?: number | string | null;
+  fetchedAt?: string | null;
+  priceFetchedAt?: string | null;
 };
 
 // — helpers —
@@ -122,11 +127,16 @@ function normalizeRow(raw: RawPricingRow): PricingRow {
 
     lastComment: raw.lastComment ?? null,
     lastActionAt: raw.lastActionAt ?? null,
-    // ─ новые поля ─
-    maxDiscountPercent: toNum(raw.maxDiscountPercent),
-    actualPrice: toNum(raw.actualPrice),
-    actualDiscountPercent: toNum(raw.actualDiscountPercent),
-    fetchedAt: raw.fetchedAt ?? null,
+    // ─ новые поля с учётом алиасов ─
+    maxDiscountPercent:
+      toNum(raw.maxDiscountPercent) ?? toNum(raw.maxDiscountPct),
+    actualPrice:
+      toNum(raw.actualPrice) ?? toNum(raw.currentPrice),
+    actualDiscountPercent:
+      toNum(raw.actualDiscountPercent) ??
+      toNum(raw.actualDiscountPct) ??
+      toNum(raw.currentDiscount),
+    fetchedAt: raw.fetchedAt ?? raw.priceFetchedAt ?? null,
   };
 }
 

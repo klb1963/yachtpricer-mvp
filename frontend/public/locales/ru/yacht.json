@@ -2,6 +2,7 @@
   "actions": {
     "addYacht": "Добавить яхту",
     "editYacht": "Редактировать яхту",
+    "edit": "Редактировать",
     "back": "Назад",
     "create": "Создать",
     "creating": "Создание…",
@@ -11,13 +12,14 @@
     "delete": "Удалить",
     "deleting": "Удаление…",
     "deleteTitle": "Удалить эту яхту",
-    "deleteConfirm": "Удалить «{{name}}»? Это действие нельзя отменить."
+    "deleteConfirm": "Удалить «{{name}}»? Это действие необратимо."
   },
   "sections": {
-    "general": "Общие данные",
+    "general": "Общие",
     "specs": "Характеристики",
     "pricing": "Цены",
-    "extraServices": "Доп. услуги (JSON)"
+    "extraServices": "Доп. услуги (JSON)",
+    "charter": "Чартер"
   },
   "fields": {
     "name": "Название",
@@ -32,6 +34,7 @@
     "built": "Год постройки",
     "cabins": "Каюты",
     "heads": "Туалеты",
+    "cabinsHeads": "Каюты / Туалеты",
     "basePrice": "Базовая цена",
     "maxDiscountPct": "Макс. скидка %",
     "actualPrice": "Актуальная цена",
@@ -42,11 +45,11 @@
     "chooseType": "Выберите тип…",
     "chooseLength": "Выберите длину…",
     "chooseYear": "Выберите год…",
-    "chooseCabins": "Выберите количество кают…",
-    "chooseHeads": "Выберите количество туалетов…"
+    "chooseCabins": "Выберите число кают…",
+    "chooseHeads": "Выберите число туалетов…"
   },
   "hints": {
-    "extraServicesJsonHint": "Можно оставить строкой — сервер сам сохранит."
+    "extraServicesJsonHint": "Можно оставить строкой — сервер сам обработает."
   },
   "errors": {
     "loadFailed": "Ошибка загрузки",

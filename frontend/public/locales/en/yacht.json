@@ -2,6 +2,7 @@
   "actions": {
     "addYacht": "Add yacht",
     "editYacht": "Edit yacht",
+    "edit": "Edit",
     "back": "Back",
     "create": "Create",
     "creating": "Creating…",
@@ -17,7 +18,8 @@
     "general": "General",
     "specs": "Specs",
     "pricing": "Pricing",
-    "extraServices": "Extra services (JSON)"
+    "extraServices": "Extra services (JSON)",
+    "charter": "Charter"
   },
   "fields": {
     "name": "Name",
@@ -32,6 +34,7 @@
     "built": "Built year",
     "cabins": "Cabins",
     "heads": "Heads",
+    "cabinsHeads": "Cabins / Heads",
     "basePrice": "Base price",
     "maxDiscountPct": "Max discount %",
     "actualPrice": "Actual price",
