@@ -132,7 +132,7 @@ export class PricingService {
           mapActualFields(slot);
 
         // Decimal → number | null
-        const maxDiscountPct = toNum(y.maxDiscountPct);
+        const maxDiscountPercent = toNum(y.maxDiscountPct);
 
         return {
           yachtId: y.id,
@@ -143,10 +143,10 @@ export class PricingService {
 
           // новые поля (примитивы)
           actualPrice,
-          actualDiscountPct,
+          actualDiscountPercent: actualDiscountPct,
           priceSource,
-          priceFetchedAt,
-          maxDiscountPct,
+          fetchedAt: priceFetchedAt,
+          maxDiscountPercent,
 
           // последние комментарий и время действия (ISO-строка под DTO)
           lastComment: lastAudit?.comment ?? null,

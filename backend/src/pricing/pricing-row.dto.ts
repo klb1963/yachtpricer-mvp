@@ -41,14 +41,13 @@ export type PricingRowDto = {
   decision: DecisionDto | null;
 
   /** «Actual price» за неделю — уже как примитивы */
-  actualPrice: number | null;
-  actualDiscountPct: number | null;
+  actualDiscountPercent: number | null;
   priceSource: PriceSourceLiteral | null;
   /** ISO-строка (удобно для фронта) */
-  priceFetchedAt: string | null;
+  fetchedAt: string | null;
 
   /** Максимально допустимая скидка для яхты (проецируем Decimal → number) */
-  maxDiscountPct: number | null;
+  maxDiscountPercent: number | null;
 
   /** Последний комментарий/время действия из аудита (ISO-строка) */
   lastComment: string | null;

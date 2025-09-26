@@ -5,6 +5,14 @@ import { api } from '../api';
 // — типы, которые ждёт страница —
 export type DecisionStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
 
+// Совпадает с бэком
+export type PriceSourceLiteral =
+  | 'INTERNAL'
+  | 'NAUSYS'
+  | 'BOOKING_MANAGER'
+  | 'OTHER';
+
+
 export type RowPerms = {
   canEditDraft: boolean;
   canSubmit: boolean;
@@ -43,6 +51,7 @@ export type PricingRow = {
   actualPrice?: number | null
   actualDiscountPercent?: number | null
   fetchedAt?: string | null // ISO
+  priceSource?: PriceSourceLiteral | null
 }
 
 // — “сырой” ответ бэка (подстроен так, чтобы принять разные варианты) —
@@ -72,16 +81,12 @@ type RawPricingRow = {
 
   lastComment?: string | null;
   lastActionAt?: string | null;
-  // ─ новые поля с бэка (могут приходить под разными именами) ─
+  // ─ новые поля (стандартизированы на бэке) ─
   maxDiscountPercent?: number | string | null;
-  maxDiscountPct?: number | string | null;
   actualPrice?: number | string | null;
-  currentPrice?: number | string | null;
   actualDiscountPercent?: number | string | null;
-  actualDiscountPct?: number | string | null;
-  currentDiscount?: number | string | null;
   fetchedAt?: string | null;
-  priceFetchedAt?: string | null;
+  priceSource?: PriceSourceLiteral | null;
 };
 
 // — helpers —
@@ -128,15 +133,11 @@ function normalizeRow(raw: RawPricingRow): PricingRow {
     lastComment: raw.lastComment ?? null,
     lastActionAt: raw.lastActionAt ?? null,
     // ─ новые поля с учётом алиасов ─
-    maxDiscountPercent:
-      toNum(raw.maxDiscountPercent) ?? toNum(raw.maxDiscountPct),
-    actualPrice:
-      toNum(raw.actualPrice) ?? toNum(raw.currentPrice),
-    actualDiscountPercent:
-      toNum(raw.actualDiscountPercent) ??
-      toNum(raw.actualDiscountPct) ??
-      toNum(raw.currentDiscount),
-    fetchedAt: raw.fetchedAt ?? raw.priceFetchedAt ?? null,
+    maxDiscountPercent: toNum(raw.maxDiscountPercent),
+    actualPrice: toNum(raw.actualPrice),
+    actualDiscountPercent: toNum(raw.actualDiscountPercent),
+    fetchedAt: raw.fetchedAt ?? null,
+    priceSource: raw.priceSource ?? null,
   };
 }
 
@@ -182,7 +183,7 @@ export async function upsertDecision(params: {
   discountPct?: number | null;
   finalPrice?: number | null;
 }): Promise<PricingRow> {
-  const { data } = await api.post<RawPricingRow>('/pricing/upsert', params);
+  const { data } = await api.post<RawPricingRow>('/pricing/decision', params);
   return normalizeRow(data);
 }
 
