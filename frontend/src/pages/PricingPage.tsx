@@ -301,7 +301,7 @@ export default function PricingPage() {
             onBlur={() => { if (canEditByStatus) onChangeFinalPrice(r.yachtId); }}
             disabled={isDisabled}
           />
-          <span className="ml-1 text-gray-600">€</span>
+          {/* <span className="ml-1 text-gray-600">€</span> */}
         </div>
 
         <div className="text-xs text-gray-500 mt-1">
@@ -487,98 +487,123 @@ export default function PricingPage() {
                 <h2 className="font-semibold text-lg mb-2">{r.name}</h2>
 
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  <div className="text-gray-500">{t('base')}</div><div>{asMoney(r.basePrice)}</div>
+                  <div className="text-gray-500">{t('base')}</div>
+                  <div>{asMoney(r.basePrice)}</div>
                   {/* NEW (cards): Actuals */}
-                  <div className="text-gray-500">{t('actualPrice')}</div><div>{asMoney(r.actualPrice)}</div>
-                  <div className="text-gray-500">{t('actualDiscount')}</div><div>{asPercent(r.actualDiscountPercent)}</div>
+                  <div className="text-gray-500">{t('actualPrice')}</div>
+                  <div>{asMoney(r.actualPrice)}</div>
+                  <div className="text-gray-500">{t('actualDiscount')}</div>
+                  <div>{asPercent(r.actualDiscountPercent)}</div>
                   <div className="text-gray-500">{t('fetchedAt')}</div>
                   <div className="text-xs text-gray-500">{fmtWhen(r.fetchedAt ?? null)}</div>
                   {/* NEW (cards): Max discount */}
-                  <div className="text-gray-500">{t('maxDiscount')}</div><div>{asPercent(r.maxDiscountPercent)}</div>
-                  <div className="text-gray-500">{t('top1')}</div><div>{asMoney(r.snapshot?.top1Price)}</div>
-                  <div className="text-gray-500">{t('avgTop3')}</div><div>{asMoney(r.snapshot?.top3Avg)}</div>
-                  <div className="text-gray-500">{t('mlReco')}</div><div>{asMoney(r.mlReco)}</div>
+                  <div className="text-gray-500">{t('maxDiscount')}</div>
+                  <div>{asPercent(r.maxDiscountPercent)}</div>
+                  <div className="text-gray-500">{t('top1')}</div>
+                  <div>{asMoney(r.snapshot?.top1Price)}</div>
+                  <div className="text-gray-500">{t('avgTop3')}</div>
+                  <div>{asMoney(r.snapshot?.top3Avg)}</div>
+                  <div className="text-gray-500">{t('mlReco')}</div>
+                  <div>{asMoney(r.mlReco)}</div>
                 </div>
 
                 <div className="mt-3">
-                  <label className="block text-xs mb-1">{t('discount')}</label>
-                  <input
-                    className="w-24 px-2 py-1 border rounded"
-                    type="number"
-                    step="0.1"
-                    placeholder="—"
-                    value={(r.decision?.discountPct ?? '') as number | string}
-                    onChange={(e) => (st === 'DRAFT' || st === 'REJECTED') && onDraftDiscountChange(r.yachtId, e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-                    onBlur={() => { if (st === 'DRAFT' || st === 'REJECTED') onChangeDiscount(r.yachtId); }}
-                    disabled={isSaving || !(st === 'DRAFT' || st === 'REJECTED')}
-                  />
-                  <span className="ml-1 text-gray-600">%</span>
+                  <div className="relative inline-flex">
+                    <input
+                      className="w-24 pr-6 px-2 py-1 border rounded"
+                      type="number"
+                      step="0.1"
+                      placeholder="—"
+                      value={(r.decision?.discountPct ?? '') as number | string}
+                      onChange={(e) =>
+                        (st === 'DRAFT' || st === 'REJECTED') &&
+                        onDraftDiscountChange(r.yachtId, e.target.value)
+                      }
+                      onKeyDown={(e) =>
+                        e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()
+                      }
+                      onBlur={() => {
+                        if (st === 'DRAFT' || st === 'REJECTED') onChangeDiscount(r.yachtId)
+                      }}
+                      disabled={isSaving || !(st === 'DRAFT' || st === 'REJECTED')}
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600">
+                      %
+                    </span>
+                  </div>
                 </div>
 
                 <div className="mt-3">
                   <label className="block text-xs mb-1">{t('finalPrice')}</label>
-                  <input
-                    className="w-32 px-2 py-1 border rounded"
-                    type="number"
-                    step="1"
-                    placeholder="—"
-                    value={(r.decision?.finalPrice ?? '') as number | string}
-                    onChange={(e) => (st === 'DRAFT' || st === 'REJECTED') && onDraftFinalChange(r.yachtId, e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-                    onBlur={() => { if (st === 'DRAFT' || st === 'REJECTED') onChangeFinalPrice(r.yachtId); }}
-                    disabled={isSaving || !(st === 'DRAFT' || st === 'REJECTED')}
-                  />
-                  <span className="ml-1 text-gray-600">€</span>
+
+                  <div className="relative inline-flex">
+                    <input
+                      className="w-32 pr-6 px-2 py-1 border rounded"
+                      type="number"
+                      step="1"
+                      placeholder="—"
+                      value={(r.decision?.finalPrice ?? '') as number | string}
+                      onChange={(e) =>
+                        (st === 'DRAFT' || st === 'REJECTED') &&
+                        onDraftFinalChange(r.yachtId, e.target.value)
+                      }
+                      onKeyDown={(e) =>
+                        e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()
+                      }
+                      onBlur={() => {
+                        if (st === 'DRAFT' || st === 'REJECTED') onChangeFinalPrice(r.yachtId)
+                      }}
+                      disabled={isSaving || !(st === 'DRAFT' || st === 'REJECTED')}
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600">
+                      €
+                    </span>
+                  </div>
+
                   <div className="text-xs text-gray-500 mt-1">
                     {t('calculated')}: {asMoney(r.finalPrice)}
                   </div>
                 </div>
 
-                <div className="mt-3 flex items-center justify-between">
-                  <span className="px-2 py-1 text-xs rounded bg-gray-100">
-                    {st}
-                  </span>
-                  {/* справа кнопки, а комментарий покажем ниже */}
-                  <div className="flex gap-2">
-                    <button
-                      className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
-                      onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
-                      disabled={isSaving || !canSubmit}
-                      title={t('submit')}
-                    >
-                      {t('submit')}
-                    </button>
-                    <button
-                      className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
-                      onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
-                      disabled={isSaving || !canApproveReject}
-                      title={t('approve')}
-                    >
-                      {t('approve')}
-                    </button>
-                    <button
-                      className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
-                      onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
-                      disabled={isSaving || !canApproveReject}
-                      title={t('reject')}
-                    >
-                      {t('reject')}
-                    </button>
+                {/* Footer: статус + кнопки */}
+               <div className="mt-4 flex items-center gap-2">
+                    <span className="px-2 py-1 text-xs rounded bg-gray-100">{st}</span>
+                    <div className="flex gap-2 ml-auto">
+                      <button
+                        className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
+                        onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
+                        disabled={isSaving || !canSubmit}
+                        title={t('submit')}
+                      >
+                        {t('submit')}
+                      </button>
+                      <button
+                        className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
+                        onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
+                        disabled={isSaving || !canApproveReject}
+                        title={t('approve')}
+                      >
+                        {t('approve')}
+                      </button>
+                      <button
+                        className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
+                        onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
+                        disabled={isSaving || !canApproveReject}
+                        title={t('reject')}
+                      >
+                        {t('reject')}
+                      </button>
+                    </div>
                   </div>
+
                   {/* Last comment + time */}
                   <div className="mt-3 border-t pt-3">
                     <div className="text-xs text-gray-500 mb-1">{t('lastComment')}</div>
-                    <div className="text-sm">
-                      {r.lastComment ?? '—'}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {fmtWhen(r.lastActionAt)}
-                    </div>
+                    <div className="text-sm break-words">{r.lastComment ?? '—'}</div>
+                    <div className="text-xs text-gray-500 mt-1">{fmtWhen(r.lastActionAt)}</div>
                   </div>
                 </div>
-              </div>
-            );
+            )
           })}
         </div>
       )}
