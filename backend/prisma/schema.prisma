@@ -515,6 +515,11 @@ model CompetitorFilters {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+    // NEW: m2m как с Locations
+  categories YachtCategory[] @relation("FiltersCategories")
+  builders   YachtBuilder[]  @relation("FiltersBuilders")
+  models     YachtModel[]    @relation("FiltersModels")
+
   @@unique([orgId, scope, userId])
   @@index([scope])
   @@index([orgId])
@@ -536,6 +541,8 @@ model YachtCategory {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
+  competitorFilters CompetitorFilters[] @relation("FiltersCategories")
+
   @@map("yacht_categories")
 }
 
@@ -550,8 +557,11 @@ model YachtBuilder {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  // Заранее оставим связь на будущие модели (когда добавим их загрузку)
+    // Cвязь на модели яхт
   models     YachtModel[]
+
+  competitorFilters CompetitorFilters[] @relation("FiltersBuilders")
+
   @@index([name])
   @@map("yacht_builders")
 }
@@ -577,6 +587,8 @@ model YachtModel {
   fuelTank      Int?
   displacement  Int?
   virtualLength Int?
+
+  competitorFilters CompetitorFilters[] @relation("FiltersModels")
 
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
