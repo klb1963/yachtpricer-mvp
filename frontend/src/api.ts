@@ -379,10 +379,54 @@ export async function getLocations(params: {
   return r.json();
 }
 
+// ---- Catalog lookups ----
+export type CatalogCategory = { id: number; nameEn?: string | null; nameRu?: string | null };
+export type CatalogBuilder  = { id: number; name: string };
+export type CatalogModel    = { id: number; name: string; builderId?: number | null; categoryId?: number | null };
+
+export async function findCategories(query = "", take = 20) {
+  const r = await fetch(`/api/catalog/categories?query=${encodeURIComponent(query)}&take=${take}`);
+  if (!r.ok) throw new Error("categories HTTP " + r.status);
+  return (await r.json()) as { items: CatalogCategory[] };
+}
+
+export async function findBuilders(query = "", take = 20) {
+  const r = await fetch(`/api/catalog/builders?query=${encodeURIComponent(query)}&take=${take}`);
+  if (!r.ok) throw new Error("builders HTTP " + r.status);
+  return (await r.json()) as { items: CatalogBuilder[] };
+}
+
+export async function findModels(query = "", opts?: { builderId?: number; categoryId?: number; take?: number }) {
+  const params = new URLSearchParams();
+  if (query) params.set("query", query);
+  if (opts?.builderId)  params.set("builderId", String(opts.builderId));
+  if (opts?.categoryId) params.set("categoryId", String(opts.categoryId));
+  params.set("take", String(opts?.take ?? 20));
+  const r = await fetch(`/api/catalog/models?${params.toString()}`);
+  if (!r.ok) throw new Error("models HTTP " + r.status);
+  return (await r.json()) as { items: CatalogModel[] };
+}
+
+// ---- Test scan (dry-run) ----
+export async function testFiltersCount<T extends object>(payload: T): Promise<{ count: number }> {
+  const r = await fetch("/api/scan/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new Error("test-scan HTTP " + r.status);
+  return (await r.json()) as { count: number };
+}
+
+
+
 export async function saveCompetitorFilters(dto: {
   scope: "USER" | "ORG";
   locationIds?: string[];
   countryCodes?: string[];
+  categoryIds?: string[]; // NEW
+  builderIds?: string[];  // NEW
+  modelIds?: string[];    // NEW
   lenFtMinus: number;
   lenFtPlus: number;
   yearMinus: number;
@@ -412,6 +456,10 @@ export type ServerCompetitorFilters = {
   cabinsPlus: number;
   headsMin: number;
   locations: Array<{ id: string; name: string; countryCode: string | null }>;
+  // NEW:
+  categories?: Array<{ id: number; nameEn?: string | null; nameRu?: string | null }>;
+  builders?:   Array<{ id: number; name: string }>;
+  models?:     Array<{ id: number; name: string; builderId?: number | null; categoryId?: number | null }>;
 };
 
 

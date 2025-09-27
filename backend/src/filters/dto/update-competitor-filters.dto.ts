@@ -1,4 +1,5 @@
 // backend/src/filters/dto/update-competitor-filters.dto.ts
+
 import { Type } from 'class-transformer';
 import {
   IsInt,
@@ -34,6 +35,30 @@ export class UpdateCompetitorFiltersDto {
   @ArrayMaxSize(200)
   @IsOptional()
   countryCodes?: string[];
+
+  /** Массив категорий (id из таблицы yacht_categories) */
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayUnique()
+  @ArrayMaxSize(200)
+  @IsOptional()
+  categoryIds?: string[];
+
+  /** Массив производителей (id из таблицы yacht_builders) */
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayUnique()
+  @ArrayMaxSize(200)
+  @IsOptional()
+  builderIds?: string[];
+
+  /** Массив моделей (id из таблицы yacht_models) */
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayUnique()
+  @ArrayMaxSize(2000)
+  @IsOptional()
+  modelIds?: string[];
 
   // Диапазоны (минусы/плюсы) — опциональны, дефолты применяются в сервисе
   @Type(() => Number)

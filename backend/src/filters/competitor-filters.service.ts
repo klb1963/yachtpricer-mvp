@@ -13,6 +13,14 @@ export class CompetitorFiltersService {
     return typeof v === 'number' && Number.isFinite(v) ? v : def;
   }
 
+  // из DTO (string[]) → Int[] для connect
+  private toIntIds(ids?: string[]): number[] {
+    if (!Array.isArray(ids)) return [];
+    return ids
+      .map((s) => Number(s))
+      .filter((n) => Number.isFinite(n) && Number.isInteger(n));
+  }
+
   async getForCurrent(
     orgId: string,
     userId?: string,
@@ -22,7 +30,12 @@ export class CompetitorFiltersService {
     if (scope === FilterScope.USER && userId) {
       const u = await this.prisma.competitorFilters.findFirst({
         where: { orgId, scope: FilterScope.USER, userId },
-        include: { locations: true },
+        include: {
+          locations: true,
+          categories: true,
+          builders: true,
+          models: true,
+        },
       });
       if (u) return u;
     }
@@ -30,7 +43,12 @@ export class CompetitorFiltersService {
     // иначе — организационный (userId = null). ВАЖНО: findFirst, не findUnique.
     return this.prisma.competitorFilters.findFirst({
       where: { orgId, scope: FilterScope.ORG, userId: null },
-      include: { locations: true },
+      include: {
+        locations: true,
+        categories: true,
+        builders: true,
+        models: true,
+      },
     });
   }
 
@@ -54,7 +72,7 @@ export class CompetitorFiltersService {
       peoplePlus: 1,
       cabinsMinus: 1,
       cabinsPlus: 1,
-      headsMin: 1, // по умолчанию 1 (как просили)
+      headsMin: 1, // по умолчанию 1
     };
 
     const n = this.num.bind(this);
@@ -72,7 +90,7 @@ export class CompetitorFiltersService {
       updatedBy: userId ?? null,
     };
 
-    // ищем существующую запись (PERSONAL или ORG) — findFirst вместо уникального ключа
+    // ищем существующую запись (PERSONAL или ORG) — findFirst
     const existing = await this.prisma.competitorFilters.findFirst({
       where:
         scope === FilterScope.USER
@@ -95,17 +113,60 @@ export class CompetitorFiltersService {
           },
         });
 
-    // синхронизируем связи локаций (если фронт прислал)
-    const locIds = dto.locationIds ?? null;
+    // ===== СИНХРОНИЗАЦИЯ M2M-СВЯЗЕЙ (только если поля присланы) =====
 
-    if (Array.isArray(locIds)) {
-      // прислали массив (в т.ч. пустой) → явно синхронизируем
+    // Locations (string id)
+    if (Array.isArray(dto.locationIds)) {
+      const locIds = dto.locationIds;
       await this.prisma.competitorFilters.update({
         where: { id: saved.id },
         data: {
           locations: {
-            set: [], // сначала очищаем
-            ...(locIds.length ? { connect: locIds.map((id) => ({ id })) } : {}), // если массив пустой — просто очистим
+            set: [], // очистка
+            ...(locIds.length ? { connect: locIds.map((id) => ({ id })) } : {}),
+          },
+        },
+      });
+    }
+
+    // Categories (int id)
+    if (Array.isArray(dto.categoryIds)) {
+      const ids = this.toIntIds(dto.categoryIds);
+      await this.prisma.competitorFilters.update({
+        where: { id: saved.id },
+        data: {
+          categories: {
+            set: [],
+            ...(ids.length ? { connect: ids.map((id) => ({ id })) } : {}),
+          },
+        },
+      });
+    }
+
+    // Builders (int id)
+    if (Array.isArray(dto.builderIds)) {
+      const ids = this.toIntIds(dto.builderIds);
+      await this.prisma.competitorFilters.update({
+        where: { id: saved.id },
+        data: {
+          builders: {
+            set: [],
+            ...(ids.length ? { connect: ids.map((id) => ({ id })) } : {}),
+          },
+        },
+      });
+    }
+
+    // Models (int id) — потенциально длинные списки
+    if (Array.isArray(dto.modelIds)) {
+      const ids = this.toIntIds(dto.modelIds);
+      // Если ожидаются длинные списки, здесь можно батчить connect по 200–500.
+      await this.prisma.competitorFilters.update({
+        where: { id: saved.id },
+        data: {
+          models: {
+            set: [],
+            ...(ids.length ? { connect: ids.map((id) => ({ id })) } : {}),
           },
         },
       });
@@ -113,7 +174,12 @@ export class CompetitorFiltersService {
 
     return this.prisma.competitorFilters.findUnique({
       where: { id: saved.id },
-      include: { locations: true },
+      include: {
+        locations: true,
+        categories: true,
+        builders: true,
+        models: true,
+      },
     });
   }
 }
