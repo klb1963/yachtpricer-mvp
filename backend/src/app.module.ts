@@ -26,6 +26,7 @@ import { RolesGuard } from './auth/roles.guard';
 import { ClerkAuthMiddleware } from './auth/clerk-auth.middleware';
 import { GeoModule } from './geo/geo.module';
 import { CompetitorFiltersModule } from './filters/competitor-filters.module';
+import { CatalogModule } from './catalog/catalog.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { CompetitorFiltersModule } from './filters/competitor-filters.module';
     UsersModule,
     GeoModule,
     CompetitorFiltersModule,
+    CatalogModule,
   ],
   controllers: [AppController, YachtsController],
   providers: [

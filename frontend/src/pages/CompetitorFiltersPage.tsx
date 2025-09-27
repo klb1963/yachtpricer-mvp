@@ -1,6 +1,7 @@
 // frontend/src/pages/CompetitorFiltersPage.tsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Select from "react-select";
+import AsyncSelect from "react-select/async";
 import RangePair from "../components/RangePair";
 import NumberField from "../components/NumberField";
 import ModalFooter from "../components/ModalFooter";
@@ -9,13 +10,12 @@ import {
   getLocations,
   saveCompetitorFilters,
   getCompetitorFilters,
-  type Country,
-  type LocationItem,
-  // NEW:
   findCategories,
   findBuilders,
   findModels,
   testFiltersCount,
+  type Country,
+  type LocationItem,
   type CatalogCategory,
   type CatalogBuilder,
   type CatalogModel,
@@ -26,9 +26,9 @@ const t = {
   title: "Competitor filters",
   countries: "Countries",
   locations: "Locations",
-  categories: "Categories",     // NEW
-  builders: "Builders",         // NEW
-  models: "Models",             // NEW
+  categories: "Categories",
+  builders: "Builders",
+  models: "Models",
   headsMin: "Heads (min)",
   length: "Length ± (ft)",
   year: "Year ±",
@@ -38,9 +38,9 @@ const t = {
   loading: "Loading…",
   chooseCountries: "— choose countries —",
   chooseLocations: "— choose locations —",
-  chooseCategories: "— choose categories —", // NEW
-  chooseBuilders: "— choose builders —",     // NEW
-  chooseModels: "— choose models —",         // NEW
+  chooseCategories: "— choose categories —",
+  chooseBuilders: "— choose builders —",
+  chooseModels: "— choose models —",
   testFilters: "Test filters",
 };
 
@@ -50,9 +50,11 @@ type SaveDto = {
   scope: Scope;
   locationIds?: string[];
   countryCodes?: string[];
-  categoryIds?: string[]; // NEW
-  builderIds?: string[];  // NEW
-  modelIds?: string[];    // NEW
+
+  categoryIds?: string[];
+  builderIds?: string[];
+  modelIds?: string[];
+
   lenFtMinus: number;
   lenFtPlus: number;
   yearMinus: number;
@@ -65,22 +67,25 @@ type SaveDto = {
 };
 
 type CountryOpt = { value: string; label: string };
-type LocationOpt = { value: string; label: string; countryCode?: string };
-
+type LocationOpt = { value: string; label: string; countryCode?: string | null };
+type IdLabel = { value: number; label: string };
 type Option = { value: string; label: string };
+
 const toLocOption = (l: { id: string; name: string; countryCode?: string | null }): Option => ({
   value: l.id,
   label: l.countryCode ? `${l.name} (${l.countryCode})` : l.name,
 });
 
-interface Props {
+export default function CompetitorFiltersPage({
+  scope = "USER",
+  onSubmit,
+  onClose,
+}: {
   scope?: Scope;
   onSubmit?: (dto: SaveDto) => void;
   onClose?: () => void;
-}
-
-export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClose }: Props) {
-  // --- form state ---
+}) {
+  // --- ranges / numeric ---
   const [lenFtMinus, setLenFtMinus] = useState(3);
   const [lenFtPlus, setLenFtPlus] = useState(3);
   const [yearMinus, setYearMinus] = useState(2);
@@ -97,29 +102,14 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
   const [locations, setLocations] = useState<LocationOpt[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<LocationOpt[]>([]);
   const [locLoading, setLocLoading] = useState(false);
+  const loadToken = useRef(0);
 
-  type IdLabel = { value: number; label: string };
-
-  // NEW: каталог — выбранные значения
+  // NEW: categories / builders / models (selected)
   const [catsSel, setCatsSel] = useState<IdLabel[]>([]);
   const [buildersSel, setBuildersSel] = useState<IdLabel[]>([]);
   const [modelsSel, setModelsSel] = useState<IdLabel[]>([]);
 
-  // NEW: каталог — опции списков
-  const [catOpts, setCatOpts] = useState<IdLabel[]>([]);
-  const [builderOpts, setBuilderOpts] = useState<IdLabel[]>([]);
-  const [modelOpts, setModelOpts] = useState<IdLabel[]>([]);
-
-  // NEW: простой дебаунс для onInputChange
-  const debounceRef = useRef<number | null>(null);
-  const debounce = (fn: () => void, delay = 300) => {
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(fn, delay);
-  };
- 
-  const loadToken = useRef(0);
-
-  // load countries once
+  // load countries (once)
   useEffect(() => {
     let active = true;
     getCountries()
@@ -177,6 +167,41 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
       });
   }, [selectedCountries]);
 
+  // ===== Async loaders for catalog dropdowns =====
+  const loadCategories = useCallback(
+    async (inputValue: string): Promise<IdLabel[]> => {
+      const { items } = await findCategories(inputValue ?? "", 20);
+      return items.map((c: CatalogCategory) => ({
+        value: c.id,
+        label: c.nameEn || c.nameRu || `#${c.id}`,
+      }));
+    },
+    [],
+  );
+
+  const loadBuilders = useCallback(
+    async (inputValue: string): Promise<IdLabel[]> => {
+      const { items } = await findBuilders(inputValue ?? "", 20);
+      return items.map((b: CatalogBuilder) => ({ value: b.id, label: b.name }));
+    },
+    [],
+  );
+
+  const loadModels = useCallback(
+    async (inputValue: string): Promise<IdLabel[]> => {
+      // optionally filter by selected cat/builder (возьмем первый выбранный для узкого поиска)
+      const builderId = buildersSel[0]?.value;
+      const categoryId = catsSel[0]?.value;
+      const { items } = await findModels(inputValue ?? "", {
+        builderId,
+        categoryId,
+        take: 20,
+      });
+      return items.map((m: CatalogModel) => ({ value: m.id, label: m.name }));
+    },
+    [buildersSel, catsSel],
+  );
+
   // build DTO
   const dto: SaveDto = useMemo(
     () => ({
@@ -184,10 +209,9 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
       countryCodes: selectedCountries.map((c) => c.value),
       locationIds: selectedLocations.map((l) => l.value),
 
-      // NEW ↓ конвертируем number → string
-      categoryIds: catsSel.map((x: IdLabel) => String(x.value)),
-      builderIds:  buildersSel.map((x: IdLabel) => String(x.value)),
-      modelIds:    modelsSel.map((x: IdLabel) => String(x.value)),
+      categoryIds: catsSel.map((x) => String(x.value)),
+      builderIds: buildersSel.map((x) => String(x.value)),
+      modelIds: modelsSel.map((x) => String(x.value)),
 
       lenFtMinus,
       lenFtPlus,
@@ -230,17 +254,18 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
     }
   }
 
-  async function handleTestFilters() {
-  try {
-    const { count } = await testFiltersCount(dto);
-    alert(`Found ${count} competitors for these filters.`);
-  } catch (e) {
-    console.error("Test filters failed:", e);
-    alert("Failed to test filters.");
-  }
-}
+  // Test filters (dry-run)
+  const handleTestFilters = useCallback(async () => {
+    try {
+      const { count } = await testFiltersCount<SaveDto>(dto);
+      alert(`Test scan: ${count} results`);
+    } catch (e) {
+      console.error("[Test filters] failed:", e);
+      alert("Test failed.");
+    }
+  }, [dto]);
 
-  // ===== Загрузка пресета при МОНТИРОВАНИИ компонента =====
+  // ===== Load preset on mount =====
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -258,14 +283,30 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
         setCabinsPlus(preset.cabinsPlus ?? 1);
         setHeadsMin(preset.headsMin ?? 1);
 
+        // locations / countries from preset
         const locOpts: Option[] = (preset.locations ?? []).map(toLocOption);
         setSelectedLocations(locOpts);
-
         const codes = Array.from(
           new Set((preset.locations ?? []).map((l) => l.countryCode).filter(Boolean)),
         ) as string[];
         const countryOpts: Option[] = codes.map((c) => ({ value: c, label: c }));
         setSelectedCountries(countryOpts as CountryOpt[]);
+
+        // NEW: hydrate cats/builders/models if present
+        if (Array.isArray(preset.categories)) {
+          setCatsSel(
+            preset.categories.map((c) => ({
+              value: c.id,
+              label: c.nameEn || c.nameRu || `#${c.id}`,
+            })),
+          );
+        }
+        if (Array.isArray(preset.builders)) {
+          setBuildersSel(preset.builders.map((b) => ({ value: b.id, label: b.name })));
+        }
+        if (Array.isArray(preset.models)) {
+          setModelsSel(preset.models.map((m) => ({ value: m.id, label: m.name })));
+        }
       } catch (e) {
         console.warn("[CompetitorFilters] failed to load preset:", e);
       }
@@ -275,32 +316,20 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
     };
   }, [scope]);
 
-  // === Закрытие по Esc (capture, чтобы перебить stopPropagation в виджетах) ===
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose?.();
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [onClose]);
-
   return (
     <form
       role="dialog"
       aria-modal="true"
       className="grid gap-5 p-5 bg-white rounded-xl shadow max-w-xl"
       onKeyDown={(e) => {
-        if (e.key === 'Escape') {
-          e.stopPropagation()
-          onClose?.()
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          onClose?.();
         }
       }}
       onSubmit={(e) => {
-        e.preventDefault()
-        handleApplySave()
+        e.preventDefault();
+        handleApplySave();
       }}
     >
       <h2 className="text-xl font-bold">{t.title}</h2>
@@ -332,93 +361,52 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
         />
       </label>
 
-      {/* NEW: Categories (multi) */}
+      {/* Categories (multi, async) */}
       <label className="flex flex-col gap-1">
         <span>{t.categories}</span>
-        <Select<IdLabel, true>
+        <AsyncSelect<IdLabel, true>
+          cacheOptions
+          defaultOptions
           isMulti
-          options={catOpts}
+          loadOptions={loadCategories}
           value={catsSel}
-          onInputChange={(q) => {
-            debounce(async () => {
-              try {
-                const res = await findCategories(q)
-                setCatOpts(
-                  res.items.map((c: CatalogCategory) => ({
-                    value: c.id,
-                    label: c.nameEn ?? c.nameRu ?? String(c.id),
-                  }))
-                )
-              } catch {}
-            })
-            return q
-          }}
           onChange={(vals) => setCatsSel(vals as IdLabel[])}
           placeholder={t.chooseCategories}
           classNamePrefix="rs"
         />
       </label>
 
-      {/* NEW: Builders (multi) */}
+      {/* Builders (multi, async) */}
       <label className="flex flex-col gap-1">
         <span>{t.builders}</span>
-        <Select<IdLabel, true>
+        <AsyncSelect<IdLabel, true>
+          cacheOptions
+          defaultOptions
           isMulti
-          options={builderOpts}
+          loadOptions={loadBuilders}
           value={buildersSel}
-          onInputChange={(q) => {
-            debounce(async () => {
-              try {
-                const res = await findBuilders(q)
-                setBuilderOpts(
-                  res.items.map((b: CatalogBuilder) => ({
-                    value: b.id,
-                    label: b.name,
-                  }))
-                )
-              } catch {}
-            })
-            return q
-          }}
           onChange={(vals) => setBuildersSel(vals as IdLabel[])}
           placeholder={t.chooseBuilders}
           classNamePrefix="rs"
         />
       </label>
 
-      {/* NEW: Models (multi) */}
+      {/* Models (multi, async; depends on selected cat/builder) */}
       <label className="flex flex-col gap-1">
         <span>{t.models}</span>
-        <Select<IdLabel, true>
+        <AsyncSelect<IdLabel, true>
+          cacheOptions
+          defaultOptions
           isMulti
-          options={modelOpts}
+          loadOptions={loadModels}
           value={modelsSel}
-          onInputChange={(q) => {
-            debounce(async () => {
-              try {
-                const primaryBuilderId = buildersSel[0]?.value
-                const primaryCategoryId = catsSel[0]?.value
-                const res = await findModels(q, {
-                  builderId: primaryBuilderId,
-                  categoryId: primaryCategoryId,
-                })
-                setModelOpts(
-                  res.items.map((m: CatalogModel) => ({
-                    value: m.id,
-                    label: m.name,
-                  }))
-                )
-              } catch {}
-            })
-            return q
-          }}
           onChange={(vals) => setModelsSel(vals as IdLabel[])}
           placeholder={t.chooseModels}
           classNamePrefix="rs"
         />
       </label>
 
-      {/* Ranges — ВЕРТИКАЛЬНЫЙ СТЕК */}
+      {/* Ranges — вертикальный стек */}
       <div className="grid gap-3">
         <RangePair
           label={t.length}
@@ -459,32 +447,21 @@ export default function CompetitorFiltersPage({ scope = "USER", onSubmit, onClos
         <NumberField label={t.headsMin} value={headsMin} onChange={setHeadsMin} min={0} max={5} />
       </div>
 
-      {/* Footer row: Test filters + Cancel/Apply */}
-      <div className="mt-4 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={handleTestFilters}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-        >
-          {t.testFilters}
-        </button>
-
-        <div className="flex gap-2">
+      {/* Bottom row: Test filters (left) + Cancel/Apply (right) */}
+      <ModalFooter
+        onCancel={onClose!}
+        submitLabel={t.applySave}
+        submitting={false}
+        leftContent={
           <button
             type="button"
-            onClick={onClose}
-            className="inline-flex h-10 items-center justify-center rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            onClick={handleTestFilters}
+            className="h-10 px-4 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
           >
-            Cancel
+            {t.testFilters}
           </button>
-          <button
-            type="submit"
-            className="inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            {t.applySave}
-          </button>
-        </div>
-</div>
+        }
+      />
     </form>
-  )
+  );
 }
