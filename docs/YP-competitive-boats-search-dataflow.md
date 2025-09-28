@@ -9,24 +9,32 @@
 1) География → стартовые точки
 
 A. Countries
-	•	POST /catalogue/v6/countries
+	•	URL:https://ws.nausys.com/CBMS-external/rest/catalogue/v6/countries
 	•	→ { id, code2, code, name }[]
 	•	Кэшируем целиком.
 
 B. Locations
-	•	POST /catalogue/v6/locations
+	•	URL:https://ws.nausys.com/CBMS-external/rest/catalogue/v6/locations
 	•	→ { id, name, regionId, lat, lon }[]
 	•	Сопоставляем через regions → countryId → code2.
 	•	Кэш + индексы по countryCode.
 
 C. Charter Bases (опционально)
-	•	POST /catalogue/v6/charterBases
+	•	URL:https://ws.nausys.com/CBMS-external/rest/catalogue/v6/charterBases
 	•	→ { id, locationId, lat, lon }[]
 	•	Можно использовать как «активные» локации.
 
+D. Regions - Provides all available regions
+URL:https://ws.nausys.com/CBMS-external/rest/catalogue/v6/regions
+
+E. Charter company (ies) - Provides all available charter companies
+URL:https://ws.nausys.com/CBMS-external/rest/catalogue/v6/charterCompanies
+
 ⸻
 
-2) Локация → Флот/компании
+Требуется уточнить/проверить способы фильтрации/отбора:
+
+Локация → Флот/компании
 
 Companies for location
 	•	Варианты:
@@ -38,7 +46,7 @@ Companies for location
 
 ⸻
 
-3) Компании/Локации → Яхты
+Компании/Локации → Яхты
 
 A. Яхты компании
 	•	POST /catalogue/v6/yachts/{companyId}
@@ -50,36 +58,114 @@ B. Яхты по локации (если эндпойнт есть)
 
 ⸻
 
-4) Модели → Габариты/тип
+2) Параметры яхты: 
 
-Yacht Models
-	•	POST /catalogue/v6/yachtModels
-	•	Request: по списку yachtModelIds.
-	•	→ { id, name, loa, beam, yachtType?, … }[]
-	•	Кэшируем (редко меняются).
-	•	Используем loa (длина) + type (heurstics для monohull/catamaran и т.д.).
+A. Category (types)
+https://ws.nausys.com/CBMS-external/rest/catalogue/v6/yachtCategories 
 
-Фильтрация «подопытного кролика»
-	•	По длине: | model.loa - targetLoa | ≤ lenTolerance.
-	•	По типу: совпадает с типом исходной яхты (monohull и пр.).
-	•	Доп. фильтры: year ±, cabins ±, people ±, heads ≥.
+B. Builder(s) 
+https://ws.nausys.com/CBMS-external/rest/catalogue/v6/yachtBuilders 
 
-⸻
+C. Model(s)
+https://ws.nausys.com/CBMS-external/rest/catalogue/v6/yachtModels 
 
-5) Доступность/цены на неделю
-
-Availability/Prices
-	•	Эндпойнты по датам (weekStart/weekEnd), локации/компании/яхте:
-	•	Часто: availability/offers/prices (конкретный метод см. в API v6).
-	•	В ответе:
-	•	Базовая цена за период (WEEKLY), валюта.
-	•	Скидки: regularDiscounts, specialOffers.
-	•	Условия оплаты/депозиты.
-	•	Нормализуем финальную цену по правилам (если нужно — брутто/нетто).
+D. Диапазон отклонений от "яхты-образца", на которой вызывается Scan (scraper)
+	Поля настройки (из формы)
+	•	length - lenFtMinus/Plus (0..5)
+	•	year - yearMinus/Plus (0..5)
+	•	people - peopleMinus/Plus (0..5)
+	•	cabin(s) - cabinsMinus/Plus (0..3)
+	•	head(s)- headsMin (0..5)
 
 ⸻
 
-6) Агрегация и метрики
+3) Доступность яхт/цены на ВЫБРАННУЮ неделю
+Free yachts search
+URL: https://ws.nausys.com/CBMS-external/rest/yachtReservation/v6/freeYachtsSearch 
+	POST param:
+	{
+	"credentials": {
+	"username":"xxx@xxxx",
+	"password":"xxxxxxxxxx"
+	},
+	"periodFrom":"04.06.2016",
+	"periodTo":"11.06.2016",
+	"countries":[1],
+	"resultsPerPage":5,
+	"resultsPage":2
+	}
+
+Free yacht
+URL: https://ws.nausys.com/CBMS-external/rest/yachtReservation/v6/freeYachts
+	POST param:
+	{
+	"credentials":{"username":"xxx@xxxxx","password":"xxxxxxxxxx"},
+	"periodFrom":"23.05.2015",
+	"periodTo":"30.05.2015",
+	"yachts":[302,557323,101723]
+	}
+
+Free yacht search criteria
+Provides all search criteria
+URL: https://ws.nausys.com/CBMS-external/rest/yachtReservation/v6/freeYachtsSearchCriteria 
+	POST param:
+	{
+	"username":"XXXXXX@XXX",
+	"password":"XXXXXXXXXXX"
+	}
+
+	Response:
+	{"status": "OK",
+	"countries": [
+	1,
+	100143,
+	100174,
+	100119
+	],
+	"regions": [
+	555430,
+	555308,
+	555373
+	],
+	"locations": [
+	972887,
+	482314,
+	482315,
+	1
+	],
+	"yachtBuilders": [
+	832736,
+	1,
+	100330,
+	515208,
+	112740
+	],
+	"yachtCategories": [
+	102,
+	51,
+	120895,
+	1
+	],
+	"equipment": [
+	1,
+	2,
+	3,
+	933728,
+	4
+	],
+	"sailTypes": [
+	1,
+	3,
+	4,
+	112782
+	]
+	}
+
+
+
+⸻
+
+4) Агрегация и метрики
 	•	Для списка конкуренток рассчитываем:
 	•	Top1 price, Top3 avg, min/median/max.
 	•	Sample size.
@@ -88,33 +174,19 @@ Availability/Prices
 
 ⸻
 
-7) Кэширование и лимиты
-	•	Кэш на:
-	•	Countries, Locations, Models (долгий TTL).
-	•	Companies-by-location (средний TTL).
-	•	Availability (короткий TTL / без кэша, т.к. динамика высокая).
-	•	Бектов/ретраи: экспоненциальная пауза, троттлинг.
+5) Кэширование и лимиты - требуется уточнить
+
+	?????
 
 ⸻
 
-8) Поля настройки (из формы)
-	•	lenFtMinus/Plus (0..5)
-	•	yearMinus/Plus (0..5)
-	•	peopleMinus/Plus (0..5)
-	•	cabinsMinus/Plus (0..3)
-	•	headsMin (0..5)
-	•	countryCode?, locationId?
-	•	Тип яхты берём от исходной яхты (фиксируем).
-
-⸻
-
-9) Трассировка & аудит
+6) Трассировка & аудит
 	•	Логируем шаги: какие эндпойнты дернули, сколько вернулось, какие фильтры применили.
 	•	Сохраняем параметры запуска (для воспроизводимости).
 
 ⸻
 
-10) Типичная последовательность вызовов
+7) Типичная последовательность вызовов - НУЖНО ПЕРЕПИСАТЬ ЗАНОВО
 	1.	(кэш) countries, locations → выбор гео.
 	2.	yachts by location или yachts by company.
 	3.	Собираем yachtModelIds → yachtModels.
@@ -129,5 +201,7 @@ docker compose exec \
   -e NAUSYS_USERNAME='rest388@TTTTT' \
   -e NAUSYS_PASSWORD='e2THubBC' \
   backend npx ts-node prisma/seed/scanCompetitors.step1.ts
+
+
 
   
