@@ -2,7 +2,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import type { AxiosError } from 'axios';
+import axios from 'axios';
 
 import { NausysLoginDto, NausysLoginResponse } from './nausys.dto';
 
@@ -69,10 +69,14 @@ export class NausysService {
       this.tokenExp = exp ? new Date(exp) : undefined;
       this.logger.log('✅ NauSYS login success');
       return res.data;
-    } catch (err) {
-      const e = err as AxiosError;
-      this.logger.error(`Login failed: ${e.message}`);
-      throw e;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        this.logger.error(`Login failed: ${err.message}`);
+        throw err;
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Login failed: ${msg}`);
+      throw err instanceof Error ? err : new Error(msg);
     }
   }
 }
