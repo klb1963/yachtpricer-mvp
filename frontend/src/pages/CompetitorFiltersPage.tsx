@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Select from "react-select";
 import AsyncSelect from "react-select/async";
-import type { MultiValue } from "react-select";
 import RangePair from "../components/RangePair";
 import NumberField from "../components/NumberField";
 import ModalFooter from "../components/ModalFooter";
@@ -28,10 +27,10 @@ const t = {
   title: "Competitor filters",
   countries: "Countries",
   locations: "Locations",
+  regions: "Regions",
   categories: "Categories",
   builders: "Builders",
   models: "Models",
-  regions: "Regions",
   headsMin: "Heads (min)",
   length: "Length ± (ft)",
   year: "Year ±",
@@ -40,6 +39,7 @@ const t = {
   applySave: "Apply & Save",
   loading: "Loading…",
   chooseCountries: "— choose countries —",
+  chooseRegions: "— choose regions —",
   chooseLocations: "— choose locations —",
   chooseCategories: "— choose categories —",
   chooseBuilders: "— choose builders —",
@@ -202,7 +202,7 @@ export default function CompetitorFiltersPage({
 
   // NEW: async loader for regions
   const loadRegions = useCallback(async (inputValue: string): Promise<IdLabel[]> => {
-    const { items } = await findRegions(inputValue ?? '', undefined, 20)
+    const { items } = await findRegions(inputValue ?? "", { take: 20 });
     return items.map((r) => ({
       value: r.id,
       label:
@@ -318,20 +318,19 @@ export default function CompetitorFiltersPage({
         if (Array.isArray(preset.models)) {
           setModelsSel(preset.models.map((m) => ({ value: m.id, label: m.name })))
         }
-       // NEW: hydrate regions
-        if (Array.isArray((preset as any).regions)) {
+        // NEW: hydrate regions
+        if (Array.isArray(preset.regions)) {
           setRegionsSel(
-            (preset as any).regions.map((r: any) => ({
+            preset.regions.map((r) => ({
               value: r.id,
               label:
                 r.nameEn ||
                 r.nameRu ||
                 r.nameDe ||
                 (r.countryCode ? `#${r.id} (${r.countryCode})` : `#${r.id}`),
-            })),
-          );
+            }))
+          )
         }
-
       } catch (e) {
         console.warn('[CompetitorFilters] failed to load preset:', e)
       }

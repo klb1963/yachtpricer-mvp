@@ -384,6 +384,14 @@ export type CatalogCategory = { id: number; nameEn?: string | null; nameRu?: str
 export type CatalogBuilder  = { id: number; name: string };
 export type CatalogModel    = { id: number; name: string; builderId?: number | null; categoryId?: number | null };
 
+export type CatalogRegion   = {
+  id: number;
+  nameEn?: string | null;
+  nameRu?: string | null;
+  nameDe?: string | null;
+  countryCode?: string | null;
+};
+
 export async function findCategories(query = "", take = 20) {
   const r = await fetch(`/api/catalog/categories?query=${encodeURIComponent(query)}&take=${take}`);
   if (!r.ok) throw new Error("categories HTTP " + r.status);
@@ -408,7 +416,6 @@ export async function findModels(query = "", opts?: { builderId?: number; catego
 }
 
 // ---- Regions (catalog) ----
-export type CatalogRegion = { id: number; nameEn?: string | null; nameRu?: string | null; nameDe?: string | null; countryCode?: string | null };
 export async function findRegions(query = "", opts?: { countryCode?: string; take?: number; skip?: number }) {
   const params = new URLSearchParams();
   if (query) params.set("query", query);
@@ -473,6 +480,7 @@ export type ServerCompetitorFilters = {
   categories?: Array<{ id: number; nameEn?: string | null; nameRu?: string | null }>;
   builders?:   Array<{ id: number; name: string }>;
   models?:     Array<{ id: number; name: string; builderId?: number | null; categoryId?: number | null }>;
+  regions?:    Array<CatalogRegion>;
 };
 
 
