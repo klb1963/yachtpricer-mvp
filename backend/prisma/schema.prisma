@@ -441,6 +441,7 @@ model Country {
 
   // 👇 обратная сторона связи по ISO-2
   locations Location[] @relation("CountryCode2Locations")
+  regions   Region[]  @relation("RegionCountryNausys")
 
   @@index([name])
   @@map("countries")
@@ -597,4 +598,23 @@ model YachtModel {
   @@index([builderId])
   @@index([categoryId])
   @@map("yacht_models")
+}
+
+model Region {
+  id              Int      @id @default(autoincrement())
+  nausysId        Int      @unique
+  names           Json
+  nameEn          String?  @map("name_en")
+  nameDe          String?  @map("name_de")
+  nameRu          String?  @map("name_ru")
+
+  // связь на Country по уникальному полю countries.nausysId
+  countryNausysId Int?
+  country         Country? @relation("RegionCountryNausys", fields: [countryNausysId], references: [nausysId])
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([countryNausysId])
+  @@map("regions")
 }
