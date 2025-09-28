@@ -64,4 +64,56 @@ export class CatalogService {
     });
     return { items };
   }
+
+  async findRegions(params: {
+    query?: string;
+    countryCode?: string;
+    take?: number;
+    skip?: number;
+  }) {
+    const { query, countryCode, take = 20, skip = 0 } = params;
+
+    const or: Prisma.RegionWhereInput[] = [];
+    if (query && query.trim()) {
+      // На всякий: ищем по трём колонкам
+      or.push(
+        {
+          nameEn: { contains: query, mode: Prisma.QueryMode.insensitive },
+        } as any,
+        {
+          nameRu: { contains: query, mode: Prisma.QueryMode.insensitive },
+        } as any,
+        {
+          nameDe: { contains: query, mode: Prisma.QueryMode.insensitive },
+        } as any,
+      );
+    }
+
+    const where: Prisma.RegionWhereInput = {
+      ...(or.length ? { OR: or } : {}),
+      ...(countryCode
+        ? {
+            country: { code2: countryCode.toUpperCase() },
+          }
+        : {}),
+    } as any;
+
+    const itemsRaw = await this.prisma.region.findMany({
+      where,
+      take,
+      skip,
+      orderBy: [{ nameEn: 'asc' }, { nameRu: 'asc' }],
+      include: { country: { select: { code2: true } } },
+    });
+
+    const items = itemsRaw.map((r) => ({
+      id: r.id,
+      nameEn: r.nameEn ?? null,
+      nameRu: r.nameRu ?? null,
+      nameDe: r.nameDe ?? null,
+      countryCode: r.country?.code2 ?? null,
+    }));
+
+    return { items };
+  }
 }

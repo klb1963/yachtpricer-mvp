@@ -407,19 +407,20 @@ export async function findModels(query = "", opts?: { builderId?: number; catego
   return (await r.json()) as { items: CatalogModel[] };
 }
 
-// ---- Test scan (dry-run) ----
-export async function testFiltersCount<T extends object>(payload: T): Promise<{ count: number }> {
-  const r = await fetch("/api/scan/test", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!r.ok) throw new Error("test-scan HTTP " + r.status);
-  return (await r.json()) as { count: number };
+// ---- Regions (catalog) ----
+export type CatalogRegion = { id: number; nameEn?: string | null; nameRu?: string | null; nameDe?: string | null; countryCode?: string | null };
+export async function findRegions(query = "", opts?: { countryCode?: string; take?: number; skip?: number }) {
+  const params = new URLSearchParams();
+  if (query) params.set("query", query);
+  if (opts?.countryCode) params.set("countryCode", opts.countryCode);
+  if (opts?.take != null) params.set("take", String(opts.take));
+  if (opts?.skip != null) params.set("skip", String(opts.skip));
+  const r = await fetch(`/api/catalog/regions?${params.toString()}`);
+  if (!r.ok) throw new Error("regions HTTP " + r.status);
+  return (await r.json()) as { items: CatalogRegion[] };
 }
 
-
-
+// ---- Save Competitor Filters ----
 export async function saveCompetitorFilters(dto: {
   scope: "USER" | "ORG";
   locationIds?: string[];
@@ -427,6 +428,7 @@ export async function saveCompetitorFilters(dto: {
   categoryIds?: string[]; // NEW
   builderIds?: string[];  // NEW
   modelIds?: string[];    // NEW
+  regionIds?: string[];   // NEW
   lenFtMinus: number;
   lenFtPlus: number;
   yearMinus: number;
@@ -439,6 +441,17 @@ export async function saveCompetitorFilters(dto: {
 }) {
    const { data } = await api.patch("/filters/competitors", dto);
   return data;
+}
+
+// ---- Test scan (dry-run) ----
+export async function testFiltersCount<T extends object>(payload: T): Promise<{ count: number }> {
+  const r = await fetch("/api/scan/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new Error("test-scan HTTP " + r.status);
+  return (await r.json()) as { count: number };
 }
 
 export type ServerCompetitorFilters = {

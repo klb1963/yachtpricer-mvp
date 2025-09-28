@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Select from "react-select";
 import AsyncSelect from "react-select/async";
+import type { MultiValue } from "react-select";
 import RangePair from "../components/RangePair";
 import NumberField from "../components/NumberField";
 import ModalFooter from "../components/ModalFooter";
@@ -20,6 +21,7 @@ import {
   type CatalogBuilder,
   type CatalogModel,
 } from "../api";
+import { findRegions } from "../api";
 
 // --- i18n-ready labels ---
 const t = {
@@ -29,6 +31,7 @@ const t = {
   categories: "Categories",
   builders: "Builders",
   models: "Models",
+  regions: "Regions",
   headsMin: "Heads (min)",
   length: "Length ± (ft)",
   year: "Year ±",
@@ -86,121 +89,129 @@ export default function CompetitorFiltersPage({
   onClose?: () => void;
 }) {
   // --- ranges / numeric ---
-  const [lenFtMinus, setLenFtMinus] = useState(3);
-  const [lenFtPlus, setLenFtPlus] = useState(3);
-  const [yearMinus, setYearMinus] = useState(2);
-  const [yearPlus, setYearPlus] = useState(2);
-  const [peopleMinus, setPeopleMinus] = useState(1);
-  const [peoplePlus, setPeoplePlus] = useState(1);
-  const [cabinsMinus, setCabinsMinus] = useState(1);
-  const [cabinsPlus, setCabinsPlus] = useState(1);
-  const [headsMin, setHeadsMin] = useState(1);
+  const [lenFtMinus, setLenFtMinus] = useState(3)
+  const [lenFtPlus, setLenFtPlus] = useState(3)
+  const [yearMinus, setYearMinus] = useState(2)
+  const [yearPlus, setYearPlus] = useState(2)
+  const [peopleMinus, setPeopleMinus] = useState(1)
+  const [peoplePlus, setPeoplePlus] = useState(1)
+  const [cabinsMinus, setCabinsMinus] = useState(1)
+  const [cabinsPlus, setCabinsPlus] = useState(1)
+  const [headsMin, setHeadsMin] = useState(1)
 
   // countries / locations
-  const [countries, setCountries] = useState<CountryOpt[]>([]);
-  const [selectedCountries, setSelectedCountries] = useState<CountryOpt[]>([]);
-  const [locations, setLocations] = useState<LocationOpt[]>([]);
-  const [selectedLocations, setSelectedLocations] = useState<LocationOpt[]>([]);
-  const [locLoading, setLocLoading] = useState(false);
-  const loadToken = useRef(0);
+  const [countries, setCountries] = useState<CountryOpt[]>([])
+  const [selectedCountries, setSelectedCountries] = useState<CountryOpt[]>([])
+  const [locations, setLocations] = useState<LocationOpt[]>([])
+  const [selectedLocations, setSelectedLocations] = useState<LocationOpt[]>([])
+  const [locLoading, setLocLoading] = useState(false)
+  const loadToken = useRef(0)
 
   // NEW: categories / builders / models (selected)
-  const [catsSel, setCatsSel] = useState<IdLabel[]>([]);
-  const [buildersSel, setBuildersSel] = useState<IdLabel[]>([]);
-  const [modelsSel, setModelsSel] = useState<IdLabel[]>([]);
+  const [catsSel, setCatsSel] = useState<IdLabel[]>([])
+  const [buildersSel, setBuildersSel] = useState<IdLabel[]>([])
+  const [modelsSel, setModelsSel] = useState<IdLabel[]>([])
+  const [regionsSel, setRegionsSel] = useState<IdLabel[]>([])
 
   // load countries (once)
   useEffect(() => {
-    let active = true;
+    let active = true
     getCountries()
       .then((list: Country[]) => {
-        if (!active) return;
+        if (!active) return
         const opts = list
           .slice()
           .sort((a, b) => a.name.localeCompare(b.name))
-          .map((c) => ({ value: c.code2, label: c.name }));
-        setCountries(opts);
+          .map((c) => ({ value: c.code2, label: c.name }))
+        setCountries(opts)
       })
-      .catch((e) => console.error("Failed to load countries:", e));
+      .catch((e) => console.error('Failed to load countries:', e))
     return () => {
-      active = false;
-    };
-  }, []);
+      active = false
+    }
+  }, [])
 
   // when countries change → reload locations union
   useEffect(() => {
-    const codes = selectedCountries.map((c) => c.value.toUpperCase());
+    const codes = selectedCountries.map((c) => c.value.toUpperCase())
     if (codes.length === 0) {
-      setLocations([]);
-      setSelectedLocations([]);
-      setLocLoading(false);
-      return;
+      setLocations([])
+      setSelectedLocations([])
+      setLocLoading(false)
+      return
     }
 
-    const myToken = ++loadToken.current;
-    setLocLoading(true);
+    const myToken = ++loadToken.current
+    setLocLoading(true)
 
     Promise.all(
       codes.map((code) =>
-        getLocations({ countryCode: code, take: 500, orderBy: "name" }).then((r) =>
+        getLocations({ countryCode: code, take: 500, orderBy: 'name' }).then((r) =>
           r.items.map((l: LocationItem) => ({
             value: l.id,
             label: l.name,
             countryCode: l.countryCode,
-          })),
-        ),
-      ),
+          }))
+        )
+      )
     )
       .then((arrs) => {
-        if (myToken !== loadToken.current) return;
-        const merged: Record<string, LocationOpt> = {};
+        if (myToken !== loadToken.current) return
+        const merged: Record<string, LocationOpt> = {}
         arrs.flat().forEach((opt) => {
-          merged[opt.value] = merged[opt.value] || opt;
-        });
-        const list = Object.values(merged).sort((a, b) => a.label.localeCompare(b.label));
-        setLocations(list);
-        setSelectedLocations((prev) => prev.filter((p) => merged[p.value]));
+          merged[opt.value] = merged[opt.value] || opt
+        })
+        const list = Object.values(merged).sort((a, b) => a.label.localeCompare(b.label))
+        setLocations(list)
+        setSelectedLocations((prev) => prev.filter((p) => merged[p.value]))
       })
-      .catch((e) => console.error("Failed to load locations:", e))
+      .catch((e) => console.error('Failed to load locations:', e))
       .finally(() => {
-        if (myToken === loadToken.current) setLocLoading(false);
-      });
-  }, [selectedCountries]);
+        if (myToken === loadToken.current) setLocLoading(false)
+      })
+  }, [selectedCountries])
 
   // ===== Async loaders for catalog dropdowns =====
-  const loadCategories = useCallback(
-    async (inputValue: string): Promise<IdLabel[]> => {
-      const { items } = await findCategories(inputValue ?? "", 20);
-      return items.map((c: CatalogCategory) => ({
-        value: c.id,
-        label: c.nameEn || c.nameRu || `#${c.id}`,
-      }));
-    },
-    [],
-  );
+  const loadCategories = useCallback(async (inputValue: string): Promise<IdLabel[]> => {
+    const { items } = await findCategories(inputValue ?? '', 20)
+    return items.map((c: CatalogCategory) => ({
+      value: c.id,
+      label: c.nameEn || c.nameRu || `#${c.id}`,
+    }))
+  }, [])
 
-  const loadBuilders = useCallback(
-    async (inputValue: string): Promise<IdLabel[]> => {
-      const { items } = await findBuilders(inputValue ?? "", 20);
-      return items.map((b: CatalogBuilder) => ({ value: b.id, label: b.name }));
-    },
-    [],
-  );
+  const loadBuilders = useCallback(async (inputValue: string): Promise<IdLabel[]> => {
+    const { items } = await findBuilders(inputValue ?? '', 20)
+    return items.map((b: CatalogBuilder) => ({ value: b.id, label: b.name }))
+  }, [])
 
   const loadModels = useCallback(
     async (inputValue: string): Promise<IdLabel[]> => {
       // optionally filter by selected cat/builder (возьмем первый выбранный для узкого поиска)
-      const builderId = buildersSel[0]?.value;
-      const categoryId = catsSel[0]?.value;
-      const { items } = await findModels(inputValue ?? "", {
+      const builderId = buildersSel[0]?.value
+      const categoryId = catsSel[0]?.value
+      const { items } = await findModels(inputValue ?? '', {
         builderId,
         categoryId,
         take: 20,
-      });
-      return items.map((m: CatalogModel) => ({ value: m.id, label: m.name }));
+      })
+      return items.map((m: CatalogModel) => ({ value: m.id, label: m.name }))
     },
-    [buildersSel, catsSel],
-  );
+    [buildersSel, catsSel]
+  )
+
+  // NEW: async loader for regions
+  const loadRegions = useCallback(async (inputValue: string): Promise<IdLabel[]> => {
+    const { items } = await findRegions(inputValue ?? '', undefined, 20)
+    return items.map((r) => ({
+      value: r.id,
+      label:
+        r.nameEn ||
+        r.nameRu ||
+        r.nameDe ||
+        (r.countryCode ? `#${r.id} (${r.countryCode})` : `#${r.id}`),
+    }))
+  }, [])
 
   // build DTO
   const dto: SaveDto = useMemo(
@@ -239,58 +250,58 @@ export default function CompetitorFiltersPage({
       cabinsMinus,
       cabinsPlus,
       headsMin,
-    ],
-  );
+    ]
+  )
 
   async function handleApplySave() {
     try {
-      onSubmit?.(dto);
-      await saveCompetitorFilters(dto);
-      alert("Filters applied and saved.");
-      onClose?.();
+      onSubmit?.(dto)
+      await saveCompetitorFilters(dto)
+      alert('Filters applied and saved.')
+      onClose?.()
     } catch (e) {
-      console.error("Apply & Save failed:", e);
-      alert("Failed to save filters.");
+      console.error('Apply & Save failed:', e)
+      alert('Failed to save filters.')
     }
   }
 
   // Test filters (dry-run)
   const handleTestFilters = useCallback(async () => {
     try {
-      const { count } = await testFiltersCount<SaveDto>(dto);
-      alert(`Test scan: ${count} results`);
+      const { count } = await testFiltersCount<SaveDto>(dto)
+      alert(`Test scan: ${count} results`)
     } catch (e) {
-      console.error("[Test filters] failed:", e);
-      alert("Test failed.");
+      console.error('[Test filters] failed:', e)
+      alert('Test failed.')
     }
-  }, [dto]);
+  }, [dto])
 
   // ===== Load preset on mount =====
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
+    let cancelled = false
+    ;(async () => {
       try {
-        const preset = await getCompetitorFilters(); // может вернуть null
-        if (cancelled || !preset) return;
+        const preset = await getCompetitorFilters() // может вернуть null
+        if (cancelled || !preset) return
 
-        setLenFtMinus(preset.lenFtMinus ?? 3);
-        setLenFtPlus(preset.lenFtPlus ?? 3);
-        setYearMinus(preset.yearMinus ?? 2);
-        setYearPlus(preset.yearPlus ?? 2);
-        setPeopleMinus(preset.peopleMinus ?? 1);
-        setPeoplePlus(preset.peoplePlus ?? 1);
-        setCabinsMinus(preset.cabinsMinus ?? 1);
-        setCabinsPlus(preset.cabinsPlus ?? 1);
-        setHeadsMin(preset.headsMin ?? 1);
+        setLenFtMinus(preset.lenFtMinus ?? 3)
+        setLenFtPlus(preset.lenFtPlus ?? 3)
+        setYearMinus(preset.yearMinus ?? 2)
+        setYearPlus(preset.yearPlus ?? 2)
+        setPeopleMinus(preset.peopleMinus ?? 1)
+        setPeoplePlus(preset.peoplePlus ?? 1)
+        setCabinsMinus(preset.cabinsMinus ?? 1)
+        setCabinsPlus(preset.cabinsPlus ?? 1)
+        setHeadsMin(preset.headsMin ?? 1)
 
         // locations / countries from preset
-        const locOpts: Option[] = (preset.locations ?? []).map(toLocOption);
-        setSelectedLocations(locOpts);
+        const locOpts: Option[] = (preset.locations ?? []).map(toLocOption)
+        setSelectedLocations(locOpts)
         const codes = Array.from(
-          new Set((preset.locations ?? []).map((l) => l.countryCode).filter(Boolean)),
-        ) as string[];
-        const countryOpts: Option[] = codes.map((c) => ({ value: c, label: c }));
-        setSelectedCountries(countryOpts as CountryOpt[]);
+          new Set((preset.locations ?? []).map((l) => l.countryCode).filter(Boolean))
+        ) as string[]
+        const countryOpts: Option[] = codes.map((c) => ({ value: c, label: c }))
+        setSelectedCountries(countryOpts as CountryOpt[])
 
         // NEW: hydrate cats/builders/models if present
         if (Array.isArray(preset.categories)) {
@@ -298,170 +309,206 @@ export default function CompetitorFiltersPage({
             preset.categories.map((c) => ({
               value: c.id,
               label: c.nameEn || c.nameRu || `#${c.id}`,
+            }))
+          )
+        }
+        if (Array.isArray(preset.builders)) {
+          setBuildersSel(preset.builders.map((b) => ({ value: b.id, label: b.name })))
+        }
+        if (Array.isArray(preset.models)) {
+          setModelsSel(preset.models.map((m) => ({ value: m.id, label: m.name })))
+        }
+       // NEW: hydrate regions
+        if (Array.isArray((preset as any).regions)) {
+          setRegionsSel(
+            (preset as any).regions.map((r: any) => ({
+              value: r.id,
+              label:
+                r.nameEn ||
+                r.nameRu ||
+                r.nameDe ||
+                (r.countryCode ? `#${r.id} (${r.countryCode})` : `#${r.id}`),
             })),
           );
         }
-        if (Array.isArray(preset.builders)) {
-          setBuildersSel(preset.builders.map((b) => ({ value: b.id, label: b.name })));
-        }
-        if (Array.isArray(preset.models)) {
-          setModelsSel(preset.models.map((m) => ({ value: m.id, label: m.name })));
-        }
+
       } catch (e) {
-        console.warn("[CompetitorFilters] failed to load preset:", e);
+        console.warn('[CompetitorFilters] failed to load preset:', e)
       }
-    })();
+    })()
     return () => {
-      cancelled = true;
-    };
-  }, [scope]);
+      cancelled = true
+    }
+  }, [scope])
 
   return (
     <form
-      role="dialog"
-      aria-modal="true"
-      className="grid gap-5 p-5 bg-white rounded-xl shadow max-w-xl"
+    className="grid gap-5"
       onKeyDown={(e) => {
-        if (e.key === "Escape") {
-          e.stopPropagation();
-          onClose?.();
+        if (e.key === 'Escape') {
+          e.stopPropagation()
+          onClose?.()
         }
       }}
       onSubmit={(e) => {
-        e.preventDefault();
-        handleApplySave();
+        e.preventDefault()
+        handleApplySave()
       }}
     >
-      <h2 className="text-xl font-bold">{t.title}</h2>
+      {/* Header */}
+      <h2 className="text-xl font-bold mb-2">{t.title}</h2>
 
-      {/* Countries (multi) */}
-      <label className="flex flex-col gap-1">
-        <span>{t.countries}</span>
-        <Select<CountryOpt, true>
-          isMulti
-          options={countries}
-          value={selectedCountries}
-          onChange={(vals) => setSelectedCountries(vals as CountryOpt[])}
-          placeholder={t.chooseCountries}
-          classNamePrefix="rs"
-        />
-      </label>
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+        {/* Countries (multi) */}
+        <label className="flex flex-col gap-1">
+          <span>{t.countries}</span>
+          <Select<CountryOpt, true>
+            isMulti
+            options={countries}
+            value={selectedCountries}
+            onChange={(vals) => setSelectedCountries(vals as CountryOpt[])}
+            placeholder={t.chooseCountries}
+            classNamePrefix="rs"
+          />
+        </label>
 
-      {/* Locations (multi) */}
-      <label className="flex flex-col gap-1">
-        <span>{t.locations}</span>
-        <Select<LocationOpt, true>
-          isMulti
-          isDisabled={selectedCountries.length === 0 || locLoading}
-          options={locations}
-          value={selectedLocations}
-          onChange={(vals) => setSelectedLocations(vals as LocationOpt[])}
-          placeholder={locLoading ? t.loading : t.chooseLocations}
-          classNamePrefix="rs"
-        />
-      </label>
+        {/* Regions (multi, async) */}
+        <label className="flex flex-col gap-1">
+          <span>{t.regions}</span>
+          <AsyncSelect<IdLabel, true>
+            cacheOptions
+            defaultOptions
+            isMulti
+            loadOptions={loadRegions}
+            value={regionsSel}
+            onChange={(vals) => setRegionsSel(vals as IdLabel[])}
+            placeholder={t.chooseRegions}
+            classNamePrefix="rs"
+          />
+        </label>
 
-      {/* Categories (multi, async) */}
-      <label className="flex flex-col gap-1">
-        <span>{t.categories}</span>
-        <AsyncSelect<IdLabel, true>
-          cacheOptions
-          defaultOptions
-          isMulti
-          loadOptions={loadCategories}
-          value={catsSel}
-          onChange={(vals) => setCatsSel(vals as IdLabel[])}
-          placeholder={t.chooseCategories}
-          classNamePrefix="rs"
-        />
-      </label>
+        {/* Locations (multi) */}
+        <label className="flex flex-col gap-1">
+          <span>{t.locations}</span>
+          <Select<LocationOpt, true>
+            isMulti
+            isDisabled={selectedCountries.length === 0 || locLoading}
+            options={locations}
+            value={selectedLocations}
+            onChange={(vals) => setSelectedLocations(vals as LocationOpt[])}
+            placeholder={locLoading ? t.loading : t.chooseLocations}
+            classNamePrefix="rs"
+          />
+        </label>
 
-      {/* Builders (multi, async) */}
-      <label className="flex flex-col gap-1">
-        <span>{t.builders}</span>
-        <AsyncSelect<IdLabel, true>
-          cacheOptions
-          defaultOptions
-          isMulti
-          loadOptions={loadBuilders}
-          value={buildersSel}
-          onChange={(vals) => setBuildersSel(vals as IdLabel[])}
-          placeholder={t.chooseBuilders}
-          classNamePrefix="rs"
-        />
-      </label>
+        {/* Categories (multi, async) */}
+        <label className="flex flex-col gap-1">
+          <span>{t.categories}</span>
+          <AsyncSelect<IdLabel, true>
+            cacheOptions
+            defaultOptions
+            isMulti
+            loadOptions={loadCategories}
+            value={catsSel}
+            onChange={(vals) => setCatsSel(vals as IdLabel[])}
+            placeholder={t.chooseCategories}
+            classNamePrefix="rs"
+          />
+        </label>
 
-      {/* Models (multi, async; depends on selected cat/builder) */}
-      <label className="flex flex-col gap-1">
-        <span>{t.models}</span>
-        <AsyncSelect<IdLabel, true>
-          cacheOptions
-          defaultOptions
-          isMulti
-          loadOptions={loadModels}
-          value={modelsSel}
-          onChange={(vals) => setModelsSel(vals as IdLabel[])}
-          placeholder={t.chooseModels}
-          classNamePrefix="rs"
-        />
-      </label>
+        {/* Builders (multi, async) */}
+        <label className="flex flex-col gap-1">
+          <span>{t.builders}</span>
+          <AsyncSelect<IdLabel, true>
+            cacheOptions
+            defaultOptions
+            isMulti
+            loadOptions={loadBuilders}
+            value={buildersSel}
+            onChange={(vals) => setBuildersSel(vals as IdLabel[])}
+            placeholder={t.chooseBuilders}
+            classNamePrefix="rs"
+          />
+        </label>
 
-      {/* Ranges — вертикальный стек */}
-      <div className="grid gap-3">
-        <RangePair
-          label={t.length}
-          minus={lenFtMinus}
-          plus={lenFtPlus}
-          setMinus={setLenFtMinus}
-          setPlus={setLenFtPlus}
-          min={0}
-          max={5}
-        />
-        <RangePair
-          label={t.year}
-          minus={yearMinus}
-          plus={yearPlus}
-          setMinus={setYearMinus}
-          setPlus={setYearPlus}
-          min={0}
-          max={5}
-        />
-        <RangePair
-          label={t.people}
-          minus={peopleMinus}
-          plus={peoplePlus}
-          setMinus={setPeopleMinus}
-          setPlus={setPeoplePlus}
-          min={0}
-          max={5}
-        />
-        <RangePair
-          label={t.cabins}
-          minus={cabinsMinus}
-          plus={cabinsPlus}
-          setMinus={setCabinsMinus}
-          setPlus={setCabinsPlus}
-          min={0}
-          max={3}
-        />
-        <NumberField label={t.headsMin} value={headsMin} onChange={setHeadsMin} min={0} max={5} />
+        {/* Models (multi, async; depends on selected cat/builder) */}
+        <label className="flex flex-col gap-1">
+          <span>{t.models}</span>
+          <AsyncSelect<IdLabel, true>
+            cacheOptions
+            defaultOptions
+            isMulti
+            loadOptions={loadModels}
+            value={modelsSel}
+            onChange={(vals) => setModelsSel(vals as IdLabel[])}
+            placeholder={t.chooseModels}
+            classNamePrefix="rs"
+          />
+        </label>
+
+        {/* Ranges — вертикальный стек */}
+        <div className="grid gap-3">
+          <RangePair
+            label={t.length}
+            minus={lenFtMinus}
+            plus={lenFtPlus}
+            setMinus={setLenFtMinus}
+            setPlus={setLenFtPlus}
+            min={0}
+            max={5}
+          />
+          <RangePair
+            label={t.year}
+            minus={yearMinus}
+            plus={yearPlus}
+            setMinus={setYearMinus}
+            setPlus={setYearPlus}
+            min={0}
+            max={5}
+          />
+          <RangePair
+            label={t.people}
+            minus={peopleMinus}
+            plus={peoplePlus}
+            setMinus={setPeopleMinus}
+            setPlus={setPeoplePlus}
+            min={0}
+            max={5}
+          />
+          <RangePair
+            label={t.cabins}
+            minus={cabinsMinus}
+            plus={cabinsPlus}
+            setMinus={setCabinsMinus}
+            setPlus={setCabinsPlus}
+            min={0}
+            max={3}
+          />
+          <NumberField label={t.headsMin} value={headsMin} onChange={setHeadsMin} min={0} max={5} />
+        </div>
       </div>
 
       {/* Bottom row: Test filters (left) + Cancel/Apply (right) */}
-      <ModalFooter
-        onCancel={onClose!}
-        submitLabel={t.applySave}
-        submitting={false}
-        leftContent={
-          <button
-            type="button"
-            onClick={handleTestFilters}
-            className="h-10 px-4 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-          >
-            {t.testFilters}
-          </button>
-        }
-      />
+
+      {/* всегда видимый футер: «прилипает» к низу скроллящегося тела из Modal */}
+      <div className="sticky bottom-0 -mx-5 -mb-5 border-t bg-white px-5 py-4">
+        <ModalFooter
+          onCancel={onClose!}
+          submitLabel={t.applySave}
+          submitting={false}
+          leftContent={
+            <button
+              type="button"
+              onClick={handleTestFilters}
+              className="h-10 px-4 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            >
+              {t.testFilters}
+            </button>
+          }
+        />
+      </div>
+
     </form>
-  );
+  )
 }

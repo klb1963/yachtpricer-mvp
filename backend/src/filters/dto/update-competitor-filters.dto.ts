@@ -36,6 +36,15 @@ export class UpdateCompetitorFiltersDto {
   @IsOptional()
   countryCodes?: string[];
 
+  /** Массив регионов (id из таблицы regions) */
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayUnique()
+  @ArrayMaxSize(500)
+  @IsOptional()
+  regionIds?: string[];
+
+
   /** Массив категорий (id из таблицы yacht_categories) */
   @IsArray()
   @IsString({ each: true })
