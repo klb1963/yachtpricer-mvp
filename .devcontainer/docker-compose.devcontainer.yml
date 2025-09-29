@@ -3,24 +3,22 @@ version: "3.9"
 services:
   workspace:
     image: mcr.microsoft.com/devcontainers/typescript-node:20
-    volumes:
-      - .:/workspace:cached                     # проект
-      - workspace-frontend-node_modules:/workspace/frontend/node_modules
-      - workspace-backend-node_modules:/workspace/backend/node_modules
-      - ssh_node:/home/node/.ssh               # ⬅️ сохраняем SSH-ключи контейнера
     working_dir: /workspace
     command: sleep infinity
-    environment: {}
+    user: node
+    # ❌ Никаких монтирований проекта и node_modules здесь
+    volumes:
+      - ssh_node:/home/node/.ssh
+    environment:
+      NODE_OPTIONS: --max_old_space_size=4096
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
-      - yachtpricer-mvp_yachtpricer-net
+      - yachtpricer-net   # имя сети как в docker-compose.yml
 
   prisma-studio:
     image: node:20-alpine
     working_dir: /workspace/backend
-    # ВАЖНО: пинуем версию CLI = 6.14.0 (как у Prisma Client),
-    # и указываем абсолютный путь к schema.prisma
     command: >
       sh -lc '
         echo "Using Prisma 6.14.0";
@@ -30,20 +28,18 @@ services:
       '
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/yachtpricer?schema=public
-    volumes:
-      - .:/workspace:cached
+    # ❌ проект не монтируем — его смонтирует devcontainer сам
+    # ❌ volumes для node_modules тоже не нужны
     ports:
       - "5556:5555"
     depends_on:
       - db
     networks:
-      - yachtpricer-mvp_yachtpricer-net
+      - yachtpricer-net
 
 volumes:
-  workspace-frontend-node_modules:
-  workspace-backend-node_modules:
-  ssh_node:                                   # ⬅️ named volume для ~/.ssh
+  ssh_node:
 
 networks:
-  yachtpricer-mvp_yachtpricer-net:
-    external: true
+  yachtpricer-net:
+    # без external: true — пусть compose/VS Code создаёт сеть сам

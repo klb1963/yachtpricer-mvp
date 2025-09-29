@@ -6,7 +6,12 @@
   ],
   "service": "workspace",
   "workspaceFolder": "/workspace",
-  "runServices": ["backend", "frontend", "db"],
+
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+  ],
+
+  "runServices": ["db", "backend", "prisma-studio"],
   "shutdownAction": "stopCompose",
   "forwardPorts": [3000, 8000, 5432, 5556],
   "customizations": {
@@ -29,5 +34,5 @@
     }
   },
   "remoteUser": "node",
-  "postCreateCommand": "bash .devcontainer/postCreate.sh"
+  "postCreateCommand": "bash /workspace/.devcontainer/postCreate.sh"
 }
