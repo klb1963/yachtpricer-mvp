@@ -520,6 +520,7 @@ model CompetitorFilters {
   categories YachtCategory[] @relation("FiltersCategories")
   builders   YachtBuilder[]  @relation("FiltersBuilders")
   models     YachtModel[]    @relation("FiltersModels")
+  regions    Region[]        @relation("FiltersRegions")
 
   @@unique([orgId, scope, userId])
   @@index([scope])
@@ -611,6 +612,8 @@ model Region {
   // связь на Country по уникальному полю countries.nausysId
   countryNausysId Int?
   country         Country? @relation("RegionCountryNausys", fields: [countryNausysId], references: [nausysId])
+
+  competitorFilters CompetitorFilters[] @relation("FiltersRegions")
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

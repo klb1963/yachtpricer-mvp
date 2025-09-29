@@ -32,6 +32,12 @@ npx prisma migrate dev
 npx prisma generate
 npm run start:dev
 
+Затем в локальном терминале:
+cd frontend
+nvm use            # у тебя .nvmrc = 22
+npm ci             # поставить node_modules по lock-файлу
+
+и перезапустить TS-сервер в VS Code
 
 	4.	Проверяем статус:
 
