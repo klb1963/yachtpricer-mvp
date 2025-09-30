@@ -23,27 +23,33 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-20 bg-blue-500 text-white">
       <div className="mx-auto flex h-14 max-w-screen-xl items-center gap-2 px-3 sm:px-4">
-        {/* Brand */}
+       
+        {/* Logo */}
         <Link
           to="/"
-          className="min-w-0 truncate font-bold text-lg leading-none no-underline"
+          className="flex items-center gap-2 min-w-0 truncate font-bold text-lg leading-none no-underline"
         >
-          ⛵ YP
+          <img
+            src="/logo.svg"
+            alt="YachtPricer"
+            className="h-12 w-12"
+          />
+          <span className="hidden sm:inline text-white">YP</span>
         </Link>
 
         {/* Nav links */}
         <div
           className={cx(
             // даём меню занять доступную ширину и скроллиться по горизонтали на узких экранах
-            "flex-1 flex items-center gap-1 overflow-x-auto whitespace-nowrap",
+            'flex-1 flex items-center gap-1 overflow-x-auto whitespace-nowrap',
             // чуть смещаем визуально от бренда
-            "pl-1"
+            'pl-1'
           )}
         >
           {[
-            { to: "/dashboard", label: "Dashboard" },
-            { to: "/pricing", label: "Pricing" },
-            { to: "/organization", label: "Organization" },
+            { to: '/dashboard', label: 'Dashboard' },
+            { to: '/pricing', label: 'Pricing' },
+            { to: '/organization', label: 'Organization' },
           ].map(({ to, label }) => (
             <NavLink key={to} to={to} className={navLinkClass}>
               {label}
@@ -56,7 +62,7 @@ export default function Navbar() {
             <span className="px-2 py-1.5 md:px-3 md:py-2 rounded-md text-sm text-white/70 select-none">
               …
             </span>
-          ) : whoami?.role === "ADMIN" ? (
+          ) : whoami?.role === 'ADMIN' ? (
             <NavLink to="/admin/users" className={navLinkClass}>
               Users
             </NavLink>
@@ -69,7 +75,7 @@ export default function Navbar() {
             appearance={{
               elements: {
                 // компактный аватар, чтобы не «давил» меню
-                avatarBox: { width: "60px", height: "60px" },
+                avatarBox: { width: '60px', height: '60px' },
               },
             }}
             afterSignOutUrl="/"
@@ -77,5 +83,5 @@ export default function Navbar() {
         </div>
       </div>
     </nav>
-  );
+  )
 }

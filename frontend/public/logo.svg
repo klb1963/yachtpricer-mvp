@@ -1,0 +1,16 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="YachtPricer logo">
+  <!-- Белый круг -->
+  <circle cx="128" cy="128" r="128" fill="#FFFFFF"/>
+  <!-- Группа с отсечением по кругу (на случай тени/масштаба) -->
+  <defs>
+    <clipPath id="clipCircle">
+      <circle cx="128" cy="128" r="128"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#clipCircle)" fill="#2880FF">
+    <!-- Малый парус слева -->
+    <polygon points="48,208 104,80 104,208"/>
+    <!-- Большой парус справа -->
+    <polygon points="126,208 126,24 222,208"/>
+  </g>
+</svg>
