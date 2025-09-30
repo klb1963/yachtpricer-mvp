@@ -30,7 +30,19 @@
     "seed:countries": "ts-node prisma/seed/seedCountries.ts",
     "seed:locations": "ts-node prisma/seed/seedLocations.ts",
     "seed:aliases": "ts-node prisma/seed/seedLocationAliases.ts",
-    "seed:geo": "npm run seed:countries && npm run seed:locations && npm run seed:aliases"
+    "seed:geo": "npm run seed:countries && npm run seed:locations && npm run seed:aliases",
+    "seed:categories": "ts-node prisma/seed/seedYachtCategories.ts",
+    "seed:builders": "ts-node prisma/seed/seedYachtBuilders.ts",
+    "seed:models": "ts-node prisma/seed/seedYachtModels.ts",
+    "seed:weekslots": "ts-node prisma/seed/seedWeekSlotsAll.ts",
+    "seed:monohulls": "ts-node prisma/seed/seedLegacyMonohulls.ts",
+    "seed:cats": "ts-node prisma/seed/seedLegacyCats.ts",
+    "seed:rbac": "ts-node prisma/seed/rbacUsers.ts",
+    "seed:regions": "ts-node prisma/seed/seedRegions.ts",
+    "seed:group:geo": "npm run seed:countries && npm run seed:locations && npm run seed:aliases && npm run seed:regions",
+    "seed:group:yachts": "npm run seed:categories && npm run seed:builders && npm run seed:models",
+    "seed:group:legacy": "npm run seed:weekslots && npm run seed:monohulls && npm run seed:cats && npm run seed:rbac",
+    "seed:all": "npm run seed:group:geo && npm run seed:group:yachts && npm run seed:group:legacy"
   },
   "dependencies": {
     "@clerk/backend": "^2.14.0",
