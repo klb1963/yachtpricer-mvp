@@ -3,12 +3,16 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: "/api"
+        VITE_CLERK_PUBLISHABLE_KEY: "pk_test_ZXhjaXRpbmctbXVsZS0zMS5jbGVyay5hY2NvdW50cy5kZXYk"
     ports:
       - "3000:3000"
     environment:
-      NODE_ENV: production
-      VITE_API_URL: /api
-      VITE_CLERK_PUBLISHABLE_KEY: "pk_test_ZXhjaXRpbmctbXVsZS0zMS5jbGVyay5hY2NvdW50cy5kZXYk"
+      NODE_ENV: production     # VITE_* тут больше не нужны
+    depends_on:
+      - backend
+    restart: unless-stopped
     networks:
       - yachtpricer-net
 

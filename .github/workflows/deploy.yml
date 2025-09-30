@@ -84,3 +84,21 @@ jobs:
 
             # Опционально: чистка подвисших/неиспользуемых слоёв
             docker image prune -f || true
+
+            # Проверим API через домен (nginx должен проксировать /api -> backend:8000)
+            if curl -fsS https://sandbox.leonidk.de/api/health >/dev/null; then
+              echo "API is reachable via /api ✅"
+            else
+              echo "API check failed via /api ❌"
+              docker compose -f docker-compose.yml logs backend --tail=200
+              exit 1
+            fi
+
+            # Проверим фронт (через домен)
+            if curl -fsS https://sandbox.leonidk.de >/dev/null; then
+              echo "Frontend reachable ✅"
+            else
+              echo "Frontend check failed ❌"
+              docker compose -f docker-compose.yml logs frontend --tail=200
+              exit 1
+            fi
