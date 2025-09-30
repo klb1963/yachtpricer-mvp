@@ -6,19 +6,20 @@ import {
   Min,
   Max,
   IsOptional,
-  IsEnum,
+  IsIn,
   IsArray,
   IsString,
   ArrayMaxSize,
   ArrayUnique,
 } from 'class-validator';
-import { FilterScope } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 export class UpdateCompetitorFiltersDto {
   // Кто сохраняет — организационный или персональный пресет
-  @IsEnum(FilterScope)
+  // Prisma enum в runtime — просто строки, поэтому используем IsIn со строками
   @IsOptional()
-  scope?: FilterScope; // дефолт ставим в сервисе → USER
+  @IsIn(['USER', 'ORG'])
+  scope?: Prisma.CompetitorFiltersCreateInput['scope']; // дефолт ставим в сервисе → 'USER'
 
   /** Массив локаций (id из таблицы locations) — может быть пустым */
   @IsArray()
@@ -38,36 +39,39 @@ export class UpdateCompetitorFiltersDto {
 
   /** Массив регионов (id из таблицы regions) */
   @IsArray()
-  @IsString({ each: true })
+  @Type(() => Number)
+  @IsInt({ each: true })
   @ArrayUnique()
   @ArrayMaxSize(500)
   @IsOptional()
-  regionIds?: string[];
-
+  regionIds?: number[];
 
   /** Массив категорий (id из таблицы yacht_categories) */
   @IsArray()
-  @IsString({ each: true })
+  @Type(() => Number)
+  @IsInt({ each: true })
   @ArrayUnique()
   @ArrayMaxSize(200)
   @IsOptional()
-  categoryIds?: string[];
+  categoryIds?: number[];
 
   /** Массив производителей (id из таблицы yacht_builders) */
   @IsArray()
-  @IsString({ each: true })
+  @Type(() => Number)
+  @IsInt({ each: true })
   @ArrayUnique()
   @ArrayMaxSize(200)
   @IsOptional()
-  builderIds?: string[];
+  builderIds?: number[];
 
   /** Массив моделей (id из таблицы yacht_models) */
   @IsArray()
-  @IsString({ each: true })
+  @Type(() => Number)
+  @IsInt({ each: true })
   @ArrayUnique()
   @ArrayMaxSize(2000)
   @IsOptional()
-  modelIds?: string[];
+  modelIds?: number[];
 
   // Диапазоны (минусы/плюсы) — опциональны, дефолты применяются в сервисе
   @Type(() => Number)

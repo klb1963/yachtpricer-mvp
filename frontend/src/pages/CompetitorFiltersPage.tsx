@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Select from "react-select";
 import AsyncSelect from "react-select/async";
+import { findRegions } from "../api";
 import RangePair from "../components/RangePair";
 import NumberField from "../components/NumberField";
 import ModalFooter from "../components/ModalFooter";
@@ -20,7 +21,6 @@ import {
   type CatalogBuilder,
   type CatalogModel,
 } from "../api";
-import { findRegions } from "../api";
 
 // --- i18n-ready labels ---
 const t = {
@@ -54,9 +54,11 @@ type SaveDto = {
   locationIds?: string[];
   countryCodes?: string[];
 
-  categoryIds?: string[];
-  builderIds?: string[];
-  modelIds?: string[];
+  // числа, как ожидает API
+  categoryIds?: number[];
+  builderIds?: number[];
+  modelIds?: number[];
+  regionIds?: number[];
 
   lenFtMinus: number;
   lenFtPlus: number;
@@ -220,9 +222,11 @@ export default function CompetitorFiltersPage({
       countryCodes: selectedCountries.map((c) => c.value),
       locationIds: selectedLocations.map((l) => l.value),
 
-      categoryIds: catsSel.map((x) => String(x.value)),
-      builderIds: buildersSel.map((x) => String(x.value)),
-      modelIds: modelsSel.map((x) => String(x.value)),
+      // передаем ЧИСЛА, как требует API
+      categoryIds: catsSel.map((x) => x.value),
+      builderIds:  buildersSel.map((x) => x.value),
+      modelIds:    modelsSel.map((x) => x.value),
+      regionIds:   regionsSel.map((x) => x.value),
 
       lenFtMinus,
       lenFtPlus,
@@ -237,6 +241,7 @@ export default function CompetitorFiltersPage({
     [
       scope,
       selectedCountries,
+      regionsSel,
       selectedLocations,
       catsSel,
       buildersSel,

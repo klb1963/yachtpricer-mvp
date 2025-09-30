@@ -1,7 +1,7 @@
 // backend/src/filters/competitor-filters.service.ts
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { FilterScope } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { UpdateCompetitorFiltersDto } from './dto/update-competitor-filters.dto';
 
 @Injectable()
@@ -13,28 +13,30 @@ export class CompetitorFiltersService {
     return typeof v === 'number' && Number.isFinite(v) ? v : def;
   }
 
-  // из DTO (string[]) → Int[] для connect
-  private toIntIds(ids?: string[]): number[] {
+  // из DTO (string[] | number[]) → number[] для connect
+  private toIntIds(ids?: Array<string | number>): number[] {
     if (!Array.isArray(ids)) return [];
     return ids
-      .map((s) => Number(s))
-      .filter((n) => Number.isFinite(n) && Number.isInteger(n));
+      .map((v) => (typeof v === 'string' ? Number(v) : v))
+      .filter((n): n is number => Number.isFinite(n) && Number.isInteger(n));
   }
 
   async getForCurrent(
     orgId: string,
     userId?: string,
-    scope: FilterScope = FilterScope.USER,
+    // ⛏️ используем точный prisma-тип и дефолт-литерал
+    scope: Prisma.CompetitorFiltersWhereInput['scope'] = 'USER',
   ) {
     // если явно просят USER и есть userId — пробуем персональный
-    if (scope === FilterScope.USER && userId) {
+    if (scope === 'USER' && userId) {
       const u = await this.prisma.competitorFilters.findFirst({
-        where: { orgId, scope: FilterScope.USER, userId },
+        where: { orgId, scope: 'USER', userId },
         include: {
           locations: true,
           categories: true,
           builders: true,
           models: true,
+          regions: true,
         },
       });
       if (u) return u;
@@ -42,12 +44,13 @@ export class CompetitorFiltersService {
 
     // иначе — организационный (userId = null). ВАЖНО: findFirst, не findUnique.
     return this.prisma.competitorFilters.findFirst({
-      where: { orgId, scope: FilterScope.ORG, userId: null },
+      where: { orgId, scope: 'ORG', userId: null },
       include: {
         locations: true,
         categories: true,
         builders: true,
         models: true,
+        regions: true,
       },
     });
   }
@@ -57,9 +60,11 @@ export class CompetitorFiltersService {
     userId: string | undefined,
     dto: UpdateCompetitorFiltersDto,
   ) {
-    const scope: FilterScope = dto.scope ?? FilterScope.USER;
+    // ⛏️ prisma-тип + строковый дефолт
+    const scope: Prisma.CompetitorFiltersCreateInput['scope'] =
+      dto.scope ?? 'USER';
 
-    if (scope === FilterScope.USER && !userId) {
+    if (scope === 'USER' && !userId) {
       throw new BadRequestException('userId is required when scope is USER');
     }
 
@@ -72,11 +77,12 @@ export class CompetitorFiltersService {
       peoplePlus: 1,
       cabinsMinus: 1,
       cabinsPlus: 1,
-      headsMin: 1, // по умолчанию 1
+      headsMin: 1,
     };
 
     const n = this.num.bind(this);
 
+    // важно: без явной аннотации UpdateInput, чтобы сюда "не протек" scope
     const commonFields = {
       lenFtMinus: n(dto.lenFtMinus, defaults.lenFtMinus),
       lenFtPlus: n(dto.lenFtPlus, defaults.lenFtPlus),
@@ -93,9 +99,9 @@ export class CompetitorFiltersService {
     // ищем существующую запись (PERSONAL или ORG) — findFirst
     const existing = await this.prisma.competitorFilters.findFirst({
       where:
-        scope === FilterScope.USER
-          ? { orgId, scope: FilterScope.USER, userId: userId! }
-          : { orgId, scope: FilterScope.ORG, userId: null },
+        scope === 'USER'
+          ? { orgId, scope: 'USER', userId: userId! }
+          : { orgId, scope: 'ORG', userId: null },
       select: { id: true },
     });
 
@@ -107,8 +113,8 @@ export class CompetitorFiltersService {
       : await this.prisma.competitorFilters.create({
           data: {
             orgId,
-            scope,
-            userId: scope === FilterScope.USER ? userId! : null,
+            scope, // ⛏️ уже строка 'USER' | 'ORG'
+            userId: scope === 'USER' ? userId! : null, // ⛏️ сравнение со строкой
             ...commonFields,
           },
         });
@@ -122,7 +128,7 @@ export class CompetitorFiltersService {
         where: { id: saved.id },
         data: {
           locations: {
-            set: [], // очистка
+            set: [],
             ...(locIds.length ? { connect: locIds.map((id) => ({ id })) } : {}),
           },
         },
@@ -157,14 +163,27 @@ export class CompetitorFiltersService {
       });
     }
 
-    // Models (int id) — потенциально длинные списки
+    // Models (int id)
     if (Array.isArray(dto.modelIds)) {
       const ids = this.toIntIds(dto.modelIds);
-      // Если ожидаются длинные списки, здесь можно батчить connect по 200–500.
       await this.prisma.competitorFilters.update({
         where: { id: saved.id },
         data: {
           models: {
+            set: [],
+            ...(ids.length ? { connect: ids.map((id) => ({ id })) } : {}),
+          },
+        },
+      });
+    }
+
+    // Regions (int id)
+    if (Array.isArray(dto.regionIds)) {
+      const ids = this.toIntIds(dto.regionIds);
+      await this.prisma.competitorFilters.update({
+        where: { id: saved.id },
+        data: {
+          regions: {
             set: [],
             ...(ids.length ? { connect: ids.map((id) => ({ id })) } : {}),
           },
@@ -179,6 +198,7 @@ export class CompetitorFiltersService {
         categories: true,
         builders: true,
         models: true,
+        regions: true,
       },
     });
   }
