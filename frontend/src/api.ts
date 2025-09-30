@@ -75,6 +75,29 @@ function ensureHeaders(headers?: AxiosRequestHeaders): AxiosHeaders {
   return headers instanceof AxiosHeaders ? headers : new AxiosHeaders(headers ?? {});
 }
 
+function joinUrl(base: string, path: string) {
+  if (!path.startsWith("/")) path = "/" + path;
+  return base.replace(/\/+$/, "") + path;
+}
+
+async function apiFetch(inputPath: string, init?: RequestInit) {
+  // токен Clerk (как в axios-интерсепторе)
+  const token = await getClerkToken();
+  const headers = new Headers(init?.headers || {});
+  if (!headers.has("Content-Type") && init?.body) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  const url = joinUrl(API_BASE, inputPath);
+  // лог на всякий
+  try {
+    console.log("[api.ts] fetch", init?.method ?? "GET", url);
+  } catch {}
+  return fetch(url, { ...init, headers });
+}
+
 // маленький helper для токена Clerk
 async function getClerkToken(opts?: { refresh?: boolean }): Promise<string | null> {
   try {
@@ -352,7 +375,7 @@ export type LocationItem = {
 };
 
 export async function getCountries(): Promise<Country[]> {
-  const r = await fetch("/api/geo/countries");
+  const r = await apiFetch("/geo/countries");
   if (!r.ok) throw new Error("Failed to load countries");
   return r.json();
 }
@@ -374,7 +397,7 @@ export async function getLocations(params: {
   orderBy?: "name" | "countryCode";
 }): Promise<{ items: LocationItem[]; total: number; skip: number; take: number }> {
   const qs = toQuery(params);
-  const r = await fetch(`/api/geo/locations?${qs}`);
+  const r = await apiFetch(`/geo/locations?${qs}`);
   if (!r.ok) throw new Error("Failed to load locations");
   return r.json();
 }
@@ -393,36 +416,41 @@ export type CatalogRegion   = {
 };
 
 export async function findCategories(query = "", take = 20) {
-  const r = await fetch(`/api/catalog/categories?query=${encodeURIComponent(query)}&take=${take}`);
+  const r = await apiFetch(`/catalog/categories?query=${encodeURIComponent(query)}&take=${take}`);
   if (!r.ok) throw new Error("categories HTTP " + r.status);
   return (await r.json()) as { items: CatalogCategory[] };
 }
 
 export async function findBuilders(query = "", take = 20) {
-  const r = await fetch(`/api/catalog/builders?query=${encodeURIComponent(query)}&take=${take}`);
+  const r = await apiFetch(`/catalog/builders?query=${encodeURIComponent(query)}&take=${take}`);
   if (!r.ok) throw new Error("builders HTTP " + r.status);
   return (await r.json()) as { items: CatalogBuilder[] };
 }
 
-export async function findModels(query = "", opts?: { builderId?: number; categoryId?: number; take?: number }) {
+export async function findModels(
+  query = "",
+  opts?: { builderId?: number; categoryId?: number; take?: number }
+) {
   const params = new URLSearchParams();
   if (query) params.set("query", query);
   if (opts?.builderId)  params.set("builderId", String(opts.builderId));
   if (opts?.categoryId) params.set("categoryId", String(opts.categoryId));
   params.set("take", String(opts?.take ?? 20));
-  const r = await fetch(`/api/catalog/models?${params.toString()}`);
+  const r = await apiFetch(`/catalog/models?${params.toString()}`);
   if (!r.ok) throw new Error("models HTTP " + r.status);
   return (await r.json()) as { items: CatalogModel[] };
 }
 
-// ---- Regions (catalog) ----
-export async function findRegions(query = "", opts?: { countryCode?: string; take?: number; skip?: number }) {
+export async function findRegions(
+  query = "",
+  opts?: { countryCode?: string; take?: number; skip?: number }
+) {
   const params = new URLSearchParams();
   if (query) params.set("query", query);
   if (opts?.countryCode) params.set("countryCode", opts.countryCode);
   if (opts?.take != null) params.set("take", String(opts.take));
   if (opts?.skip != null) params.set("skip", String(opts.skip));
-  const r = await fetch(`/api/catalog/regions?${params.toString()}`);
+  const r = await apiFetch(`/catalog/regions?${params.toString()}`); // <-- ВАЖНО: /catalog/regions
   if (!r.ok) throw new Error("regions HTTP " + r.status);
   return (await r.json()) as { items: CatalogRegion[] };
 }
@@ -432,10 +460,10 @@ export async function saveCompetitorFilters(dto: {
   scope: "USER" | "ORG";
   locationIds?: string[];
   countryCodes?: string[];
-  categoryIds?: string[]; // NEW
-  builderIds?: string[];  // NEW
-  modelIds?: string[];    // NEW
-  regionIds?: string[];   // NEW
+  categoryIds?: number[]; // было string[]
+  builderIds?: number[];  // было string[]
+  modelIds?: number[];    // было string[]
+  regionIds?: number[];   // было string[]
   lenFtMinus: number;
   lenFtPlus: number;
   yearMinus: number;
@@ -452,9 +480,8 @@ export async function saveCompetitorFilters(dto: {
 
 // ---- Test scan (dry-run) ----
 export async function testFiltersCount<T extends object>(payload: T): Promise<{ count: number }> {
-  const r = await fetch("/api/scan/test", {
+  const r = await apiFetch("/scan/test", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   if (!r.ok) throw new Error("test-scan HTTP " + r.status);
