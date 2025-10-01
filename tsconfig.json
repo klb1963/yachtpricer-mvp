@@ -1,4 +1,8 @@
 {
-    "files": [],
-    "references": [{ "path": "./backend" }]
-  }
+  "files": [],
+  "references": [{ "path": "./backend" }],
+  "exclude": [
+    "node_modules",
+    "**/.eslintrc.cjs"
+  ]
+}

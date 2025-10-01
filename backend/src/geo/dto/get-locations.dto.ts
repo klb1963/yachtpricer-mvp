@@ -1,6 +1,6 @@
 // backend/src/geo/dto/get-locations.dto.ts
-
 import { IsOptional, IsString, IsIn, IsInt, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class GetLocationsDto {
   @IsOptional()
@@ -13,15 +13,17 @@ export class GetLocationsDto {
 
   @IsOptional()
   @IsIn(['name', 'countryCode'])
-  orderBy?: 'name' | 'countryCode';
+  orderBy: 'name' | 'countryCode' = 'name'; // дефолт прямо тут
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
-  take?: number;
+  take: number = 50; // дефолт 50
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(0)
-  skip?: number;
+  skip: number = 0; // дефолт 0
 }

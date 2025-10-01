@@ -1,5 +1,5 @@
 // frontend/src/pages/CompetitorFiltersPage.tsx
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Select from "react-select";
 import AsyncSelect from "react-select/async";
 import { findRegions } from "../api";
@@ -16,7 +16,6 @@ import {
   findModels,
   testFiltersCount,
   type Country,
-  type LocationItem,
   type CatalogCategory,
   type CatalogBuilder,
   type CatalogModel,
@@ -107,7 +106,11 @@ export default function CompetitorFiltersPage({
   const [locations, setLocations] = useState<LocationOpt[]>([])
   const [selectedLocations, setSelectedLocations] = useState<LocationOpt[]>([])
   const [locLoading, setLocLoading] = useState(false)
-  const loadToken = useRef(0)
+
+  const [locQuery, setLocQuery] = useState('')
+  // все выбранные страны → ISO-2 (верхним регистром)
+  const countryCodes = useMemo(
+    () => selectedCountries.map(c => c.value.toUpperCase()), [selectedCountries])
 
   // NEW: categories / builders / models (selected)
   const [catsSel, setCatsSel] = useState<IdLabel[]>([])
@@ -133,45 +136,56 @@ export default function CompetitorFiltersPage({
     }
   }, [])
 
-  // when countries change → reload locations union
+  // when countries or search change → reload locations (union по всем странам)
   useEffect(() => {
-    const codes = selectedCountries.map((c) => c.value.toUpperCase())
-    if (codes.length === 0) {
-      setLocations([])
-      setSelectedLocations([])
-      setLocLoading(false)
-      return
-    }
+    let aborted = false
+    ;(async () => {
+      setLocLoading(true)
+      try {
 
-    const myToken = ++loadToken.current
-    setLocLoading(true)
-
-    Promise.all(
-      codes.map((code) =>
-        getLocations({ countryCode: code, take: 500, orderBy: 'name' }).then((r) =>
-          r.items.map((l: LocationItem) => ({
-            value: l.id,
-            label: l.name,
-            countryCode: l.countryCode,
-          }))
+        // если стран нет — грузим без фильтра страны (поиск по всему справочнику)
+        const codes = countryCodes.length ? countryCodes : [undefined]
+        const pages = await Promise.all(
+          codes.map(code =>
+            getLocations({
+              q: locQuery || undefined,
+              countryCode: code,       // undefined → параметр не уйдёт
+              take: 500,
+              // orderBy: 'name',
+            })
+          )
         )
-      )
-    )
-      .then((arrs) => {
-        if (myToken !== loadToken.current) return
-        const merged: Record<string, LocationOpt> = {}
-        arrs.flat().forEach((opt) => {
-          merged[opt.value] = merged[opt.value] || opt
-        })
-        const list = Object.values(merged).sort((a, b) => a.label.localeCompare(b.label))
+        if (aborted) return
+
+        const items = pages.flatMap(p => p.items ?? [])
+        const dedup = new Map<string, LocationOpt>()
+        for (const l of items) {
+          const opt: LocationOpt = {
+            value: l.id,
+            label: l.countryCode ? `${l.name} (${l.countryCode})` : l.name,
+            countryCode: l.countryCode ?? null,
+          }
+          if (!dedup.has(opt.value)) dedup.set(opt.value, opt)
+        }
+        const list = Array.from(dedup.values()).sort((a, b) => a.label.localeCompare(b.label))
         setLocations(list)
-        setSelectedLocations((prev) => prev.filter((p) => merged[p.value]))
-      })
-      .catch((e) => console.error('Failed to load locations:', e))
-      .finally(() => {
-        if (myToken === loadToken.current) setLocLoading(false)
-      })
-  }, [selectedCountries])
+        // вычистим выбранные, которых больше нет в options
+        setSelectedLocations(prev => prev.filter(p => dedup.has(p.value)))
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (e) {
+        if (!aborted) {
+          setLocations([])
+          setSelectedLocations([])
+        }
+      } finally {
+        if (!aborted) setLocLoading(false)
+      }
+    })()
+    return () => {
+      aborted = true
+    }
+  }, [countryCodes, locQuery])
 
   // ===== Async loaders for catalog dropdowns =====
   const loadCategories = useCallback(async (inputValue: string): Promise<IdLabel[]> => {
@@ -204,7 +218,7 @@ export default function CompetitorFiltersPage({
 
   // NEW: async loader for regions
   const loadRegions = useCallback(async (inputValue: string): Promise<IdLabel[]> => {
-    const { items } = await findRegions(inputValue ?? "", { take: 20 });
+    const { items } = await findRegions(inputValue ?? '', { take: 20 })
     return items.map((r) => ({
       value: r.id,
       label:
@@ -224,9 +238,9 @@ export default function CompetitorFiltersPage({
 
       // передаем ЧИСЛА, как требует API
       categoryIds: catsSel.map((x) => x.value),
-      builderIds:  buildersSel.map((x) => x.value),
-      modelIds:    modelsSel.map((x) => x.value),
-      regionIds:   regionsSel.map((x) => x.value),
+      builderIds: buildersSel.map((x) => x.value),
+      modelIds: modelsSel.map((x) => x.value),
+      regionIds: regionsSel.map((x) => x.value),
 
       lenFtMinus,
       lenFtPlus,
@@ -350,7 +364,7 @@ export default function CompetitorFiltersPage({
 
   return (
     <form
-    className="grid gap-5"
+      className="grid gap-5"
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.stopPropagation()
@@ -404,6 +418,7 @@ export default function CompetitorFiltersPage({
             options={locations}
             value={selectedLocations}
             onChange={(vals) => setSelectedLocations(vals as LocationOpt[])}
+            onInputChange={(input) => { setLocQuery(input); return input; }}
             placeholder={locLoading ? t.loading : t.chooseLocations}
             classNamePrefix="rs"
           />
@@ -515,7 +530,6 @@ export default function CompetitorFiltersPage({
           }
         />
       </div>
-
     </form>
   )
 }

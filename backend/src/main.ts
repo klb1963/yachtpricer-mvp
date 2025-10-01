@@ -34,9 +34,12 @@ async function bootstrap() {
   // ✅ глобальный ValidationPipe
   app.useGlobalPipes(
     new ValidationPipe({
-      transform: true, // автоматический каст типов (строки -> числа и т.д.)
-      whitelist: true, // игнорировать свойства, которых нет в DTO
-      forbidNonWhitelisted: true, // выбрасывать 400, если пришли лишние свойства
+      whitelist: true,
+      forbidNonWhitelisted: false,
+      transform: true, // 👈 ОБЯЗАТЕЛЬНО
+      transformOptions: {
+        enableImplicitConversion: true, // 👈 можно, чтобы строки "10" → числа
+      },
     }),
   );
 
