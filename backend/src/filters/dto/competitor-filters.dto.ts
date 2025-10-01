@@ -1,16 +1,25 @@
 // backend/src/filters/dto/competitor-filters.dto.ts
-
 import { AtLeastOne } from '../../validators/at-least-one.validator';
 import { IsArray, IsOptional, IsNumber, Min, Max } from 'class-validator';
 import { Transform } from 'class-transformer';
 
-// утил: приводим к массиву строк, фильтруем пустые
+// утил: приводим к массиву строк, фильтруем пустые (пустой -> undefined)
 const toStringArray = (v: unknown): string[] | undefined => {
   const arr = Array.isArray(v) ? v : v == null || v === '' ? [] : [v];
   const clean = arr
     .map((x) => (typeof x === 'string' ? x.trim() : String(x)))
     .filter((x) => x.length > 0);
   return clean.length ? clean : undefined;
+};
+
+// ✅ утил: версия для M2M — сохраняем даже пустой массив []
+const toStringArrayKeepEmpty = (v: unknown): string[] | undefined => {
+  if (v === undefined) return undefined; // ключ не прислали — оставляем undefined
+  const arr = Array.isArray(v) ? v : v == null || v === '' ? [] : [v];
+  const clean = arr
+    .map((x) => (typeof x === 'string' ? x.trim() : String(x)))
+    .filter((x) => x.length > 0);
+  return clean; // может быть [] — и это нормально (очистка)
 };
 
 // утил: мягко приводим к числу или убираем
@@ -24,27 +33,27 @@ export class CompetitorFiltersDto {
   // --- IDs для M2M (если присланы — синхронизируем связи) ---
   @IsOptional()
   @IsArray()
-  @Transform(({ value }) => toStringArray(value))
+  @Transform(({ value }) => toStringArrayKeepEmpty(value))
   locationIds?: string[]; // string PK
 
   @IsOptional()
   @IsArray()
-  @Transform(({ value }) => toStringArray(value))
+  @Transform(({ value }) => toStringArrayKeepEmpty(value))
   categoryIds?: Array<string | number>; // int PK (может прийти строкой)
 
   @IsOptional()
   @IsArray()
-  @Transform(({ value }) => toStringArray(value))
+  @Transform(({ value }) => toStringArrayKeepEmpty(value))
   builderIds?: Array<string | number>; // int PK
 
   @IsOptional()
   @IsArray()
-  @Transform(({ value }) => toStringArray(value))
+  @Transform(({ value }) => toStringArrayKeepEmpty(value))
   modelIds?: Array<string | number>; // int PK
 
   @IsOptional()
   @IsArray()
-  @Transform(({ value }) => toStringArray(value))
+  @Transform(({ value }) => toStringArrayKeepEmpty(value))
   regionIds?: Array<string | number>; // int PK
 
   // --- ОТКЛОНЕНИЯ / SETTINGS ---
@@ -53,41 +62,49 @@ export class CompetitorFiltersDto {
   @IsNumber()
   @Min(0)
   lenFtMinus?: number;
+
   @IsOptional()
   @Transform(({ value }) => toNumberOrUndef(value))
   @IsNumber()
   @Min(0)
   lenFtPlus?: number;
+
   @IsOptional()
   @Transform(({ value }) => toNumberOrUndef(value))
   @IsNumber()
   @Min(0)
   yearMinus?: number;
+
   @IsOptional()
   @Transform(({ value }) => toNumberOrUndef(value))
   @IsNumber()
   @Min(0)
   yearPlus?: number;
+
   @IsOptional()
   @Transform(({ value }) => toNumberOrUndef(value))
   @IsNumber()
   @Min(0)
   peopleMinus?: number;
+
   @IsOptional()
   @Transform(({ value }) => toNumberOrUndef(value))
   @IsNumber()
   @Min(0)
   peoplePlus?: number;
+
   @IsOptional()
   @Transform(({ value }) => toNumberOrUndef(value))
   @IsNumber()
   @Min(0)
   cabinsMinus?: number;
+
   @IsOptional()
   @Transform(({ value }) => toNumberOrUndef(value))
   @IsNumber()
   @Min(0)
   cabinsPlus?: number;
+
   @IsOptional()
   @Transform(({ value }) => toNumberOrUndef(value))
   @IsNumber()
@@ -100,9 +117,12 @@ export class CompetitorFiltersDto {
   // --- ТЕРРИТОРИЯ ---
   @IsOptional()
   @IsArray()
-  @Transform(({ value }) => toStringArray(value)?.map((s) => s.toUpperCase()))
-  countryCodes?: string[]; // ISO-2, временный алиас
+  @Transform(({ value }) =>
+    toStringArrayKeepEmpty(value)?.map((s) => s.toUpperCase())
+  )
+  countryCodes?: string[]; // ISO-2, теперь [] поддерживается для очистки
 
+  // --- «человеческие» списки для поиска (если используешь) ---
   @IsOptional()
   @IsArray()
   @Transform(({ value }) => toStringArray(value))
