@@ -136,7 +136,7 @@ model Yacht {
   cabins               Int
   heads                Int
   basePrice            Decimal   @db.Decimal(12, 2)
-  maxDiscountPct Decimal? @db.Decimal(5, 2)
+  maxDiscountPct       Decimal?  @db.Decimal(5, 2)
   location             String
   fleet                String
   charterCompany       String
@@ -187,16 +187,16 @@ model WeekSlot {
   yacht   Yacht  @relation(fields: [yachtId], references: [id])
   yachtId String
 
-  startDate       DateTime
-  status          WeekSlotStatus
+  startDate DateTime
+  status    WeekSlotStatus
 
   // Фактическая текущая цена/скидка на текущую неделю (это "Actual price")
-  currentPrice    Decimal        @db.Decimal(12, 2)
-  currentDiscount Decimal        @db.Decimal(5, 2)
+  currentPrice    Decimal @db.Decimal(12, 2)
+  currentDiscount Decimal @db.Decimal(5, 2)
 
   // НОВОЕ: откуда взяли цену и когда
-  priceSource     PriceSource?
-  priceFetchedAt  DateTime?
+  priceSource    PriceSource?
+  priceFetchedAt DateTime?
 
   priceHistory PriceHistory[]
 
@@ -218,7 +218,7 @@ model PriceHistory {
   discount Decimal  @db.Decimal(12, 2)
 
   // НОВОЕ: источник записи
-  source   PriceSource?
+  source PriceSource?
 
   authorId String?
   note     String?
@@ -440,8 +440,9 @@ model Country {
   updatedAt DateTime @updatedAt
 
   // 👇 обратная сторона связи по ISO-2
-  locations Location[] @relation("CountryCode2Locations")
-  regions   Region[]  @relation("RegionCountryNausys")
+  locations         Location[]          @relation("CountryCode2Locations")
+  regions           Region[]            @relation("RegionCountryNausys")
+  competitorFilters CompetitorFilters[] @relation("FiltersCountries") // ⬅️ NEW
 
   @@index([name])
   @@map("countries")
@@ -516,11 +517,12 @@ model CompetitorFilters {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-    // NEW: m2m как с Locations
+  // NEW: m2m как с Locations
   categories YachtCategory[] @relation("FiltersCategories")
   builders   YachtBuilder[]  @relation("FiltersBuilders")
   models     YachtModel[]    @relation("FiltersModels")
   regions    Region[]        @relation("FiltersRegions")
+  countries  Country[]       @relation("FiltersCountries")
 
   @@unique([orgId, scope, userId])
   @@index([scope])
@@ -531,17 +533,17 @@ model CompetitorFilters {
 
 // Справочник категорий яхт из NauSYS
 model YachtCategory {
-  id        Int          @id @default(autoincrement())
-  nausysId  Int          @unique
-  names     Json
-  nameEn    String?      @map("name_en")
-  nameDe    String?      @map("name_de")
-  nameRu    String?      @map("name_ru")
+  id       Int     @id @default(autoincrement())
+  nausysId Int     @unique
+  names    Json
+  nameEn   String? @map("name_en")
+  nameDe   String? @map("name_de")
+  nameRu   String? @map("name_ru")
 
-  models    YachtModel[] @relation("CategoryModels")
+  models YachtModel[] @relation("CategoryModels")
 
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   competitorFilters CompetitorFilters[] @relation("FiltersCategories")
 
@@ -550,17 +552,17 @@ model YachtCategory {
 
 // Справочник производителей из NauSYS
 model YachtBuilder {
-  id         Int       @id @default(autoincrement())
+  id       Int    @id @default(autoincrement())
   /// ID производителя в NauSYS (поле `builders[].id`), уникален
-  nausysId   Int       @unique
+  nausysId Int    @unique
   /// Имя производителя (поле `builders[].name`)
-  name       String
+  name     String
 
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-    // Cвязь на модели яхт
-  models     YachtModel[]
+  // Cвязь на модели яхт
+  models YachtModel[]
 
   competitorFilters CompetitorFilters[] @relation("FiltersBuilders")
 
@@ -570,19 +572,19 @@ model YachtBuilder {
 
 // Справочник моделей яхт из NauSYS
 model YachtModel {
-  id            Int           @id @default(autoincrement())
-  nausysId      Int           @unique
-  name          String
+  id       Int    @id @default(autoincrement())
+  nausysId Int    @unique
+  name     String
 
-  builderId     Int?
-  builder       YachtBuilder? @relation(fields: [builderId], references: [id])
+  builderId Int?
+  builder   YachtBuilder? @relation(fields: [builderId], references: [id])
 
-  categoryId    Int?
-  category      YachtCategory? @relation("CategoryModels", fields: [categoryId], references: [id])
+  categoryId Int?
+  category   YachtCategory? @relation("CategoryModels", fields: [categoryId], references: [id])
 
-  loa           Decimal?      @db.Decimal(6,2)
-  beam          Decimal?      @db.Decimal(5,2)
-  draft         Decimal?      @db.Decimal(4,2)
+  loa           Decimal? @db.Decimal(6, 2)
+  beam          Decimal? @db.Decimal(5, 2)
+  draft         Decimal? @db.Decimal(4, 2)
   cabins        Int?
   wc            Int?
   waterTank     Int?
@@ -592,8 +594,8 @@ model YachtModel {
 
   competitorFilters CompetitorFilters[] @relation("FiltersModels")
 
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([name])
   @@index([builderId])
@@ -602,12 +604,12 @@ model YachtModel {
 }
 
 model Region {
-  id              Int      @id @default(autoincrement())
-  nausysId        Int      @unique
-  names           Json
-  nameEn          String?  @map("name_en")
-  nameDe          String?  @map("name_de")
-  nameRu          String?  @map("name_ru")
+  id       Int     @id @default(autoincrement())
+  nausysId Int     @unique
+  names    Json
+  nameEn   String? @map("name_en")
+  nameDe   String? @map("name_de")
+  nameRu   String? @map("name_ru")
 
   // связь на Country по уникальному полю countries.nausysId
   countryNausysId Int?
@@ -615,8 +617,8 @@ model Region {
 
   competitorFilters CompetitorFilters[] @relation("FiltersRegions")
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([countryNausysId])
   @@map("regions")

@@ -1,8 +1,8 @@
 // backend/src/filters/competitor-filters.service.ts
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
-import { UpdateCompetitorFiltersDto } from './dto/update-competitor-filters.dto';
+import { Prisma, $Enums } from '@prisma/client';
+import { CompetitorFiltersBody } from './dto/competitor-filters.dto'; // ⬅️ новый DTO
 
 @Injectable()
 export class CompetitorFiltersService {
@@ -21,13 +21,17 @@ export class CompetitorFiltersService {
       .filter((n): n is number => Number.isFinite(n) && Number.isInteger(n));
   }
 
+  // нормализация массивов: [] → undefined
+  private emptyToUndef<T>(a?: T[]): T[] | undefined {
+    return a && a.length ? a : undefined;
+  }
+
   async getForCurrent(
     orgId: string,
     userId?: string,
     // ⛏️ используем точный prisma-тип и дефолт-литерал
     scope: Prisma.CompetitorFiltersWhereInput['scope'] = 'USER',
   ) {
-    // если явно просят USER и есть userId — пробуем персональный
     if (scope === 'USER' && userId) {
       const u = await this.prisma.competitorFilters.findFirst({
         where: { orgId, scope: 'USER', userId },
@@ -42,7 +46,6 @@ export class CompetitorFiltersService {
       if (u) return u;
     }
 
-    // иначе — организационный (userId = null). ВАЖНО: findFirst, не findUnique.
     return this.prisma.competitorFilters.findFirst({
       where: { orgId, scope: 'ORG', userId: null },
       include: {
@@ -58,16 +61,15 @@ export class CompetitorFiltersService {
   async upsert(
     orgId: string,
     userId: string | undefined,
-    dto: UpdateCompetitorFiltersDto,
+    dto: CompetitorFiltersBody, // ⬅️ был UpdateCompetitorFiltersDto
   ) {
-    // ⛏️ prisma-тип + строковый дефолт
-    const scope: Prisma.CompetitorFiltersCreateInput['scope'] =
-      dto.scope ?? 'USER';
+    const scope: $Enums.FilterScope = dto.scope ?? 'USER';
 
     if (scope === 'USER' && !userId) {
       throw new BadRequestException('userId is required when scope is USER');
     }
 
+    // дефолты «отклонений/диапазонов»
     const defaults = {
       lenFtMinus: 3,
       lenFtPlus: 3,
@@ -82,8 +84,17 @@ export class CompetitorFiltersService {
 
     const n = this.num.bind(this);
 
-    // важно: без явной аннотации UpdateInput, чтобы сюда "не протек" scope
-    const commonFields = {
+    // нормализуем массивы из dto (пустые → undefined)
+    // const countries = this.emptyToUndef(dto.countries);
+    // const regions = this.emptyToUndef(dto.regions);
+    // const locations = this.emptyToUndef(dto.locations);
+    // const categories = this.emptyToUndef(dto.categories);
+    // const builders = this.emptyToUndef(dto.builders);
+    // const models = this.emptyToUndef(dto.models);
+
+    // общие поля (в т.ч. countries, если у тебя есть scalar column в модели)
+    const commonFields: Prisma.CompetitorFiltersUpdateInput = {
+      // ⬇️ если в Prisma-модели есть поле `countries String[]` — сохраним
       lenFtMinus: n(dto.lenFtMinus, defaults.lenFtMinus),
       lenFtPlus: n(dto.lenFtPlus, defaults.lenFtPlus),
       yearMinus: n(dto.yearMinus, defaults.yearMinus),
@@ -93,10 +104,9 @@ export class CompetitorFiltersService {
       cabinsMinus: n(dto.cabinsMinus, defaults.cabinsMinus),
       cabinsPlus: n(dto.cabinsPlus, defaults.cabinsPlus),
       headsMin: n(dto.headsMin, defaults.headsMin),
-      updatedBy: userId ?? null,
     };
 
-    // ищем существующую запись (PERSONAL или ORG) — findFirst
+    // ищем существующую запись (PERSONAL или ORG)
     const existing = await this.prisma.competitorFilters.findFirst({
       where:
         scope === 'USER'
@@ -111,19 +121,41 @@ export class CompetitorFiltersService {
           data: commonFields,
         })
       : await this.prisma.competitorFilters.create({
+          // ✅ В CreateInput связи задаём через connect
           data: {
-            orgId,
-            scope, // ⛏️ уже строка 'USER' | 'ORG'
-            userId: scope === 'USER' ? userId! : null, // ⛏️ сравнение со строкой
-            ...commonFields,
+            scope, // $Enums.FilterScope
+            org: { connect: { id: orgId } },
+            ...(userId && scope === 'USER'
+              ? { user: { connect: { id: userId } } }
+              : {}),
+            // Преобразуем commonFields к CreateInput-форме
+            // (UpdateInput совместим по большинству скаляров; отношения — отдельно)
+            ...(commonFields as Omit<
+              Prisma.CompetitorFiltersCreateInput,
+              'org' | 'user'
+            >),
           },
         });
 
-    // ===== СИНХРОНИЗАЦИЯ M2M-СВЯЗЕЙ (только если поля присланы) =====
+    // ===== СИНХРОНИЗАЦИЯ M2M-СВЯЗЕЙ (только если поле прислано в DTO) =====
+
+    // Countries (string id)
+    if (dto.countries !== undefined) {
+      const ids: string[] = dto.countries ?? [];
+      await this.prisma.competitorFilters.update({
+        where: { id: saved.id },
+        data: {
+          countries: {
+            set: [],
+            ...(ids.length ? { connect: ids.map((id) => ({ id })) } : {}),
+          },
+        },
+      });
+    }
 
     // Locations (string id)
-    if (Array.isArray(dto.locationIds)) {
-      const locIds = dto.locationIds;
+    if (dto.locationIds !== undefined) {
+      const locIds = dto.locationIds ?? [];
       await this.prisma.competitorFilters.update({
         where: { id: saved.id },
         data: {
@@ -136,7 +168,7 @@ export class CompetitorFiltersService {
     }
 
     // Categories (int id)
-    if (Array.isArray(dto.categoryIds)) {
+    if (dto.categoryIds !== undefined) {
       const ids = this.toIntIds(dto.categoryIds);
       await this.prisma.competitorFilters.update({
         where: { id: saved.id },
@@ -150,7 +182,7 @@ export class CompetitorFiltersService {
     }
 
     // Builders (int id)
-    if (Array.isArray(dto.builderIds)) {
+    if (dto.builderIds !== undefined) {
       const ids = this.toIntIds(dto.builderIds);
       await this.prisma.competitorFilters.update({
         where: { id: saved.id },
@@ -164,7 +196,7 @@ export class CompetitorFiltersService {
     }
 
     // Models (int id)
-    if (Array.isArray(dto.modelIds)) {
+    if (dto.modelIds !== undefined) {
       const ids = this.toIntIds(dto.modelIds);
       await this.prisma.competitorFilters.update({
         where: { id: saved.id },
@@ -178,7 +210,7 @@ export class CompetitorFiltersService {
     }
 
     // Regions (int id)
-    if (Array.isArray(dto.regionIds)) {
+    if (dto.regionIds !== undefined) {
       const ids = this.toIntIds(dto.regionIds);
       await this.prisma.competitorFilters.update({
         where: { id: saved.id },
@@ -190,7 +222,7 @@ export class CompetitorFiltersService {
         },
       });
     }
-
+    // ===== КОНЕЦ СИНХРОНИЗАЦИИ M2M-СВЯЗЕЙ =====
     return this.prisma.competitorFilters.findUnique({
       where: { id: saved.id },
       include: {
