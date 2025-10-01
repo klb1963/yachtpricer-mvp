@@ -1,5 +1,4 @@
 // backend/src/filters/competitor-filters.controller.ts
-
 import {
   BadRequestException,
   Body,
@@ -7,13 +6,12 @@ import {
   Get,
   Patch,
   Query,
-  ValidationPipe,
 } from '@nestjs/common';
 import { CompetitorFiltersService } from './competitor-filters.service';
-import { UpdateCompetitorFiltersDto } from './dto/update-competitor-filters.dto';
 import { GetFiltersQuery } from './dto/get-filters.query';
 import { FilterScope, User } from '@prisma/client';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { CompetitorFiltersBody } from './dto/competitor-filters.dto';
 
 @Controller('filters/competitors')
 export class CompetitorFiltersController {
@@ -22,8 +20,7 @@ export class CompetitorFiltersController {
   @Get()
   get(
     @CurrentUser() user: Pick<User, 'id' | 'orgId'>,
-    @Query(new ValidationPipe({ transform: true, whitelist: true }))
-    q: GetFiltersQuery,
+    @Query() q: GetFiltersQuery, // ✅ глобальный ValidationPipe сам применится
   ) {
     if (!user?.orgId) {
       throw new BadRequestException('User has no organization.');
@@ -35,8 +32,7 @@ export class CompetitorFiltersController {
   @Patch()
   update(
     @CurrentUser() user: Pick<User, 'id' | 'orgId'>,
-    @Body(new ValidationPipe({ transform: true, whitelist: true }))
-    dto: UpdateCompetitorFiltersDto,
+    @Body() dto: CompetitorFiltersBody, // ✅ глобальный ValidationPipe сам применится
   ) {
     if (!user?.orgId) {
       throw new BadRequestException('User has no organization.');

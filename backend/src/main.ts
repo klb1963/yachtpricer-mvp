@@ -1,5 +1,6 @@
 // backend/src/main.ts
 
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
@@ -29,6 +30,15 @@ async function bootstrap() {
   // 👇 включаем Prisma shutdown hooks
   const prismaService = app.get(PrismaService);
   prismaService.enableShutdownHooks(app);
+
+  // ✅ глобальный ValidationPipe
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true, // автоматический каст типов (строки -> числа и т.д.)
+      whitelist: true, // игнорировать свойства, которых нет в DTO
+      forbidNonWhitelisted: true, // выбрасывать 400, если пришли лишние свойства
+    }),
+  );
 
   await app.listen(8000);
   Logger.log('HTTP server listening on http://localhost:8000', 'Bootstrap');

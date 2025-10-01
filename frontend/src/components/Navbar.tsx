@@ -32,7 +32,7 @@ export default function Navbar() {
           <img
             src="/logo.svg"
             alt="YachtPricer"
-            className="h-12 w-12"
+            className="h-10 w-10"
           />
           <span className="hidden sm:inline text-white">YP</span>
         </Link>
