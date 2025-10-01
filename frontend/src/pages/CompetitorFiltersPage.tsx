@@ -15,6 +15,7 @@ import {
   findBuilders,
   findModels,
   testFiltersCount,
+  resetCompetitorFilters,
   type Country,
   type CatalogCategory,
   type CatalogBuilder,
@@ -44,6 +45,7 @@ const t = {
   chooseBuilders: "— choose builders —",
   chooseModels: "— choose models —",
   testFilters: "Test filters",
+  resetFilters: "Reset filters",
 };
 
 type Scope = "USER" | "ORG";
@@ -117,6 +119,18 @@ export default function CompetitorFiltersPage({
   const [buildersSel, setBuildersSel] = useState<IdLabel[]>([])
   const [modelsSel, setModelsSel] = useState<IdLabel[]>([])
   const [regionsSel, setRegionsSel] = useState<IdLabel[]>([])
+
+  // Кнопка Reset неактивна, если «и так пусто»
+  const nothingSelected = useMemo(
+    () =>
+      selectedCountries.length === 0 &&
+      selectedLocations.length === 0 &&
+      catsSel.length === 0 &&
+      buildersSel.length === 0 &&
+      modelsSel.length === 0 &&
+      regionsSel.length === 0,
+    [selectedCountries, selectedLocations, catsSel, buildersSel, modelsSel, regionsSel]
+  )
 
   // load countries (once)
   useEffect(() => {
@@ -362,6 +376,35 @@ export default function CompetitorFiltersPage({
     }
   }, [scope])
 
+  async function handleResetFilters() {
+   try {
+      // Подтверждение сброса
+      const ok = confirm('Reset all filters?')
+      if (!ok) return
+
+      await resetCompetitorFilters(scope)
+      // подчистим локальный стейт
+      setSelectedCountries([])
+      setSelectedLocations([])
+      setCatsSel([])
+      setBuildersSel([])
+      setModelsSel([])
+      setRegionsSel([])
+      setLenFtMinus(3)
+      setLenFtPlus(3)
+      setYearMinus(2)
+      setYearPlus(2)
+      setPeopleMinus(1)
+      setPeoplePlus(1)
+      setCabinsMinus(1)
+      setCabinsPlus(1)
+      setHeadsMin(1)
+    } catch (e) {
+      console.error('Reset failed:', e)
+      alert('Failed to reset filters.')
+    }
+  }
+
   return (
     <form
       className="grid gap-5"
@@ -418,7 +461,10 @@ export default function CompetitorFiltersPage({
             options={locations}
             value={selectedLocations}
             onChange={(vals) => setSelectedLocations(vals as LocationOpt[])}
-            onInputChange={(input) => { setLocQuery(input); return input; }}
+            onInputChange={(input) => {
+              setLocQuery(input)
+              return input
+            }}
             placeholder={locLoading ? t.loading : t.chooseLocations}
             classNamePrefix="rs"
           />
@@ -520,13 +566,27 @@ export default function CompetitorFiltersPage({
           submitLabel={t.applySave}
           submitting={false}
           leftContent={
-            <button
-              type="button"
-              onClick={handleTestFilters}
-              className="h-10 px-4 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-            >
-              {t.testFilters}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleTestFilters}
+                className="h-10 px-4 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              >
+                {t.testFilters}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                disabled={nothingSelected}
+                className={`h-10 px-4 rounded-md border ${
+                  nothingSelected ? 'border-gray-200 text-gray-300 cursor-not-allowed' :
+                  'border-red-300 bg-white text-red-700 hover:bg-red-50'
+                }`}
+              >
+                {t.resetFilters}
+              </button>
+            </div>
           }
         />
       </div>

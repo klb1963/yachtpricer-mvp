@@ -478,6 +478,12 @@ export async function saveCompetitorFilters(dto: {
   return data;
 }
 
+// ---- Reset Competitor Filters ----
+export async function resetCompetitorFilters(scope: "USER" | "ORG") {
+  const { data } = await api.delete("/filters/competitors", { params: { scope } });
+  return data;
+}
+
 // ---- Test scan (dry-run) ----
 export async function testFiltersCount<T extends object>(payload: T): Promise<{ count: number }> {
   const r = await apiFetch("/scan/test", {

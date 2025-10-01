@@ -60,6 +60,52 @@ export class CompetitorFiltersService {
     });
   }
 
+  async reset(orgId: string, userId: string | undefined, scope: $Enums.FilterScope = 'USER') {
+    if (scope === 'USER' && !userId) {
+      throw new BadRequestException('userId is required when scope is USER');
+    }
+
+    // найдём запись как в upsert()
+    const existing = await this.prisma.competitorFilters.findFirst({
+      where: scope === 'USER'
+        ? { orgId, scope: 'USER', userId: userId! }
+        : { orgId, scope: 'ORG', userId: null },
+      select: { id: true },
+    });
+
+    // если нет — создать пустую с дефолтами
+    const saved = existing ?? await this.prisma.competitorFilters.create({
+      data: {
+        scope,
+        org: { connect: { id: orgId } },
+        ...(userId && scope === 'USER' ? { user: { connect: { id: userId } } } : {}),
+        lenFtMinus: 3, lenFtPlus: 3,
+        yearMinus: 2, yearPlus: 2,
+        peopleMinus: 1, peoplePlus: 1,
+        cabinsMinus: 1, cabinsPlus: 1,
+        headsMin: 1,
+      },
+    });
+
+    // очистить все M2M
+    await this.prisma.competitorFilters.update({
+      where: { id: saved.id },
+      data: {
+        countries:  { set: [] },
+        locations:  { set: [] },
+        categories: { set: [] },
+        builders:   { set: [] },
+        models:     { set: [] },
+        regions:    { set: [] },
+      },
+    });
+
+    return this.prisma.competitorFilters.findUnique({
+      where: { id: saved.id },
+      include: { countries: true, locations: true, categories: true, builders: true, models: true, regions: true },
+    });
+  }
+
   async upsert(
     orgId: string,
     userId: string | undefined,
@@ -85,14 +131,6 @@ export class CompetitorFiltersService {
     };
 
     const n = this.num.bind(this);
-
-    // нормализуем массивы из dto (пустые → undefined)
-    // const countries = this.emptyToUndef(dto.countries);
-    // const regions = this.emptyToUndef(dto.regions);
-    // const locations = this.emptyToUndef(dto.locations);
-    // const categories = this.emptyToUndef(dto.categories);
-    // const builders = this.emptyToUndef(dto.builders);
-    // const models = this.emptyToUndef(dto.models);
 
     // общие поля (в т.ч. countries, если у тебя есть scalar column в модели)
     const commonFields: Prisma.CompetitorFiltersUpdateInput = {
@@ -251,5 +289,6 @@ export class CompetitorFiltersService {
         regions: true,
       },
     });
+
   }
 }
