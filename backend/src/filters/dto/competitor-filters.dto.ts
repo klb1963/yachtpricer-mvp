@@ -100,8 +100,8 @@ export class CompetitorFiltersDto {
   // --- ТЕРРИТОРИЯ ---
   @IsOptional()
   @IsArray()
-  @Transform(({ value }) => toStringArray(value))
-  countries?: string[];
+  @Transform(({ value }) => toStringArray(value)?.map((s) => s.toUpperCase()))
+  countryCodes?: string[]; // ISO-2, временный алиас
 
   @IsOptional()
   @IsArray()
@@ -184,7 +184,7 @@ export class CompetitorFiltersDto {
 // --- ВАЛИДАЦИЯ «хотя бы одно поле заполнено» ---
 export class CompetitorFiltersBody extends CompetitorFiltersDto {
   @AtLeastOne([
-    'countries',
+    'countryCodes',
     'regions',
     'locations',
     'categories',
