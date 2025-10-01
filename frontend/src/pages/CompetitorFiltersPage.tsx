@@ -299,14 +299,17 @@ export default function CompetitorFiltersPage({
         setCabinsPlus(preset.cabinsPlus ?? 1)
         setHeadsMin(preset.headsMin ?? 1)
 
-        // locations / countries from preset
+        // locations from preset
         const locOpts: Option[] = (preset.locations ?? []).map(toLocOption)
         setSelectedLocations(locOpts)
-        const codes = Array.from(
-          new Set((preset.locations ?? []).map((l) => l.countryCode).filter(Boolean))
-        ) as string[]
-        const countryOpts: Option[] = codes.map((c) => ({ value: c, label: c }))
-        setSelectedCountries(countryOpts as CountryOpt[])
+
+        // countries from preset (новый M2M)
+        const countryOpts: CountryOpt[] = (preset.countries ?? []).map((c) => ({
+          // если селект работает по ISO-2:
+          value: c.code2,
+          label: `${c.name} (${c.code2})`,
+        }))
+        setSelectedCountries(countryOpts)
 
         // NEW: hydrate cats/builders/models if present
         if (Array.isArray(preset.categories)) {

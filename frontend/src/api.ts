@@ -363,7 +363,7 @@ export async function listCompetitorPrices(params: { yachtId?: string; week?: st
 }
 
 // --- GEO API ---
-export type Country = { code2: string; name: string; nausysId: number; code3?: string | null };
+export type Country = { id: string; code2: string; name: string; nausysId: number; code3?: string | null };
 export type LocationItem = {
   id: string;
   externalId: string | null;
@@ -459,11 +459,11 @@ export async function findRegions(
 export async function saveCompetitorFilters(dto: {
   scope: "USER" | "ORG";
   locationIds?: string[];
-  countryCodes?: string[];
-  categoryIds?: number[]; // было string[]
-  builderIds?: number[];  // было string[]
-  modelIds?: number[];    // было string[]
-  regionIds?: number[];   // было string[]
+  countryCodes?: string[];    // ← шлём ISO-2: [“GR”,“HR”]
+  categoryIds?: number[];
+  builderIds?: number[];
+  modelIds?: number[];
+  regionIds?: number[];
   lenFtMinus: number;
   lenFtPlus: number;
   yearMinus: number;
@@ -508,6 +508,7 @@ export type ServerCompetitorFilters = {
   builders?:   Array<{ id: number; name: string }>;
   models?:     Array<{ id: number; name: string; builderId?: number | null; categoryId?: number | null }>;
   regions?:    Array<CatalogRegion>;
+  countries?: Array<{ id: string; code2: string; name: string }>;
 };
 
 

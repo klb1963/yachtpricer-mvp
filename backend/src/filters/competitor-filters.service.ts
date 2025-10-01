@@ -36,6 +36,7 @@ export class CompetitorFiltersService {
       const u = await this.prisma.competitorFilters.findFirst({
         where: { orgId, scope: 'USER', userId },
         include: {
+          countries: true,
           locations: true,
           categories: true,
           builders: true,
@@ -49,6 +50,7 @@ export class CompetitorFiltersService {
     return this.prisma.competitorFilters.findFirst({
       where: { orgId, scope: 'ORG', userId: null },
       include: {
+        countries: true,
         locations: true,
         categories: true,
         builders: true,
@@ -139,15 +141,30 @@ export class CompetitorFiltersService {
 
     // ===== СИНХРОНИЗАЦИЯ M2M-СВЯЗЕЙ (только если поле прислано в DTO) =====
 
-    // Countries (string id)
-    if (dto.countries !== undefined) {
-      const ids: string[] = dto.countries ?? [];
+    // Countries — поддерживаем и countries (ids), и countryCodes (ISO-2)
+    if (dto.countryCodes !== undefined) {
+      // нормализуем коды
+      const codes = (dto.countryCodes ?? [])
+        .map((c) => String(c).trim().toUpperCase())
+        .filter(Boolean);
+
+      // ищем соответствующие id
+      const found = codes.length
+        ? await this.prisma.country.findMany({
+            where: { code2: { in: codes } },
+            select: { id: true },
+          })
+        : [];
+
+      // уникальные ID для connect
+      const ids = Array.from(new Set(found.map((x) => x.id)));
+
       await this.prisma.competitorFilters.update({
         where: { id: saved.id },
         data: {
           countries: {
-            set: [],
-            ...(ids.length ? { connect: ids.map((id) => ({ id })) } : {}),
+            set: [], // очистить все
+            ...(ids.length ? { connect: ids.map((id) => ({ id })) } : {}), // при пустом ids просто очистим связи
           },
         },
       });
@@ -226,6 +243,7 @@ export class CompetitorFiltersService {
     return this.prisma.competitorFilters.findUnique({
       where: { id: saved.id },
       include: {
+        countries: true,
         locations: true,
         categories: true,
         builders: true,
