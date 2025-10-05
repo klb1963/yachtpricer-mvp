@@ -1,10 +1,32 @@
 // frontend/src/pages/YachtEditPage.tsx
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { getYacht, updateYacht, createYacht, deleteYacht } from '../api';
-import type { Yacht, YachtUpdatePayload } from '../api';
+import type {
+  Yacht,
+  YachtUpdatePayload,
+  Country,
+  CatalogCategory,
+  CatalogBuilder,
+} from '../api';
+
+import Select from 'react-select';
+import AsyncSelect from 'react-select/async';
+import {
+  getYacht, updateYacht, createYacht, deleteYacht,
+  getCountries, findCategories, findBuilders
+} from '../api';
+
+type YachtWithRefs = Yacht & {
+  countryId?: string | null;
+  country?: { id: string } | null;
+  categoryId?: number | null;
+  category?: { id: number } | null;
+  builderId?: number | null;
+  builder?: { id: number } | null;
+};
+
 
 type FormState = {
   name: string;
@@ -21,8 +43,10 @@ type FormState = {
   basePrice: string;
   currentExtraServices: string; // текст (может быть JSON)
   ownerName: string;
-  // NEW
   maxDiscountPct: string;       // вводим в процентах (строка формы)
+  countryId: string;           // NEW
+  categoryId: string;          // NEW (число в строке)
+  builderId: string;           // NEW (число в строке)
 };
 
 const TYPE_OPTIONS = ['monohull', 'catamaran', 'trimaran', 'compromis'] as const;
@@ -42,6 +66,9 @@ const CABINS_OPTIONS = range(2, 6);
 const HEADS_OPTIONS = range(1, 4);
 
 export default function YachtEditPage() {
+  type Opt = { value: string; label: string };
+  const [countryOpts, setCountryOpts] = useState<Opt[]>([]);
+
   const { t } = useTranslation('yacht');
   const { id } = useParams();
   const isCreate = !id;
@@ -63,6 +90,9 @@ export default function YachtEditPage() {
     currentExtraServices: '',
     ownerName: '',
     maxDiscountPct: '',
+    countryId: '',
+    categoryId: '',
+    builderId: '', 
   });
 
   const [yacht, setYacht] = useState<Yacht | null>(null);
@@ -70,6 +100,23 @@ export default function YachtEditPage() {
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Load countries once
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list: Country[] = await getCountries();
+        if (cancelled) return;
+        const opts = list
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((c) => ({ value: c.id, label: `${c.name} (${c.code2})` }));
+        setCountryOpts(opts);
+      } catch { /* noop */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (isCreate) {
@@ -94,7 +141,20 @@ export default function YachtEditPage() {
             ? y.currentExtraServices
             : JSON.stringify(y.currentExtraServices ?? [], null, 2);
 
+        const yy = y as YachtWithRefs;
+
         setForm({
+          
+          countryId: yy.countryId ?? yy.country?.id ?? '',
+          categoryId:
+            yy.categoryId != null ? String(yy.categoryId)
+            : yy.category?.id != null ? String(yy.category.id)
+            : '',
+          builderId:
+            yy.builderId != null ? String(yy.builderId)
+            : yy.builder?.id != null ? String(yy.builder.id)
+            : '',
+
           name: y.name ?? '',
           manufacturer: y.manufacturer ?? '',
           model: y.model ?? '',
@@ -124,30 +184,95 @@ export default function YachtEditPage() {
       setForm((f) => ({ ...f, [name]: e.target.value }));
     };
 
+  // ✅ Асинхронные загрузчики выносим вверх, чтобы не было нарушения правил хуков
+  const loadCategoryOptions = useCallback(async (input: string) => {
+    const { items }: { items: CatalogCategory[] } = await findCategories(input ?? '', 20);
+    return items.map((c) => ({
+      value: String(c.id),
+      label: c.nameEn || c.nameRu || `#${c.id}`,
+    }));
+  }, []);
+
+  const loadBuilderOptions = useCallback(async (input: string) => {
+    const { items }: { items: CatalogBuilder[] } = await findBuilders(input ?? '', 20);
+    return items.map((b) => ({
+      value: String(b.id),
+      label: b.name,
+    }));
+  }, []);
+
+  // memoized current selected values for async selects
+  const categoryValue = useMemo<Opt | null>(
+    () => form.categoryId
+      ? { value: form.categoryId, label: optionIdFallback(form.categoryId, 'category') }
+      : null,
+    [form.categoryId],
+  );
+
+  const builderValue = useMemo<Opt | null>(
+    () => form.builderId
+      ? { value: form.builderId, label: optionIdFallback(form.builderId, 'builder') }
+      : null,
+    [form.builderId],
+  );
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setErr(null);
     try {
-      const payload: YachtUpdatePayload = { ...form };
+      // ----- нормализация связей -----
+      const countryId: string | null = form.countryId !== '' ? form.countryId : null;
+      const categoryId: number | null =
+        form.categoryId !== '' && Number.isFinite(Number(form.categoryId))
+          ? Number(form.categoryId)
+          : null;
+      const builderId: number | null =
+        form.builderId !== '' && Number.isFinite(Number(form.builderId))
+          ? Number(form.builderId)
+          : null;
 
-      // нормализуем maxDiscountPct: '' → null, строка/число → number
-      if (form.maxDiscountPct === '') {
-        payload.maxDiscountPct = null;
-      } else {
+      // ----- скидка -----
+      let maxDiscountPct: number | null = null;
+      if (form.maxDiscountPct !== '') {
         const n = Number(String(form.maxDiscountPct).replace(',', '.'));
-        if (Number.isFinite(n)) payload.maxDiscountPct = n;
+        if (Number.isFinite(n)) maxDiscountPct = n;
       }
 
-      // Попробуем распарсить services как JSON-массив вида [{name, price}]
+      // ----- услуги (может быть строкой или JSON-массивом) -----
+      let currentExtraServices: YachtUpdatePayload['currentExtraServices'] | undefined =
+        form.currentExtraServices;
       try {
         const parsed: unknown = JSON.parse(form.currentExtraServices);
         if (Array.isArray(parsed)) {
-          payload.currentExtraServices = parsed as Array<{ name: string; price: number }>;
+          currentExtraServices = parsed as Array<{ name: string; price: number }>;
         }
       } catch {
-        // оставим строкой — корректно
+        // оставляем строковое значение как есть
       }
+
+      // ----- итоговый payload без any -----
+      const payload: YachtUpdatePayload = {
+        name: form.name,
+        manufacturer: form.manufacturer,
+        model: form.model,
+        type: form.type,
+        location: form.location,
+        fleet: form.fleet,
+        charterCompany: form.charterCompany,
+        // эти поля — строки по типам API
+        length: form.length || undefined,
+        builtYear: form.builtYear || undefined,
+        cabins: form.cabins || undefined,
+        heads: form.heads || undefined,
+        basePrice: form.basePrice,
+        currentExtraServices,
+        ownerName: form.ownerName || undefined,
+        maxDiscountPct,
+        countryId,
+        categoryId,
+        builderId,
+      };
 
       if (isCreate) {
         // на бэке поле обязательно — если пусто, шлём []
@@ -229,6 +354,75 @@ export default function YachtEditPage() {
           <Field label={t('fields.fleet')} value={form.fleet} onChange={onChange('fleet')} />
           <Field label={t('fields.company', 'Charter company')} value={form.charterCompany} onChange={onChange('charterCompany')} />
           <Field label={t('fields.owner', 'Owner name')} value={form.ownerName} onChange={onChange('ownerName')} />
+          
+          {/* Country (react-select, options загружаются один раз) */}
+          <label className="flex flex-col">
+            <span className="text-sm text-gray-600">{t('fields.country', 'Country')}</span>
+            <Select<Opt, false>
+              className="mt-1"
+              classNamePrefix="rs"
+              options={countryOpts}
+              isClearable
+              value={
+                form.countryId
+                  ? countryOpts.find(o => o.value === form.countryId) ?? null
+                  : null
+              }
+              onChange={(opt) =>
+                setForm(f => ({ ...f, countryId: opt?.value ?? '' }))
+              }
+              placeholder={t('placeholders.chooseCountry', 'Choose country…')}
+            />
+          </label>
+
+        </fieldset>
+
+        <fieldset className="grid gap-4 rounded-2xl border p-5 md:grid-cols-2">
+          <Legend>{t('sections.general', 'General')}</Legend>
+
+          {/* Category (async) */}
+          <label className="flex flex-col">
+            <span className="text-sm text-gray-600">{t('fields.category', 'Category')}</span>
+            <AsyncSelect<Opt, false>
+              className="mt-1"
+              classNamePrefix="rs"
+              cacheOptions
+              defaultOptions
+
+              loadOptions={loadCategoryOptions}
+
+              isClearable
+              
+              value={categoryValue}
+              
+              onChange={(opt) =>
+                setForm(f => ({ ...f, categoryId: opt?.value ?? '' }))
+              }
+              placeholder={t('placeholders.chooseCategory', 'Choose category…')}
+            />
+          </label>
+
+          {/* Builder (async) */}
+          <label className="flex flex-col">
+            <span className="text-sm text-gray-600">{t('fields.builder', 'Builder')}</span>
+            <AsyncSelect<Opt, false>
+              className="mt-1"
+              classNamePrefix="rs"
+              cacheOptions
+              defaultOptions
+
+              loadOptions={loadBuilderOptions}
+
+              isClearable
+
+              value={builderValue}
+
+              onChange={(opt) =>
+                setForm(f => ({ ...f, builderId: opt?.value ?? '' }))
+              }
+              placeholder={t('placeholders.chooseBuilder', 'Choose builder…')}
+            />
+          </label>
         </fieldset>
 
         <fieldset className="grid gap-4 rounded-2xl border p-5 md:grid-cols-3">
@@ -412,4 +606,12 @@ function Field(props: {
 
 function Legend({ children }: { children: React.ReactNode }) {
   return <div className="mb-3 font-semibold col-span-full">{children}</div>;
+}
+
+// Небольшой fallback-лейбл, если редактируем уже выбранное значение,
+// а асинхронные опции ещё не подгрузились — показываем #id
+function optionIdFallback(id: string, kind: 'category' | 'builder'): string {
+  if (!id) return '';
+  if (kind === 'category') return `#${id}`;
+  return `#${id}`;
 }

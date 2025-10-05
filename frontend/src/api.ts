@@ -250,6 +250,10 @@ export type YachtUpdatePayload = {
   currentExtraServices?: string | Array<{ name: string; price: number }>;
   // NEW: allow updating max discount %
   maxDiscountPct?: number | string | null;
+  // --- новые связи ---
+  countryId?: string | null;
+  categoryId?: number | null;
+  builderId?: number | null;
 };
 
 export async function updateYacht(id: string, payload: YachtUpdatePayload): Promise<Yacht> {
