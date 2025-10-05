@@ -333,5 +333,4 @@ export class CompetitorFiltersService {
 
     return this.prisma.yacht.count({ where });
   }
-
 }

@@ -8,16 +8,16 @@
     "creating": "Stvaranje…",
     "save": "Spremi",
     "saving": "Spremanje…",
-    "cancel": "Otkaži",
+    "cancel": "Odustani",
     "delete": "Izbriši",
     "deleting": "Brisanje…",
     "deleteTitle": "Izbriši ovu jahtu",
-    "deleteConfirm": "Izbrisati \"{{name}}\"? Ova radnja je nepovratna."
+    "deleteConfirm": "Izbrisati „{{name}}”? Ova radnja se ne može poništiti."
   },
   "sections": {
-    "general": "Opće",
+    "general": "Općenito",
     "specs": "Specifikacije",
-    "pricing": "Cijene",
+    "pricing": "Cijene i popusti",
     "extraServices": "Dodatne usluge (JSON)",
     "charter": "Čarter"
   },
@@ -28,10 +28,13 @@
     "type": "Tip",
     "location": "Lokacija",
     "fleet": "Flota",
-    "company": "Čarter tvrtka",
+    "company": "Čarter kompanija",
     "owner": "Vlasnik",
-    "length": "Dužina",
-    "built": "Godina izgradnje",
+    "country": "Država",
+    "category": "Kategorija",
+    "builder": "Brodogradilište",
+    "length": "Duljina",
+    "built": "Godina gradnje",
     "cabins": "Kabine",
     "heads": "WC-i",
     "cabinsHeads": "Kabine / WC-i",
@@ -39,22 +42,34 @@
     "maxDiscountPct": "Maks. popust %",
     "actualPrice": "Trenutna cijena",
     "actualDiscount": "Trenutni popust",
-    "fetchedAt": "Vrijeme dohvaćanja"
+    "fetchedAt": "Podaci ažurirani"
   },
   "placeholders": {
     "chooseType": "Odaberite tip…",
-    "chooseLength": "Odaberite dužinu…",
+    "chooseCountry": "Odaberite državu…",
+    "chooseCategory": "Odaberite kategoriju…",
+    "chooseBuilder": "Odaberite brodogradilište…",
+    "chooseLength": "Odaberite duljinu…",
     "chooseYear": "Odaberite godinu…",
     "chooseCabins": "Odaberite broj kabina…",
     "chooseHeads": "Odaberite broj WC-a…"
   },
+  "units": {
+    "feet": "stopa"
+  },
+  "type": {
+    "monohull": "Jednotrupac",
+    "catamaran": "Katamaran",
+    "trimaran": "Trimaran",
+    "compromis": "Kompromis"
+  },
   "hints": {
-    "extraServicesJsonHint": "Možete ostaviti kao običan tekst — server će to obraditi."
+    "extraServicesJsonHint": "Možete ostaviti kao običan tekst — poslužitelj će ga obraditi automatski."
   },
   "errors": {
-    "loadFailed": "Neuspjelo učitavanje",
-    "saveFailed": "Neuspjelo spremanje",
-    "deleteFailed": "Neuspjelo brisanje"
+    "loadFailed": "Greška pri učitavanju",
+    "saveFailed": "Greška pri spremanju",
+    "deleteFailed": "Greška pri brisanju"
   },
   "thisYacht": "ova jahta",
   "loading": "Učitavanje…"

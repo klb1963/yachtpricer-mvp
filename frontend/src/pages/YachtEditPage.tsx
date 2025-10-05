@@ -18,13 +18,32 @@ import {
   getCountries, findCategories, findBuilders
 } from '../api';
 
+const { t, i18n } = useTranslation('yacht');
+
+// хелпер для выбора языка
+  // Выбираем локализованный лейбл: HR → nameHr (если появится), RU → nameRu, иначе EN.
+  const pickLocalizedName = useCallback(
+    (obj: { id: number; nameEn?: string | null; nameRu?: string | null; nameHr?: string | null }) => {
+      const lng = (i18n.language || 'en').toLowerCase();
+      const tryOrder =
+        lng.startsWith('ru') ? ['nameRu', 'nameEn', 'nameHr'] :
+        lng.startsWith('hr') ? ['nameHr', 'nameEn', 'nameRu'] :
+                               ['nameEn', 'nameRu', 'nameHr'];
+      const first = tryOrder
+        .map(k => (obj as any)[k] as string | null | undefined)
+        .find(Boolean);
+      return first ?? `#${obj.id}`;
+    },
+    [i18n.language],
+  );
+
 type YachtWithRefs = Yacht & {
   countryId?: string | null;
   country?: { id: string } | null;
   categoryId?: number | null;
-  category?: { id: number } | null;
+  category?: { id: number; nameEn?: string | null; nameRu?: string | null } | null;
   builderId?: number | null;
-  builder?: { id: number } | null;
+  builder?: { id: number; name: string } | null;
 };
 
 
@@ -67,7 +86,10 @@ const HEADS_OPTIONS = range(1, 4);
 
 export default function YachtEditPage() {
   type Opt = { value: string; label: string };
-  const [countryOpts, setCountryOpts] = useState<Opt[]>([]);
+  const [countryOpts, setCountryOpts] = useState<Opt[]>([]); 
+  // Лейблы для уже выбранных (из API) значений category/builder
+  const [categoryLabel, setCategoryLabel] = useState<string | null>(null);
+  const [builderLabel,  setBuilderLabel]  = useState<string | null>(null);
 
   const { t } = useTranslation('yacht');
   const { id } = useParams();
@@ -141,11 +163,20 @@ export default function YachtEditPage() {
             ? y.currentExtraServices
             : JSON.stringify(y.currentExtraServices ?? [], null, 2);
 
-        const yy = y as YachtWithRefs;
+        const yy: YachtWithRefs = y as YachtWithRefs;
+
+        // человекочитаемые лейблы из включённых связей
+        setCategoryLabel(yy.category?.id != null ? pickLocalizedName(yy.category as any) : null);
+
+        setBuilderLabel(
+          yy.builder?.id != null
+            ? (yy.builder.name || `#${yy.builder.id}`)
+            : null
+        );
 
         setForm({
-          
-          countryId: yy.countryId ?? yy.country?.id ?? '',
+          countryId:
+            yy.countryId ?? yy.country?.id ?? '',
           categoryId:
             yy.categoryId != null ? String(yy.categoryId)
             : yy.category?.id != null ? String(yy.category.id)
@@ -154,7 +185,6 @@ export default function YachtEditPage() {
             yy.builderId != null ? String(yy.builderId)
             : yy.builder?.id != null ? String(yy.builder.id)
             : '',
-
           name: y.name ?? '',
           manufacturer: y.manufacturer ?? '',
           model: y.model ?? '',
@@ -184,14 +214,21 @@ export default function YachtEditPage() {
       setForm((f) => ({ ...f, [name]: e.target.value }));
     };
 
+  // 🔹 Выбранная страна — берём ровно тот объект, что в options
+  const selectedCountry = useMemo<Opt | null>(() => {
+    if (!form.countryId) return null;
+    return countryOpts.find(o => o.value === form.countryId) ?? null;
+  }, [countryOpts, form.countryId]);
+
+
   // ✅ Асинхронные загрузчики выносим вверх, чтобы не было нарушения правил хуков
-  const loadCategoryOptions = useCallback(async (input: string) => {
-    const { items }: { items: CatalogCategory[] } = await findCategories(input ?? '', 20);
-    return items.map((c) => ({
-      value: String(c.id),
-      label: c.nameEn || c.nameRu || `#${c.id}`,
-    }));
-  }, []);
+ const loadCategoryOptions = useCallback(async (input: string) => {
+   const { items }: { items: CatalogCategory[] } = await findCategories(input ?? '', 20);
+   return items.map((c) => ({
+     value: String(c.id),
+     label: pickLocalizedName(c as any),
+   }));
+ }, [pickLocalizedName]);
 
   const loadBuilderOptions = useCallback(async (input: string) => {
     const { items }: { items: CatalogBuilder[] } = await findBuilders(input ?? '', 20);
@@ -202,19 +239,18 @@ export default function YachtEditPage() {
   }, []);
 
   // memoized current selected values for async selects
-  const categoryValue = useMemo<Opt | null>(
-    () => form.categoryId
-      ? { value: form.categoryId, label: optionIdFallback(form.categoryId, 'category') }
-      : null,
-    [form.categoryId],
-  );
+  const categoryValue = useMemo<Opt | null>(() => {
+    if (!form.categoryId) return null;
+    // показываем placeholder, пока нет лейбла
+    if (!categoryLabel) return null;
+    return { value: form.categoryId, label: categoryLabel };
+  }, [form.categoryId, categoryLabel]);
 
-  const builderValue = useMemo<Opt | null>(
-    () => form.builderId
-      ? { value: form.builderId, label: optionIdFallback(form.builderId, 'builder') }
-      : null,
-    [form.builderId],
-  );
+  const builderValue = useMemo<Opt | null>(() => {
+    if (!form.builderId) return null;
+    if (!builderLabel) return null;
+    return { value: form.builderId, label: builderLabel };
+  }, [form.builderId, builderLabel]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -332,7 +368,11 @@ export default function YachtEditPage() {
           <Legend>{t('sections.general', 'General')}</Legend>
 
           <Field label={t('fields.name', 'Name')} value={form.name} onChange={onChange('name')} />
-          <Field label={t('fields.manufacturer')} value={form.manufacturer} onChange={onChange('manufacturer')} />
+          <Field
+            label={t('fields.manufacturer')}
+            value={form.manufacturer}
+            onChange={onChange('manufacturer')}
+          />
           <Field label={t('fields.model')} value={form.model} onChange={onChange('model')} />
 
           {/* Type */}
@@ -343,18 +383,34 @@ export default function YachtEditPage() {
               value={form.type}
               onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
             >
-              <option value="" disabled>{t('placeholders.chooseType', 'Choose type…')}</option>
+              <option value="" disabled>
+                {t('placeholders.chooseType', 'Choose type…')}
+              </option>
               {TYPE_OPTIONS.map((tOpt) => (
-                <option key={tOpt} value={tOpt}>{tOpt}</option>
+                <option key={tOpt} value={tOpt}>
+                  {t(`type.${tOpt}`, tOpt)}
+                </option>
               ))}
             </select>
           </label>
 
-          <Field label={t('fields.location')} value={form.location} onChange={onChange('location')} />
+          <Field
+            label={t('fields.location')}
+            value={form.location}
+            onChange={onChange('location')}
+          />
           <Field label={t('fields.fleet')} value={form.fleet} onChange={onChange('fleet')} />
-          <Field label={t('fields.company', 'Charter company')} value={form.charterCompany} onChange={onChange('charterCompany')} />
-          <Field label={t('fields.owner', 'Owner name')} value={form.ownerName} onChange={onChange('ownerName')} />
-          
+          <Field
+            label={t('fields.company', 'Charter company')}
+            value={form.charterCompany}
+            onChange={onChange('charterCompany')}
+          />
+          <Field
+            label={t('fields.owner', 'Owner name')}
+            value={form.ownerName}
+            onChange={onChange('ownerName')}
+          />
+
           {/* Country (react-select, options загружаются один раз) */}
           <label className="flex flex-col">
             <span className="text-sm text-gray-600">{t('fields.country', 'Country')}</span>
@@ -363,22 +419,19 @@ export default function YachtEditPage() {
               classNamePrefix="rs"
               options={countryOpts}
               isClearable
-              value={
-                form.countryId
-                  ? countryOpts.find(o => o.value === form.countryId) ?? null
-                  : null
-              }
-              onChange={(opt) =>
-                setForm(f => ({ ...f, countryId: opt?.value ?? '' }))
-              }
+              value={selectedCountry}
+              onChange={(opt) => {
+                const v = opt?.value ?? ''
+                // временно — посмотреть, что реально прилетает
+                // console.log('select country ->', v, opt);
+                setForm((f) => ({ ...f, countryId: v }))
+              }}
+              // Явно укажем как вытаскивать value/label
+              getOptionValue={(o) => o.value}
+              getOptionLabel={(o) => o.label}
               placeholder={t('placeholders.chooseCountry', 'Choose country…')}
             />
           </label>
-
-        </fieldset>
-
-        <fieldset className="grid gap-4 rounded-2xl border p-5 md:grid-cols-2">
-          <Legend>{t('sections.general', 'General')}</Legend>
 
           {/* Category (async) */}
           <label className="flex flex-col">
@@ -388,16 +441,18 @@ export default function YachtEditPage() {
               classNamePrefix="rs"
               cacheOptions
               defaultOptions
-
               loadOptions={loadCategoryOptions}
-
               isClearable
-              
               value={categoryValue}
-              
-              onChange={(opt) =>
-                setForm(f => ({ ...f, categoryId: opt?.value ?? '' }))
-              }
+              onChange={(opt) => {
+                if (!opt) {
+                  setForm((f) => ({ ...f, categoryId: '' }))
+                  setCategoryLabel(null)
+                } else {
+                  setForm((f) => ({ ...f, categoryId: opt.value }))
+                  setCategoryLabel(opt.label)
+                }
+              }}
               placeholder={t('placeholders.chooseCategory', 'Choose category…')}
             />
           </label>
@@ -410,16 +465,18 @@ export default function YachtEditPage() {
               classNamePrefix="rs"
               cacheOptions
               defaultOptions
-
               loadOptions={loadBuilderOptions}
-
               isClearable
-
               value={builderValue}
-
-              onChange={(opt) =>
-                setForm(f => ({ ...f, builderId: opt?.value ?? '' }))
-              }
+              onChange={(opt) => {
+                if (!opt) {
+                  setForm((f) => ({ ...f, builderId: '' }))
+                  setBuilderLabel(null)
+                } else {
+                  setForm((f) => ({ ...f, builderId: opt.value }))
+                  setBuilderLabel(opt.label)
+                }
+              }}
               placeholder={t('placeholders.chooseBuilder', 'Choose builder…')}
             />
           </label>
@@ -430,15 +487,21 @@ export default function YachtEditPage() {
 
           {/* Length (feet) 5..100 */}
           <label className="flex flex-col">
-            <span className="text-sm text-gray-600">{t('fields.length')} (feet)</span>
+            <span className="text-sm text-gray-600">
+              {t('fields.length')} ({t('units.feet', 'feet')})
+            </span>
             <select
               className="mt-1 rounded border p-2 bg-white"
               value={form.length}
               onChange={(e) => setForm((f) => ({ ...f, length: e.target.value }))}
             >
-              <option value="" disabled>{t('placeholders.chooseLength', 'Choose length…')}</option>
+              <option value="" disabled>
+                {t('placeholders.chooseLength', 'Choose length…')}
+              </option>
               {LENGTH_OPTIONS.map((n) => (
-                <option key={n} value={String(n)}>{n}</option>
+                <option key={n} value={String(n)}>
+                  {n}
+                </option>
               ))}
             </select>
           </label>
@@ -451,9 +514,13 @@ export default function YachtEditPage() {
               value={form.builtYear}
               onChange={(e) => setForm((f) => ({ ...f, builtYear: e.target.value }))}
             >
-              <option value="" disabled>{t('placeholders.chooseYear', 'Choose year…')}</option>
+              <option value="" disabled>
+                {t('placeholders.chooseYear', 'Choose year…')}
+              </option>
               {[...BUILT_YEAR_OPTIONS].reverse().map((y) => (
-                <option key={y} value={String(y)}>{y}</option>
+                <option key={y} value={String(y)}>
+                  {y}
+                </option>
               ))}
             </select>
           </label>
@@ -466,9 +533,13 @@ export default function YachtEditPage() {
               value={form.cabins}
               onChange={(e) => setForm((f) => ({ ...f, cabins: e.target.value }))}
             >
-              <option value="" disabled>{t('placeholders.chooseCabins', 'Choose cabins…')}</option>
+              <option value="" disabled>
+                {t('placeholders.chooseCabins', 'Choose cabins…')}
+              </option>
               {CABINS_OPTIONS.map((n) => (
-                <option key={n} value={String(n)}>{n}</option>
+                <option key={n} value={String(n)}>
+                  {n}
+                </option>
               ))}
             </select>
           </label>
@@ -481,14 +552,22 @@ export default function YachtEditPage() {
               value={form.heads}
               onChange={(e) => setForm((f) => ({ ...f, heads: e.target.value }))}
             >
-              <option value="" disabled>{t('placeholders.chooseHeads', 'Choose heads…')}</option>
+              <option value="" disabled>
+                {t('placeholders.chooseHeads', 'Choose heads…')}
+              </option>
               {HEADS_OPTIONS.map((n) => (
-                <option key={n} value={String(n)}>{n}</option>
+                <option key={n} value={String(n)}>
+                  {n}
+                </option>
               ))}
             </select>
           </label>
 
-          <Field label={t('fields.basePrice')} value={form.basePrice} onChange={onChange('basePrice')} />
+          <Field
+            label={t('fields.basePrice')}
+            value={form.basePrice}
+            onChange={onChange('basePrice')}
+          />
         </fieldset>
 
         {/* NEW: Pricing section */}
@@ -506,7 +585,7 @@ export default function YachtEditPage() {
                 max="100"
                 placeholder="—"
                 value={form.maxDiscountPct}
-                onChange={(e) => setForm(f => ({ ...f, maxDiscountPct: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, maxDiscountPct: e.target.value }))}
               />
             </label>
 
@@ -525,13 +604,16 @@ export default function YachtEditPage() {
               <input
                 className="mt-1 rounded border p-2 bg-gray-50"
                 readOnly
-                value={yacht?.actualDiscountPct != null ? String(yacht.actualDiscountPct) + '%' : '—'}
+                value={
+                  yacht?.actualDiscountPct != null ? String(yacht.actualDiscountPct) + '%' : '—'
+                }
               />
             </label>
           </div>
 
           <div className="mt-3 text-xs text-gray-500">
-            {t('fields.fetchedAt')}: {yacht?.fetchedAt ? new Date(yacht.fetchedAt).toLocaleString() : '—'}
+            {t('fields.fetchedAt')}:{' '}
+            {yacht?.fetchedAt ? new Date(yacht.fetchedAt).toLocaleString() : '—'}
           </div>
         </fieldset>
 
@@ -559,8 +641,12 @@ export default function YachtEditPage() {
                        disabled:bg-blue-400 disabled:text-white disabled:opacity-100 disabled:cursor-not-allowed"
           >
             {saving
-              ? (isCreate ? t('actions.creating', 'Creating…') : t('actions.saving', 'Saving…'))
-              : (isCreate ? t('actions.create', 'Create') : t('actions.save', 'Save'))}
+              ? isCreate
+                ? t('actions.creating', 'Creating…')
+                : t('actions.saving', 'Saving…')
+              : isCreate
+                ? t('actions.create', 'Create')
+                : t('actions.save', 'Save')}
           </button>
 
           <Link
@@ -588,7 +674,7 @@ export default function YachtEditPage() {
         </div>
       </form>
     </div>
-  );
+  )
 }
 
 function Field(props: {
@@ -606,12 +692,4 @@ function Field(props: {
 
 function Legend({ children }: { children: React.ReactNode }) {
   return <div className="mb-3 font-semibold col-span-full">{children}</div>;
-}
-
-// Небольшой fallback-лейбл, если редактируем уже выбранное значение,
-// а асинхронные опции ещё не подгрузились — показываем #id
-function optionIdFallback(id: string, kind: 'category' | 'builder'): string {
-  if (!id) return '';
-  if (kind === 'category') return `#${id}`;
-  return `#${id}`;
 }

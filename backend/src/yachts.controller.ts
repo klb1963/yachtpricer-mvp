@@ -21,6 +21,26 @@ const toInt = (v: unknown): number | undefined => {
   const n = Number(v);
   return Number.isInteger(n) ? n : undefined;
 };
+
+/** nullable helpers для связей */
+const toNullableStr = (v: unknown): string | null | undefined => {
+  if (v === undefined) return undefined; // не трогаем поле
+  if (v === null) return null; // явный сброс (disconnect)
+  if (typeof v === 'string') {
+    const s = v.trim();
+    return s === '' ? null : s; // '' -> null
+  }
+  // Любые не-строки игнорируем, чтобы не получить "[object Object]"
+  return undefined;
+};
+
+const toNullableInt = (v: unknown): number | null | undefined => {
+  if (v === undefined) return undefined; // не трогать
+  if (v === null || v === '') return null; // disconnect
+  const n = Number(v);
+  return Number.isInteger(n) ? n : null; // connect или disconnect
+};
+
 const toNum = (v: unknown): number | undefined => {
   if (v === undefined || v === null || v === '') return undefined;
   const n = Number(v);
@@ -124,7 +144,14 @@ export class YachtsController {
   // -------- by id --------
   @Get(':id')
   async byId(@Param('id') id: string) {
-    const y = await this.prisma.yacht.findUnique({ where: { id } });
+    const y = await this.prisma.yacht.findUnique({
+      where: { id },
+      include: {
+        country: { select: { id: true, code2: true, name: true } },
+        category: { select: { id: true, nameEn: true, nameRu: true } },
+        builder: { select: { id: true, name: true } },
+      },
+    });
     if (!y) throw new NotFoundException('Yacht not found');
     return y;
   }
@@ -219,10 +246,23 @@ export class YachtsController {
     const services = this.toJsonValueEnsure(body['currentExtraServices']);
     const ownerId = this.optStr(body, 'ownerId');
 
+    // значения связей (один раз вычисляем)
+    const countryId = toNullableStr(body['countryId']); // string | null | undefined
+    const categoryId = toNullableInt(body['categoryId']); // number | null | undefined
+    const builderId = toNullableInt(body['builderId']); // number | null | undefined
+
     const data: Prisma.YachtCreateInput = {
       ...baseData,
       currentExtraServices: services,
       ...(ownerId ? { owner: { connect: { id: ownerId } } } : {}),
+      // 👇 новые связи (при создании null/undefined просто пропускаем)
+      ...(countryId ? { country: { connect: { id: countryId } } } : {}),
+      ...(typeof categoryId === 'number'
+        ? { category: { connect: { id: categoryId } } }
+        : {}),
+      ...(typeof builderId === 'number'
+        ? { builder: { connect: { id: builderId } } }
+        : {}),
     };
 
     return this.prisma.yacht.create({ data });
@@ -272,12 +312,57 @@ export class YachtsController {
       if (idStr) data.owner = { connect: { id: idStr } };
     }
 
+    // ====== связи: country / category / builder ======
+    // countryId: string UUID | null | undefined
+    if (Object.prototype.hasOwnProperty.call(body, 'countryId')) {
+      const v = toNullableStr(body['countryId']);
+      let countryUpdate: Prisma.YachtUpdateInput['country'];
+      if (v === null) {
+        countryUpdate = { disconnect: true };
+      } else if (typeof v === 'string' && v) {
+        countryUpdate = { connect: { id: v } };
+      }
+      if (countryUpdate) data.country = countryUpdate;
+    }
+
+    // categoryId: number | null | undefined
+    if (Object.prototype.hasOwnProperty.call(body, 'categoryId')) {
+      const v = toNullableInt(body['categoryId']);
+      let categoryUpdate: Prisma.YachtUpdateInput['category'];
+      if (v === null) {
+        categoryUpdate = { disconnect: true };
+      } else if (typeof v === 'number') {
+        categoryUpdate = { connect: { id: v } };
+      }
+      if (categoryUpdate) data.category = categoryUpdate;
+    }
+
+    // builderId: number | null | undefined
+    if (Object.prototype.hasOwnProperty.call(body, 'builderId')) {
+      const v = toNullableInt(body['builderId']);
+      let builderUpdate: Prisma.YachtUpdateInput['builder'];
+      if (v === null) {
+        builderUpdate = { disconnect: true };
+      } else if (typeof v === 'number') {
+        builderUpdate = { connect: { id: v } };
+      }
+      if (builderUpdate) data.builder = builderUpdate;
+    }
+
     // зачистка undefined
     (Object.keys(data) as Array<keyof Prisma.YachtUpdateInput>).forEach((k) => {
       if (data[k] === undefined) delete data[k];
     });
 
-    return this.prisma.yacht.update({ where: { id }, data });
+    return this.prisma.yacht.update({
+      where: { id },
+      data,
+      include: {
+        country: { select: { id: true, code2: true, name: true } },
+        category: { select: { id: true, nameEn: true, nameRu: true } },
+        builder: { select: { id: true, name: true } },
+      },
+    });
   }
 
   // ===== delete =====

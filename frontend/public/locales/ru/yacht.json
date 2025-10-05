@@ -12,13 +12,13 @@
     "delete": "Удалить",
     "deleting": "Удаление…",
     "deleteTitle": "Удалить эту яхту",
-    "deleteConfirm": "Удалить «{{name}}»? Это действие необратимо."
+    "deleteConfirm": "Удалить «{{name}}»? Это действие невозможно отменить."
   },
   "sections": {
     "general": "Общие",
     "specs": "Характеристики",
-    "pricing": "Цены",
-    "extraServices": "Доп. услуги (JSON)",
+    "pricing": "Цены и скидки",
+    "extraServices": "Дополнительные услуги (JSON)",
     "charter": "Чартер"
   },
   "fields": {
@@ -30,26 +30,41 @@
     "fleet": "Флот",
     "company": "Чартерная компания",
     "owner": "Владелец",
+    "country": "Страна",
+    "category": "Категория",
+    "builder": "Верфь / Производитель корпуса",
     "length": "Длина",
     "built": "Год постройки",
     "cabins": "Каюты",
-    "heads": "Туалеты",
-    "cabinsHeads": "Каюты / Туалеты",
+    "heads": "Санузлы",
+    "cabinsHeads": "Каюты / Санузлы",
     "basePrice": "Базовая цена",
     "maxDiscountPct": "Макс. скидка %",
-    "actualPrice": "Актуальная цена",
-    "actualDiscount": "Актуальная скидка",
-    "fetchedAt": "Дата получения"
+    "actualPrice": "Текущая цена",
+    "actualDiscount": "Текущая скидка",
+    "fetchedAt": "Данные обновлены"
   },
   "placeholders": {
     "chooseType": "Выберите тип…",
+    "chooseCountry": "Выберите страну…",
+    "chooseCategory": "Выберите категорию…",
+    "chooseBuilder": "Выберите производителя…",
     "chooseLength": "Выберите длину…",
     "chooseYear": "Выберите год…",
     "chooseCabins": "Выберите число кают…",
-    "chooseHeads": "Выберите число туалетов…"
+    "chooseHeads": "Выберите число санузлов…"
+  },
+  "units": {
+    "feet": "футов"
+  },
+  "type": {
+    "monohull": "Однокорпусная",
+    "catamaran": "Катамаран",
+    "trimaran": "Тримаран",
+    "compromis": "Компромисс"
   },
   "hints": {
-    "extraServicesJsonHint": "Можно оставить строкой — сервер сам обработает."
+    "extraServicesJsonHint": "Можно оставить как текст — сервер обработает автоматически."
   },
   "errors": {
     "loadFailed": "Ошибка загрузки",
