@@ -18,25 +18,6 @@ import {
   getCountries, findCategories, findBuilders
 } from '../api';
 
-const { t, i18n } = useTranslation('yacht');
-
-// хелпер для выбора языка
-  // Выбираем локализованный лейбл: HR → nameHr (если появится), RU → nameRu, иначе EN.
-  const pickLocalizedName = useCallback(
-    (obj: { id: number; nameEn?: string | null; nameRu?: string | null; nameHr?: string | null }) => {
-      const lng = (i18n.language || 'en').toLowerCase();
-      const tryOrder =
-        lng.startsWith('ru') ? ['nameRu', 'nameEn', 'nameHr'] :
-        lng.startsWith('hr') ? ['nameHr', 'nameEn', 'nameRu'] :
-                               ['nameEn', 'nameRu', 'nameHr'];
-      const first = tryOrder
-        .map(k => (obj as any)[k] as string | null | undefined)
-        .find(Boolean);
-      return first ?? `#${obj.id}`;
-    },
-    [i18n.language],
-  );
-
 type YachtWithRefs = Yacht & {
   countryId?: string | null;
   country?: { id: string } | null;
@@ -45,7 +26,6 @@ type YachtWithRefs = Yacht & {
   builderId?: number | null;
   builder?: { id: number; name: string } | null;
 };
-
 
 type FormState = {
   name: string;
@@ -85,16 +65,38 @@ const CABINS_OPTIONS = range(2, 6);
 const HEADS_OPTIONS = range(1, 4);
 
 export default function YachtEditPage() {
-  type Opt = { value: string; label: string };
-  const [countryOpts, setCountryOpts] = useState<Opt[]>([]); 
+  type Opt = { value: string; label: string }
+  const [countryOpts, setCountryOpts] = useState<Opt[]>([])
   // Лейблы для уже выбранных (из API) значений category/builder
-  const [categoryLabel, setCategoryLabel] = useState<string | null>(null);
-  const [builderLabel,  setBuilderLabel]  = useState<string | null>(null);
+  const [categoryLabel, setCategoryLabel] = useState<string | null>(null)
+  const [builderLabel, setBuilderLabel] = useState<string | null>(null)
 
-  const { t } = useTranslation('yacht');
-  const { id } = useParams();
-  const isCreate = !id;
-  const nav = useNavigate();
+  const { t, i18n } = useTranslation('yacht')
+
+  // хелпер для выбора языка
+  // Выбираем локализованный лейбл: HR → nameHr (если появится), RU → nameRu, иначе EN.
+  const pickLocalizedName = useCallback(
+    (obj: {
+      id: number
+      nameEn?: string | null
+      nameRu?: string | null
+      nameHr?: string | null
+    }) => {
+      const lng = (i18n.language || 'en').toLowerCase()
+      const tryOrder = lng.startsWith('ru')
+        ? ['nameRu', 'nameEn', 'nameHr']
+        : lng.startsWith('hr')
+          ? ['nameHr', 'nameEn', 'nameRu']
+          : ['nameEn', 'nameRu', 'nameHr']
+      const first = tryOrder.map((k) => (obj as any)[k] as string | null | undefined).find(Boolean)
+      return first ?? `#${obj.id}`
+    },
+    [i18n.language]
+  )
+
+  const { id } = useParams()
+  const isCreate = !id
+  const nav = useNavigate()
 
   const [form, setForm] = useState<FormState>({
     name: '',
@@ -114,77 +116,80 @@ export default function YachtEditPage() {
     maxDiscountPct: '',
     countryId: '',
     categoryId: '',
-    builderId: '', 
-  });
+    builderId: '',
+  })
 
-  const [yacht, setYacht] = useState<Yacht | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [yacht, setYacht] = useState<Yacht | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // Load countries once
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
+    let cancelled = false
+    ;(async () => {
       try {
-        const list: Country[] = await getCountries();
-        if (cancelled) return;
+        const list: Country[] = await getCountries()
+        if (cancelled) return
         const opts = list
           .slice()
           .sort((a, b) => a.name.localeCompare(b.name))
-          .map((c) => ({ value: c.id, label: `${c.name} (${c.code2})` }));
-        setCountryOpts(opts);
-      } catch { /* noop */ }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+          .map((c) => ({ value: c.id, label: `${c.name} (${c.code2})` }))
+        setCountryOpts(opts)
+      } catch {
+        /* noop */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (isCreate) {
-      setLoading(false);
-      return;
+      setLoading(false)
+      return
     }
-    if (!id) return;
+    if (!id) return
 
     getYacht(id)
       .then((y: Yacht) => {
-        setYacht(y);   // сохраняем оригинал для read-only полей
+        setYacht(y) // сохраняем оригинал для read-only полей
 
         const basePriceStr =
           typeof y.basePrice === 'string'
             ? y.basePrice
             : y.basePrice != null
-            ? String(y.basePrice)
-            : '';
+              ? String(y.basePrice)
+              : ''
 
         const extraStr =
           typeof y.currentExtraServices === 'string'
             ? y.currentExtraServices
-            : JSON.stringify(y.currentExtraServices ?? [], null, 2);
+            : JSON.stringify(y.currentExtraServices ?? [], null, 2)
 
-        const yy: YachtWithRefs = y as YachtWithRefs;
+        const yy: YachtWithRefs = y as YachtWithRefs
 
         // человекочитаемые лейблы из включённых связей
-        setCategoryLabel(yy.category?.id != null ? pickLocalizedName(yy.category as any) : null);
+        setCategoryLabel(yy.category?.id != null ? pickLocalizedName(yy.category as any) : null)
 
-        setBuilderLabel(
-          yy.builder?.id != null
-            ? (yy.builder.name || `#${yy.builder.id}`)
-            : null
-        );
+        setBuilderLabel(yy.builder?.id != null ? yy.builder.name || `#${yy.builder.id}` : null)
 
         setForm({
-          countryId:
-            yy.countryId ?? yy.country?.id ?? '',
+          countryId: yy.countryId ?? yy.country?.id ?? '',
           categoryId:
-            yy.categoryId != null ? String(yy.categoryId)
-            : yy.category?.id != null ? String(yy.category.id)
-            : '',
+            yy.categoryId != null
+              ? String(yy.categoryId)
+              : yy.category?.id != null
+                ? String(yy.category.id)
+                : '',
           builderId:
-            yy.builderId != null ? String(yy.builderId)
-            : yy.builder?.id != null ? String(yy.builder.id)
-            : '',
+            yy.builderId != null
+              ? String(yy.builderId)
+              : yy.builder?.id != null
+                ? String(yy.builder.id)
+                : '',
           name: y.name ?? '',
           manufacturer: y.manufacturer ?? '',
           model: y.model ?? '',
@@ -200,88 +205,87 @@ export default function YachtEditPage() {
           currentExtraServices: extraStr,
           ownerName: y.ownerName ?? '',
           maxDiscountPct: y.maxDiscountPct != null ? String(y.maxDiscountPct) : '',
-        });
+        })
       })
-      .catch((e: unknown) =>
-        setErr(e instanceof Error ? e.message : t('errors.loadFailed')),
-      )
-      .finally(() => setLoading(false));
-  }, [id, isCreate, t]);
+      .catch((e: unknown) => setErr(e instanceof Error ? e.message : t('errors.loadFailed')))
+      .finally(() => setLoading(false))
+  }, [id, isCreate, t])
 
   const onChange =
-    (name: keyof FormState) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      setForm((f) => ({ ...f, [name]: e.target.value }));
-    };
+    (name: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setForm((f) => ({ ...f, [name]: e.target.value }))
+    }
 
   // 🔹 Выбранная страна — берём ровно тот объект, что в options
   const selectedCountry = useMemo<Opt | null>(() => {
-    if (!form.countryId) return null;
-    return countryOpts.find(o => o.value === form.countryId) ?? null;
-  }, [countryOpts, form.countryId]);
+    if (!form.countryId) return null
+    return countryOpts.find((o) => o.value === form.countryId) ?? null
+  }, [countryOpts, form.countryId])
 
-
-  // ✅ Асинхронные загрузчики выносим вверх, чтобы не было нарушения правил хуков
- const loadCategoryOptions = useCallback(async (input: string) => {
-   const { items }: { items: CatalogCategory[] } = await findCategories(input ?? '', 20);
-   return items.map((c) => ({
-     value: String(c.id),
-     label: pickLocalizedName(c as any),
-   }));
- }, [pickLocalizedName]);
+  // ✅ Загрузчик категорий с учётом локали
+  const loadCategoryOptions = useCallback(
+    async (input: string) => {
+      const { items }: { items: CatalogCategory[] } = await findCategories(input ?? '', 20)
+      return items.map((c) => ({
+        value: String(c.id),
+        label: pickLocalizedName(c as any),
+      }))
+    },
+    [pickLocalizedName]
+  )
 
   const loadBuilderOptions = useCallback(async (input: string) => {
-    const { items }: { items: CatalogBuilder[] } = await findBuilders(input ?? '', 20);
+    const { items }: { items: CatalogBuilder[] } = await findBuilders(input ?? '', 20)
     return items.map((b) => ({
       value: String(b.id),
       label: b.name,
-    }));
-  }, []);
+    }))
+  }, [])
 
   // memoized current selected values for async selects
   const categoryValue = useMemo<Opt | null>(() => {
-    if (!form.categoryId) return null;
+    if (!form.categoryId) return null
     // показываем placeholder, пока нет лейбла
-    if (!categoryLabel) return null;
-    return { value: form.categoryId, label: categoryLabel };
-  }, [form.categoryId, categoryLabel]);
+    if (!categoryLabel) return null
+    return { value: form.categoryId, label: categoryLabel }
+  }, [form.categoryId, categoryLabel])
 
   const builderValue = useMemo<Opt | null>(() => {
-    if (!form.builderId) return null;
-    if (!builderLabel) return null;
-    return { value: form.builderId, label: builderLabel };
-  }, [form.builderId, builderLabel]);
+    if (!form.builderId) return null
+    if (!builderLabel) return null
+    return { value: form.builderId, label: builderLabel }
+  }, [form.builderId, builderLabel])
 
   async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setErr(null);
+    e.preventDefault()
+    setSaving(true)
+    setErr(null)
     try {
       // ----- нормализация связей -----
-      const countryId: string | null = form.countryId !== '' ? form.countryId : null;
+      const countryId: string | null = form.countryId !== '' ? form.countryId : null
       const categoryId: number | null =
         form.categoryId !== '' && Number.isFinite(Number(form.categoryId))
           ? Number(form.categoryId)
-          : null;
+          : null
       const builderId: number | null =
         form.builderId !== '' && Number.isFinite(Number(form.builderId))
           ? Number(form.builderId)
-          : null;
+          : null
 
       // ----- скидка -----
-      let maxDiscountPct: number | null = null;
+      let maxDiscountPct: number | null = null
       if (form.maxDiscountPct !== '') {
-        const n = Number(String(form.maxDiscountPct).replace(',', '.'));
-        if (Number.isFinite(n)) maxDiscountPct = n;
+        const n = Number(String(form.maxDiscountPct).replace(',', '.'))
+        if (Number.isFinite(n)) maxDiscountPct = n
       }
 
       // ----- услуги (может быть строкой или JSON-массивом) -----
       let currentExtraServices: YachtUpdatePayload['currentExtraServices'] | undefined =
-        form.currentExtraServices;
+        form.currentExtraServices
       try {
-        const parsed: unknown = JSON.parse(form.currentExtraServices);
+        const parsed: unknown = JSON.parse(form.currentExtraServices)
         if (Array.isArray(parsed)) {
-          currentExtraServices = parsed as Array<{ name: string; price: number }>;
+          currentExtraServices = parsed as Array<{ name: string; price: number }>
         }
       } catch {
         // оставляем строковое значение как есть
@@ -308,49 +312,49 @@ export default function YachtEditPage() {
         countryId,
         categoryId,
         builderId,
-      };
+      }
 
       if (isCreate) {
         // на бэке поле обязательно — если пусто, шлём []
-        if (
-          payload.currentExtraServices === undefined ||
-          payload.currentExtraServices === ''
-        ) {
-          payload.currentExtraServices = [];
+        if (payload.currentExtraServices === undefined || payload.currentExtraServices === '') {
+          payload.currentExtraServices = []
         }
-        const created = await createYacht(payload);
-        nav(`/yacht/${created.id}`);
+        const created = await createYacht(payload)
+        nav(`/yacht/${created.id}`)
       } else if (id) {
-        await updateYacht(id, payload);
-        nav(`/yacht/${id}`);
+        await updateYacht(id, payload)
+        nav(`/yacht/${id}`)
       }
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : t('errors.saveFailed', 'Failed to save'));
+      setErr(e instanceof Error ? e.message : t('errors.saveFailed', 'Failed to save'))
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
   }
 
   async function onDelete() {
-    if (!id) return;
+    if (!id) return
     const ok = window.confirm(
-      t('actions.deleteConfirm', { defaultValue: 'Delete "{{name}}"? This cannot be undone.', name: form.name || t('thisYacht', 'this yacht') })
-    );
-    if (!ok) return;
+      t('actions.deleteConfirm', {
+        defaultValue: 'Delete "{{name}}"? This cannot be undone.',
+        name: form.name || t('thisYacht', 'this yacht'),
+      })
+    )
+    if (!ok) return
 
     try {
-      setDeleting(true);
-      await deleteYacht(id);
-      nav('/dashboard');
+      setDeleting(true)
+      await deleteYacht(id)
+      nav('/dashboard')
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : t('errors.deleteFailed', 'Failed to delete'));
+      setErr(e instanceof Error ? e.message : t('errors.deleteFailed', 'Failed to delete'))
     } finally {
-      setDeleting(false);
+      setDeleting(false)
     }
   }
 
-  if (loading) return <div className="mt-10 text-center">{t('loading')}</div>;
-  if (err) return <div className="mt-10 text-center text-red-600">{err}</div>;
+  if (loading) return <div className="mt-10 text-center">{t('loading')}</div>
+  if (err) return <div className="mt-10 text-center text-red-600">{err}</div>
 
   return (
     <div className="mx-auto max-w-3xl p-6">

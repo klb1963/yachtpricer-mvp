@@ -32,7 +32,7 @@ function fmtWhen(iso: string | null | undefined) {
 }
 
 export default function YachtDetailsPage() {
-  const { t } = useTranslation('yacht');
+  const { t, i18n } = useTranslation('yacht');
   const { id } = useParams();
   const [yacht, setYacht] = useState<Yacht | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,10 +48,28 @@ export default function YachtDetailsPage() {
   if (error) return <div className="text-center mt-16 text-red-600">{error}</div>;
   if (!yacht) return <div className="text-center mt-16 text-gray-500">{t('loading')}</div>;
 
-  const services =
-    typeof yacht.currentExtraServices === 'string'
-      ? JSON.parse(yacht.currentExtraServices as unknown as string)
-      : yacht.currentExtraServices;
+  // безаварийный парсинг услуг
+  let services: any = yacht.currentExtraServices;
+  if (typeof services === 'string') {
+    try {
+      services = JSON.parse(services);
+    } catch {
+      services = [];
+    }
+  }
+
+  // ссылки из бекенда (могут быть не в типе Yacht, поэтому any)
+  const country = (yacht as any)?.country as { id: string; code2: string; name: string } | undefined;
+  const category = (yacht as any)?.category as { id: number; nameEn?: string | null; nameRu?: string | null; nameHr?: string | null } | undefined;
+  const builder = (yacht as any)?.builder as { id: number; name: string } | undefined;
+
+  const pickCategoryLabel = () => {
+    if (!category) return '—';
+    const lng = (i18n.language || 'en').toLowerCase();
+    if (lng.startsWith('ru')) return category.nameRu ?? category.nameEn ?? `#${category.id}`;
+    if (lng.startsWith('hr')) return category.nameHr ?? category.nameEn ?? category.nameRu ?? `#${category.id}`;
+    return category.nameEn ?? category.nameRu ?? category.nameHr ?? `#${category.id}`;
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
@@ -89,6 +107,12 @@ export default function YachtDetailsPage() {
             <dt className="text-gray-500">{t('fields.type')}</dt>
             <dd>{yacht.type}</dd>
 
+            <dt className="text-gray-500">{t('fields.category', 'Category')}</dt>
+            <dd>{pickCategoryLabel()}</dd>
+
+            <dt className="text-gray-500">{t('fields.builder', 'Builder')}</dt>
+            <dd>{builder?.name ?? '—'}</dd>
+
             <dt className="text-gray-500">{t('fields.length')}</dt>
             <dd>{yacht.length} m</dd>
 
@@ -114,6 +138,10 @@ export default function YachtDetailsPage() {
 
             <dt className="text-gray-500">{t('fields.location')}</dt>
             <dd>{yacht.location}</dd>
+
+            <dt className="text-gray-500">{t('fields.country', 'Country')}</dt>
+            <dd>{country ? `${country.name} (${country.code2})` : '—'}</dd>
+            
           </dl>
         </div>
       </div>
