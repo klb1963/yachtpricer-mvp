@@ -39,6 +39,9 @@ npm ci             # поставить node_modules по lock-файлу
 
 и перезапустить TS-сервер в VS Code
 
+запуск фронтенда Vite локально:
+npm run dev -- --config vite.config.local.ts
+
 	4.	Проверяем статус:
 
 docker compose exec backend npx prisma migrate status

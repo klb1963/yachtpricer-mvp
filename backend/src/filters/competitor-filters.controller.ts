@@ -5,6 +5,7 @@ import {
   Controller,
   Get,
   Patch,
+  Post,
   Query,
   Delete,
 } from '@nestjs/common';
@@ -41,6 +42,19 @@ export class CompetitorFiltersController {
     return this.svc.upsert(user.orgId, user.id, dto);
   }
 
+  // ---- Dry-run: вернуть только количество по текущим фильтрам
+  @Post('test')
+  async testFilters(
+    @CurrentUser() user: Pick<User, 'id' | 'orgId'>,
+    @Body() dto: CompetitorFiltersBody,
+  ) {
+    if (!user?.orgId) {
+      throw new BadRequestException('User has no organization.');
+    }
+    const count = await this.svc.testCount(user.orgId, user.id, dto);
+    return { count };
+  }
+
   @Delete()
   reset(
     @CurrentUser() user: Pick<User, 'id' | 'orgId'>,
@@ -51,5 +65,5 @@ export class CompetitorFiltersController {
     }
     return this.svc.reset(user.orgId, user.id, scope);
   }
-  
+
 }

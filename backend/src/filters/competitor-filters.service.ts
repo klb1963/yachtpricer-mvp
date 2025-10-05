@@ -60,49 +60,69 @@ export class CompetitorFiltersService {
     });
   }
 
-  async reset(orgId: string, userId: string | undefined, scope: $Enums.FilterScope = 'USER') {
+  async reset(
+    orgId: string,
+    userId: string | undefined,
+    scope: $Enums.FilterScope = 'USER',
+  ) {
     if (scope === 'USER' && !userId) {
       throw new BadRequestException('userId is required when scope is USER');
     }
 
     // найдём запись как в upsert()
     const existing = await this.prisma.competitorFilters.findFirst({
-      where: scope === 'USER'
-        ? { orgId, scope: 'USER', userId: userId! }
-        : { orgId, scope: 'ORG', userId: null },
+      where:
+        scope === 'USER'
+          ? { orgId, scope: 'USER', userId: userId! }
+          : { orgId, scope: 'ORG', userId: null },
       select: { id: true },
     });
 
     // если нет — создать пустую с дефолтами
-    const saved = existing ?? await this.prisma.competitorFilters.create({
-      data: {
-        scope,
-        org: { connect: { id: orgId } },
-        ...(userId && scope === 'USER' ? { user: { connect: { id: userId } } } : {}),
-        lenFtMinus: 3, lenFtPlus: 3,
-        yearMinus: 2, yearPlus: 2,
-        peopleMinus: 1, peoplePlus: 1,
-        cabinsMinus: 1, cabinsPlus: 1,
-        headsMin: 1,
-      },
-    });
+    const saved =
+      existing ??
+      (await this.prisma.competitorFilters.create({
+        data: {
+          scope,
+          org: { connect: { id: orgId } },
+          ...(userId && scope === 'USER'
+            ? { user: { connect: { id: userId } } }
+            : {}),
+          lenFtMinus: 3,
+          lenFtPlus: 3,
+          yearMinus: 2,
+          yearPlus: 2,
+          peopleMinus: 1,
+          peoplePlus: 1,
+          cabinsMinus: 1,
+          cabinsPlus: 1,
+          headsMin: 1,
+        },
+      }));
 
     // очистить все M2M
     await this.prisma.competitorFilters.update({
       where: { id: saved.id },
       data: {
-        countries:  { set: [] },
-        locations:  { set: [] },
+        countries: { set: [] },
+        locations: { set: [] },
         categories: { set: [] },
-        builders:   { set: [] },
-        models:     { set: [] },
-        regions:    { set: [] },
+        builders: { set: [] },
+        models: { set: [] },
+        regions: { set: [] },
       },
     });
 
     return this.prisma.competitorFilters.findUnique({
       where: { id: saved.id },
-      include: { countries: true, locations: true, categories: true, builders: true, models: true, regions: true },
+      include: {
+        countries: true,
+        locations: true,
+        categories: true,
+        builders: true,
+        models: true,
+        regions: true,
+      },
     });
   }
 
@@ -289,6 +309,28 @@ export class CompetitorFiltersService {
         regions: true,
       },
     });
+  }
 
+  /**
+   * Подсчёт количества яхт под заданные фильтры.
+   * MVP: учитываем только countryCodes (ISO-2) через relation Yacht.location.countryCode.
+   */
+  async testCount(
+    orgId: string,
+    userId: string | undefined,
+    dto: CompetitorFiltersBody,
+  ): Promise<number> {
+    // нормализуем ISO-2
+    const countryCodes = (dto.countryCodes ?? [])
+      .map((c) => String(c).trim().toUpperCase())
+      .filter(Boolean);
+
+    // Prisma where: org + (опционально) фильтр по стране через relation location
+    const where: Prisma.YachtWhereInput =
+      countryCodes.length > 0
+        ? { orgId, country: { is: { code2: { in: countryCodes } } } } // ✅ фильтр по связи country
+        : { orgId };
+
+    return this.prisma.yacht.count({ where });
   }
 }

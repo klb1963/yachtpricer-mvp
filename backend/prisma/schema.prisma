@@ -141,8 +141,17 @@ model Yacht {
   fleet                String
   charterCompany       String
   currentExtraServices Json
-
   imageUrl String?
+
+  // --- связи со справочниками ---
+  countryId  String?
+  country    Country?       @relation(fields: [countryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  categoryId Int?
+  category   YachtCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  builderId  Int?
+  builder    YachtBuilder?  @relation(fields: [builderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   orgId String?
   org   Organization? @relation(fields: [orgId], references: [id])
@@ -430,6 +439,7 @@ model PriceAuditLog {
   @@map("price_audit_logs")
 }
 
+// Справочник стран из NauSYS
 model Country {
   id        String   @id @default(cuid())
   nausysId  Int      @unique // ID из /countries
@@ -442,7 +452,9 @@ model Country {
   // 👇 обратная сторона связи по ISO-2
   locations         Location[]          @relation("CountryCode2Locations")
   regions           Region[]            @relation("RegionCountryNausys")
-  competitorFilters CompetitorFilters[] @relation("FiltersCountries") // ⬅️ NEW
+  competitorFilters CompetitorFilters[] @relation("FiltersCountries")
+
+  yachts            Yacht[]
 
   @@index([name])
   @@map("countries")
@@ -547,6 +559,8 @@ model YachtCategory {
 
   competitorFilters CompetitorFilters[] @relation("FiltersCategories")
 
+  yachts Yacht[]
+
   @@map("yacht_categories")
 }
 
@@ -565,6 +579,8 @@ model YachtBuilder {
   models YachtModel[]
 
   competitorFilters CompetitorFilters[] @relation("FiltersBuilders")
+
+  yachts Yacht[]
 
   @@index([name])
   @@map("yacht_builders")

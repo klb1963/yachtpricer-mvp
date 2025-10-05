@@ -10,7 +10,13 @@ export class GeoService {
   getCountries() {
     return this.prisma.country.findMany({
       orderBy: { name: 'asc' },
-      select: { code2: true, name: true, nausysId: true, code3: true },
+      select: {
+        id: true, // ← НУЖНО для react-select (value)
+        code2: true,
+        name: true,
+        nausysId: true,
+        code3: true,
+      },
     });
   }
 

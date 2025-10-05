@@ -1,10 +1,31 @@
 // frontend/src/pages/YachtEditPage.tsx
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { getYacht, updateYacht, createYacht, deleteYacht } from '../api';
-import type { Yacht, YachtUpdatePayload } from '../api';
+import type {
+  Yacht,
+  YachtUpdatePayload,
+  Country,
+  CatalogCategory,
+  CatalogBuilder,
+} from '../api';
+
+import Select from 'react-select';
+import AsyncSelect from 'react-select/async';
+import {
+  getYacht, updateYacht, createYacht, deleteYacht,
+  getCountries, findCategories, findBuilders
+} from '../api';
+
+type YachtWithRefs = Yacht & {
+  countryId?: string | null;
+  country?: { id: string } | null;
+  categoryId?: number | null;
+  category?: { id: number; nameEn?: string | null; nameRu?: string | null } | null;
+  builderId?: number | null;
+  builder?: { id: number; name: string } | null;
+};
 
 type FormState = {
   name: string;
@@ -21,8 +42,10 @@ type FormState = {
   basePrice: string;
   currentExtraServices: string; // текст (может быть JSON)
   ownerName: string;
-  // NEW
   maxDiscountPct: string;       // вводим в процентах (строка формы)
+  countryId: string;           // NEW
+  categoryId: string;          // NEW (число в строке)
+  builderId: string;           // NEW (число в строке)
 };
 
 const TYPE_OPTIONS = ['monohull', 'catamaran', 'trimaran', 'compromis'] as const;
@@ -42,10 +65,38 @@ const CABINS_OPTIONS = range(2, 6);
 const HEADS_OPTIONS = range(1, 4);
 
 export default function YachtEditPage() {
-  const { t } = useTranslation('yacht');
-  const { id } = useParams();
-  const isCreate = !id;
-  const nav = useNavigate();
+  type Opt = { value: string; label: string }
+  const [countryOpts, setCountryOpts] = useState<Opt[]>([])
+  // Лейблы для уже выбранных (из API) значений category/builder
+  const [categoryLabel, setCategoryLabel] = useState<string | null>(null)
+  const [builderLabel, setBuilderLabel] = useState<string | null>(null)
+
+  const { t, i18n } = useTranslation('yacht')
+
+  // хелпер для выбора языка
+  // Выбираем локализованный лейбл: HR → nameHr (если появится), RU → nameRu, иначе EN.
+  const pickLocalizedName = useCallback(
+    (obj: {
+      id: number
+      nameEn?: string | null
+      nameRu?: string | null
+      nameHr?: string | null
+    }) => {
+      const lng = (i18n.language || 'en').toLowerCase()
+      const tryOrder = lng.startsWith('ru')
+        ? ['nameRu', 'nameEn', 'nameHr']
+        : lng.startsWith('hr')
+          ? ['nameHr', 'nameEn', 'nameRu']
+          : ['nameEn', 'nameRu', 'nameHr']
+      const first = tryOrder.map((k) => (obj as any)[k] as string | null | undefined).find(Boolean)
+      return first ?? `#${obj.id}`
+    },
+    [i18n.language]
+  )
+
+  const { id } = useParams()
+  const isCreate = !id
+  const nav = useNavigate()
 
   const [form, setForm] = useState<FormState>({
     name: '',
@@ -63,38 +114,82 @@ export default function YachtEditPage() {
     currentExtraServices: '',
     ownerName: '',
     maxDiscountPct: '',
-  });
+    countryId: '',
+    categoryId: '',
+    builderId: '',
+  })
 
-  const [yacht, setYacht] = useState<Yacht | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [yacht, setYacht] = useState<Yacht | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  // Load countries once
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const list: Country[] = await getCountries()
+        if (cancelled) return
+        const opts = list
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((c) => ({ value: c.id, label: `${c.name} (${c.code2})` }))
+        setCountryOpts(opts)
+      } catch {
+        /* noop */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (isCreate) {
-      setLoading(false);
-      return;
+      setLoading(false)
+      return
     }
-    if (!id) return;
+    if (!id) return
 
     getYacht(id)
       .then((y: Yacht) => {
-        setYacht(y);   // сохраняем оригинал для read-only полей
+        setYacht(y) // сохраняем оригинал для read-only полей
 
         const basePriceStr =
           typeof y.basePrice === 'string'
             ? y.basePrice
             : y.basePrice != null
-            ? String(y.basePrice)
-            : '';
+              ? String(y.basePrice)
+              : ''
 
         const extraStr =
           typeof y.currentExtraServices === 'string'
             ? y.currentExtraServices
-            : JSON.stringify(y.currentExtraServices ?? [], null, 2);
+            : JSON.stringify(y.currentExtraServices ?? [], null, 2)
+
+        const yy: YachtWithRefs = y as YachtWithRefs
+
+        // человекочитаемые лейблы из включённых связей
+        setCategoryLabel(yy.category?.id != null ? pickLocalizedName(yy.category as any) : null)
+
+        setBuilderLabel(yy.builder?.id != null ? yy.builder.name || `#${yy.builder.id}` : null)
 
         setForm({
+          countryId: yy.countryId ?? yy.country?.id ?? '',
+          categoryId:
+            yy.categoryId != null
+              ? String(yy.categoryId)
+              : yy.category?.id != null
+                ? String(yy.category.id)
+                : '',
+          builderId:
+            yy.builderId != null
+              ? String(yy.builderId)
+              : yy.builder?.id != null
+                ? String(yy.builder.id)
+                : '',
           name: y.name ?? '',
           manufacturer: y.manufacturer ?? '',
           model: y.model ?? '',
@@ -110,86 +205,156 @@ export default function YachtEditPage() {
           currentExtraServices: extraStr,
           ownerName: y.ownerName ?? '',
           maxDiscountPct: y.maxDiscountPct != null ? String(y.maxDiscountPct) : '',
-        });
+        })
       })
-      .catch((e: unknown) =>
-        setErr(e instanceof Error ? e.message : t('errors.loadFailed')),
-      )
-      .finally(() => setLoading(false));
-  }, [id, isCreate, t]);
+      .catch((e: unknown) => setErr(e instanceof Error ? e.message : t('errors.loadFailed')))
+      .finally(() => setLoading(false))
+  }, [id, isCreate, t])
 
   const onChange =
-    (name: keyof FormState) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      setForm((f) => ({ ...f, [name]: e.target.value }));
-    };
+    (name: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setForm((f) => ({ ...f, [name]: e.target.value }))
+    }
+
+  // 🔹 Выбранная страна — берём ровно тот объект, что в options
+  const selectedCountry = useMemo<Opt | null>(() => {
+    if (!form.countryId) return null
+    return countryOpts.find((o) => o.value === form.countryId) ?? null
+  }, [countryOpts, form.countryId])
+
+  // ✅ Загрузчик категорий с учётом локали
+  const loadCategoryOptions = useCallback(
+    async (input: string) => {
+      const { items }: { items: CatalogCategory[] } = await findCategories(input ?? '', 20)
+      return items.map((c) => ({
+        value: String(c.id),
+        label: pickLocalizedName(c as any),
+      }))
+    },
+    [pickLocalizedName]
+  )
+
+  const loadBuilderOptions = useCallback(async (input: string) => {
+    const { items }: { items: CatalogBuilder[] } = await findBuilders(input ?? '', 20)
+    return items.map((b) => ({
+      value: String(b.id),
+      label: b.name,
+    }))
+  }, [])
+
+  // memoized current selected values for async selects
+  const categoryValue = useMemo<Opt | null>(() => {
+    if (!form.categoryId) return null
+    // показываем placeholder, пока нет лейбла
+    if (!categoryLabel) return null
+    return { value: form.categoryId, label: categoryLabel }
+  }, [form.categoryId, categoryLabel])
+
+  const builderValue = useMemo<Opt | null>(() => {
+    if (!form.builderId) return null
+    if (!builderLabel) return null
+    return { value: form.builderId, label: builderLabel }
+  }, [form.builderId, builderLabel])
 
   async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setErr(null);
+    e.preventDefault()
+    setSaving(true)
+    setErr(null)
     try {
-      const payload: YachtUpdatePayload = { ...form };
+      // ----- нормализация связей -----
+      const countryId: string | null = form.countryId !== '' ? form.countryId : null
+      const categoryId: number | null =
+        form.categoryId !== '' && Number.isFinite(Number(form.categoryId))
+          ? Number(form.categoryId)
+          : null
+      const builderId: number | null =
+        form.builderId !== '' && Number.isFinite(Number(form.builderId))
+          ? Number(form.builderId)
+          : null
 
-      // нормализуем maxDiscountPct: '' → null, строка/число → number
-      if (form.maxDiscountPct === '') {
-        payload.maxDiscountPct = null;
-      } else {
-        const n = Number(String(form.maxDiscountPct).replace(',', '.'));
-        if (Number.isFinite(n)) payload.maxDiscountPct = n;
+      // ----- скидка -----
+      let maxDiscountPct: number | null = null
+      if (form.maxDiscountPct !== '') {
+        const n = Number(String(form.maxDiscountPct).replace(',', '.'))
+        if (Number.isFinite(n)) maxDiscountPct = n
       }
 
-      // Попробуем распарсить services как JSON-массив вида [{name, price}]
+      // ----- услуги (может быть строкой или JSON-массивом) -----
+      let currentExtraServices: YachtUpdatePayload['currentExtraServices'] | undefined =
+        form.currentExtraServices
       try {
-        const parsed: unknown = JSON.parse(form.currentExtraServices);
+        const parsed: unknown = JSON.parse(form.currentExtraServices)
         if (Array.isArray(parsed)) {
-          payload.currentExtraServices = parsed as Array<{ name: string; price: number }>;
+          currentExtraServices = parsed as Array<{ name: string; price: number }>
         }
       } catch {
-        // оставим строкой — корректно
+        // оставляем строковое значение как есть
+      }
+
+      // ----- итоговый payload без any -----
+      const payload: YachtUpdatePayload = {
+        name: form.name,
+        manufacturer: form.manufacturer,
+        model: form.model,
+        type: form.type,
+        location: form.location,
+        fleet: form.fleet,
+        charterCompany: form.charterCompany,
+        // эти поля — строки по типам API
+        length: form.length || undefined,
+        builtYear: form.builtYear || undefined,
+        cabins: form.cabins || undefined,
+        heads: form.heads || undefined,
+        basePrice: form.basePrice,
+        currentExtraServices,
+        ownerName: form.ownerName || undefined,
+        maxDiscountPct,
+        countryId,
+        categoryId,
+        builderId,
       }
 
       if (isCreate) {
         // на бэке поле обязательно — если пусто, шлём []
-        if (
-          payload.currentExtraServices === undefined ||
-          payload.currentExtraServices === ''
-        ) {
-          payload.currentExtraServices = [];
+        if (payload.currentExtraServices === undefined || payload.currentExtraServices === '') {
+          payload.currentExtraServices = []
         }
-        const created = await createYacht(payload);
-        nav(`/yacht/${created.id}`);
+        const created = await createYacht(payload)
+        nav(`/yacht/${created.id}`)
       } else if (id) {
-        await updateYacht(id, payload);
-        nav(`/yacht/${id}`);
+        await updateYacht(id, payload)
+        nav(`/yacht/${id}`)
       }
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : t('errors.saveFailed', 'Failed to save'));
+      setErr(e instanceof Error ? e.message : t('errors.saveFailed', 'Failed to save'))
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
   }
 
   async function onDelete() {
-    if (!id) return;
+    if (!id) return
     const ok = window.confirm(
-      t('actions.deleteConfirm', { defaultValue: 'Delete "{{name}}"? This cannot be undone.', name: form.name || t('thisYacht', 'this yacht') })
-    );
-    if (!ok) return;
+      t('actions.deleteConfirm', {
+        defaultValue: 'Delete "{{name}}"? This cannot be undone.',
+        name: form.name || t('thisYacht', 'this yacht'),
+      })
+    )
+    if (!ok) return
 
     try {
-      setDeleting(true);
-      await deleteYacht(id);
-      nav('/dashboard');
+      setDeleting(true)
+      await deleteYacht(id)
+      nav('/dashboard')
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : t('errors.deleteFailed', 'Failed to delete'));
+      setErr(e instanceof Error ? e.message : t('errors.deleteFailed', 'Failed to delete'))
     } finally {
-      setDeleting(false);
+      setDeleting(false)
     }
   }
 
-  if (loading) return <div className="mt-10 text-center">{t('loading')}</div>;
-  if (err) return <div className="mt-10 text-center text-red-600">{err}</div>;
+  if (loading) return <div className="mt-10 text-center">{t('loading')}</div>
+  if (err) return <div className="mt-10 text-center text-red-600">{err}</div>
 
   return (
     <div className="mx-auto max-w-3xl p-6">
@@ -207,7 +372,11 @@ export default function YachtEditPage() {
           <Legend>{t('sections.general', 'General')}</Legend>
 
           <Field label={t('fields.name', 'Name')} value={form.name} onChange={onChange('name')} />
-          <Field label={t('fields.manufacturer')} value={form.manufacturer} onChange={onChange('manufacturer')} />
+          <Field
+            label={t('fields.manufacturer')}
+            value={form.manufacturer}
+            onChange={onChange('manufacturer')}
+          />
           <Field label={t('fields.model')} value={form.model} onChange={onChange('model')} />
 
           {/* Type */}
@@ -218,17 +387,103 @@ export default function YachtEditPage() {
               value={form.type}
               onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
             >
-              <option value="" disabled>{t('placeholders.chooseType', 'Choose type…')}</option>
+              <option value="" disabled>
+                {t('placeholders.chooseType', 'Choose type…')}
+              </option>
               {TYPE_OPTIONS.map((tOpt) => (
-                <option key={tOpt} value={tOpt}>{tOpt}</option>
+                <option key={tOpt} value={tOpt}>
+                  {t(`type.${tOpt}`, tOpt)}
+                </option>
               ))}
             </select>
           </label>
 
-          <Field label={t('fields.location')} value={form.location} onChange={onChange('location')} />
+          <Field
+            label={t('fields.location')}
+            value={form.location}
+            onChange={onChange('location')}
+          />
           <Field label={t('fields.fleet')} value={form.fleet} onChange={onChange('fleet')} />
-          <Field label={t('fields.company', 'Charter company')} value={form.charterCompany} onChange={onChange('charterCompany')} />
-          <Field label={t('fields.owner', 'Owner name')} value={form.ownerName} onChange={onChange('ownerName')} />
+          <Field
+            label={t('fields.company', 'Charter company')}
+            value={form.charterCompany}
+            onChange={onChange('charterCompany')}
+          />
+          <Field
+            label={t('fields.owner', 'Owner name')}
+            value={form.ownerName}
+            onChange={onChange('ownerName')}
+          />
+
+          {/* Country (react-select, options загружаются один раз) */}
+          <label className="flex flex-col">
+            <span className="text-sm text-gray-600">{t('fields.country', 'Country')}</span>
+            <Select<Opt, false>
+              className="mt-1"
+              classNamePrefix="rs"
+              options={countryOpts}
+              isClearable
+              value={selectedCountry}
+              onChange={(opt) => {
+                const v = opt?.value ?? ''
+                // временно — посмотреть, что реально прилетает
+                // console.log('select country ->', v, opt);
+                setForm((f) => ({ ...f, countryId: v }))
+              }}
+              // Явно укажем как вытаскивать value/label
+              getOptionValue={(o) => o.value}
+              getOptionLabel={(o) => o.label}
+              placeholder={t('placeholders.chooseCountry', 'Choose country…')}
+            />
+          </label>
+
+          {/* Category (async) */}
+          <label className="flex flex-col">
+            <span className="text-sm text-gray-600">{t('fields.category', 'Category')}</span>
+            <AsyncSelect<Opt, false>
+              className="mt-1"
+              classNamePrefix="rs"
+              cacheOptions
+              defaultOptions
+              loadOptions={loadCategoryOptions}
+              isClearable
+              value={categoryValue}
+              onChange={(opt) => {
+                if (!opt) {
+                  setForm((f) => ({ ...f, categoryId: '' }))
+                  setCategoryLabel(null)
+                } else {
+                  setForm((f) => ({ ...f, categoryId: opt.value }))
+                  setCategoryLabel(opt.label)
+                }
+              }}
+              placeholder={t('placeholders.chooseCategory', 'Choose category…')}
+            />
+          </label>
+
+          {/* Builder (async) */}
+          <label className="flex flex-col">
+            <span className="text-sm text-gray-600">{t('fields.builder', 'Builder')}</span>
+            <AsyncSelect<Opt, false>
+              className="mt-1"
+              classNamePrefix="rs"
+              cacheOptions
+              defaultOptions
+              loadOptions={loadBuilderOptions}
+              isClearable
+              value={builderValue}
+              onChange={(opt) => {
+                if (!opt) {
+                  setForm((f) => ({ ...f, builderId: '' }))
+                  setBuilderLabel(null)
+                } else {
+                  setForm((f) => ({ ...f, builderId: opt.value }))
+                  setBuilderLabel(opt.label)
+                }
+              }}
+              placeholder={t('placeholders.chooseBuilder', 'Choose builder…')}
+            />
+          </label>
         </fieldset>
 
         <fieldset className="grid gap-4 rounded-2xl border p-5 md:grid-cols-3">
@@ -236,15 +491,21 @@ export default function YachtEditPage() {
 
           {/* Length (feet) 5..100 */}
           <label className="flex flex-col">
-            <span className="text-sm text-gray-600">{t('fields.length')} (feet)</span>
+            <span className="text-sm text-gray-600">
+              {t('fields.length')} ({t('units.feet', 'feet')})
+            </span>
             <select
               className="mt-1 rounded border p-2 bg-white"
               value={form.length}
               onChange={(e) => setForm((f) => ({ ...f, length: e.target.value }))}
             >
-              <option value="" disabled>{t('placeholders.chooseLength', 'Choose length…')}</option>
+              <option value="" disabled>
+                {t('placeholders.chooseLength', 'Choose length…')}
+              </option>
               {LENGTH_OPTIONS.map((n) => (
-                <option key={n} value={String(n)}>{n}</option>
+                <option key={n} value={String(n)}>
+                  {n}
+                </option>
               ))}
             </select>
           </label>
@@ -257,9 +518,13 @@ export default function YachtEditPage() {
               value={form.builtYear}
               onChange={(e) => setForm((f) => ({ ...f, builtYear: e.target.value }))}
             >
-              <option value="" disabled>{t('placeholders.chooseYear', 'Choose year…')}</option>
+              <option value="" disabled>
+                {t('placeholders.chooseYear', 'Choose year…')}
+              </option>
               {[...BUILT_YEAR_OPTIONS].reverse().map((y) => (
-                <option key={y} value={String(y)}>{y}</option>
+                <option key={y} value={String(y)}>
+                  {y}
+                </option>
               ))}
             </select>
           </label>
@@ -272,9 +537,13 @@ export default function YachtEditPage() {
               value={form.cabins}
               onChange={(e) => setForm((f) => ({ ...f, cabins: e.target.value }))}
             >
-              <option value="" disabled>{t('placeholders.chooseCabins', 'Choose cabins…')}</option>
+              <option value="" disabled>
+                {t('placeholders.chooseCabins', 'Choose cabins…')}
+              </option>
               {CABINS_OPTIONS.map((n) => (
-                <option key={n} value={String(n)}>{n}</option>
+                <option key={n} value={String(n)}>
+                  {n}
+                </option>
               ))}
             </select>
           </label>
@@ -287,14 +556,22 @@ export default function YachtEditPage() {
               value={form.heads}
               onChange={(e) => setForm((f) => ({ ...f, heads: e.target.value }))}
             >
-              <option value="" disabled>{t('placeholders.chooseHeads', 'Choose heads…')}</option>
+              <option value="" disabled>
+                {t('placeholders.chooseHeads', 'Choose heads…')}
+              </option>
               {HEADS_OPTIONS.map((n) => (
-                <option key={n} value={String(n)}>{n}</option>
+                <option key={n} value={String(n)}>
+                  {n}
+                </option>
               ))}
             </select>
           </label>
 
-          <Field label={t('fields.basePrice')} value={form.basePrice} onChange={onChange('basePrice')} />
+          <Field
+            label={t('fields.basePrice')}
+            value={form.basePrice}
+            onChange={onChange('basePrice')}
+          />
         </fieldset>
 
         {/* NEW: Pricing section */}
@@ -312,7 +589,7 @@ export default function YachtEditPage() {
                 max="100"
                 placeholder="—"
                 value={form.maxDiscountPct}
-                onChange={(e) => setForm(f => ({ ...f, maxDiscountPct: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, maxDiscountPct: e.target.value }))}
               />
             </label>
 
@@ -331,13 +608,16 @@ export default function YachtEditPage() {
               <input
                 className="mt-1 rounded border p-2 bg-gray-50"
                 readOnly
-                value={yacht?.actualDiscountPct != null ? String(yacht.actualDiscountPct) + '%' : '—'}
+                value={
+                  yacht?.actualDiscountPct != null ? String(yacht.actualDiscountPct) + '%' : '—'
+                }
               />
             </label>
           </div>
 
           <div className="mt-3 text-xs text-gray-500">
-            {t('fields.fetchedAt')}: {yacht?.fetchedAt ? new Date(yacht.fetchedAt).toLocaleString() : '—'}
+            {t('fields.fetchedAt')}:{' '}
+            {yacht?.fetchedAt ? new Date(yacht.fetchedAt).toLocaleString() : '—'}
           </div>
         </fieldset>
 
@@ -365,8 +645,12 @@ export default function YachtEditPage() {
                        disabled:bg-blue-400 disabled:text-white disabled:opacity-100 disabled:cursor-not-allowed"
           >
             {saving
-              ? (isCreate ? t('actions.creating', 'Creating…') : t('actions.saving', 'Saving…'))
-              : (isCreate ? t('actions.create', 'Create') : t('actions.save', 'Save'))}
+              ? isCreate
+                ? t('actions.creating', 'Creating…')
+                : t('actions.saving', 'Saving…')
+              : isCreate
+                ? t('actions.create', 'Create')
+                : t('actions.save', 'Save')}
           </button>
 
           <Link
@@ -394,7 +678,7 @@ export default function YachtEditPage() {
         </div>
       </form>
     </div>
-  );
+  )
 }
 
 function Field(props: {

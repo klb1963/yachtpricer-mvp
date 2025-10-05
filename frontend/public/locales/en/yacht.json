@@ -30,6 +30,9 @@
     "fleet": "Fleet",
     "company": "Charter company",
     "owner": "Owner name",
+    "country": "Country",
+    "category": "Category",
+    "builder": "Builder",
     "length": "Length",
     "built": "Built year",
     "cabins": "Cabins",
@@ -43,10 +46,22 @@
   },
   "placeholders": {
     "chooseType": "Choose type…",
+    "chooseCountry": "Choose country…",
+    "chooseCategory": "Choose category…",
+    "chooseBuilder": "Choose builder…",
     "chooseLength": "Choose length…",
     "chooseYear": "Choose year…",
     "chooseCabins": "Choose cabins…",
     "chooseHeads": "Choose heads…"
+  },
+  "units": {
+    "feet": "feet"
+  },
+  "type": {
+    "monohull": "Monohull",
+    "catamaran": "Catamaran",
+    "trimaran": "Trimaran",
+    "compromis": "Compromis"
   },
   "hints": {
     "extraServicesJsonHint": "You may keep it as plain text — the server will handle it."
