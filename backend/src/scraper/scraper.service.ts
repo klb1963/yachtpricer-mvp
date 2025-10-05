@@ -2,7 +2,12 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { StartScrapeDto, AggregateDto, StartResponseDto } from './scraper.dto';
+import {
+  StartScrapeDto,
+  AggregateDto,
+  TestFiltersDto,
+  StartResponseDto,
+} from './scraper.dto';
 import {
   Prisma,
   JobStatus,
@@ -443,5 +448,30 @@ export class ScraperService {
     );
 
     return snapshot;
+  }
+
+  /**
+   * DRY-RUN: ВЕРНУТЬ ТОЛЬКО ЧИСЛО СОВПАДЕНИЙ ПО ФИЛЬТРАМ
+   * Dry-run: вернуть только число совпадений по фильтрам
+   * (страны/категории/производители).
+   */
+  async testFilters(dto: TestFiltersDto): Promise<{ count: number }> {
+    const where: Prisma.YachtWhereInput = {};
+
+    if (dto.countryCodes && dto.countryCodes.length > 0) {
+      // фильтруем по коду страны через relation
+      where.country = { code2: { in: dto.countryCodes } };
+    }
+    if (dto.categoryIds && dto.categoryIds.length > 0) {
+      // categoryId — числовой ID категории
+      where.categoryId = { in: dto.categoryIds };
+    }
+    if (dto.builderIds && dto.builderIds.length > 0) {
+      // builderId — числовой ID производителя
+      where.builderId = { in: dto.builderIds };
+    }
+
+    const count = await this.prisma.yacht.count({ where });
+    return { count };
   }
 }

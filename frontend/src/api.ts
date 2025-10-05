@@ -490,7 +490,7 @@ export async function resetCompetitorFilters(scope: "USER" | "ORG") {
 
 // ---- Test scan (dry-run) ----
 export async function testFiltersCount<T extends object>(payload: T): Promise<{ count: number }> {
-  const r = await apiFetch("/scan/test", {
+  const r = await apiFetch("/scrape/test", {
     method: "POST",
     body: JSON.stringify(payload),
   });

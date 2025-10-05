@@ -7,6 +7,8 @@ import {
   IsString,
   Min,
   Max,
+  IsArray,
+  ArrayUnique,
 } from 'class-validator';
 import { JobStatus } from '@prisma/client';
 
@@ -17,27 +19,31 @@ export const ScrapeSource = {
   INNERDB: 'INNERDB',
 } as const;
 
-// Запуск скрапинга + фильтры отбора конкурентных яхт
+/**
+ * Запуск скрапинга + фильтры отбора конкурентных яхт
+ */
 export class StartScrapeDto {
   /** Источник данных (опционально) */
   @IsOptional()
   @IsEnum(ScrapeSource)
   source?: ScrapeSourceLiteral;
 
-  /** Фильтры под отбор и сравнение конкурентов */
+  /** ID нашей яхты (для сравнения) */
   @IsOptional()
   @IsString()
   yachtId?: string;
 
-  /** Начало недели (ISO-строка), позже преобразуем в Date */
+  /** Любая дата внутри недели (ISO); позже нормализуем к началу недели */
   @IsOptional()
   @IsISO8601({ strict: true })
   weekStart?: string;
 
+  /** Произвольная география/марина (если используется) */
   @IsOptional()
   @IsString()
   location?: string;
 
+  /** Тип (monohull, catamaran и т.п.) */
   @IsOptional()
   @IsString()
   type?: string;
@@ -66,7 +72,7 @@ export class StartScrapeDto {
   @Min(0)
   maxLength?: number;
 
-  /** Новые поля для сравнения: вместимость/каюты/санузлы (точные значения) */
+  /** Вместимость/каюты/санузлы (точные значения) */
   @IsOptional()
   @IsInt()
   @Min(0)
@@ -86,7 +92,9 @@ export class StartScrapeDto {
   heads?: number;
 }
 
-// Вспомогательные DTO под query-параметры контроллера
+/**
+ * Вспомогательные DTO под query-параметры контроллера
+ */
 export class ScrapeStatusQueryDto {
   @IsString()
   jobId!: string; // если у вас UUID — замените на @IsUUID()
@@ -107,18 +115,47 @@ export class AggregateDto {
   @IsString()
   yachtId!: string;
 
+  /** Любая дата внутри недели */
   @IsISO8601()
-  week!: string; // любая дата внутри недели
+  week!: string;
 
   @IsOptional()
   @IsEnum(ScrapeSource)
   source?: ScrapeSourceLiteral; // по умолчанию BOATAROUND
 }
 
-// Новый тип ответа для /scrape/start
+/**
+ * Dry-run для /scrape/test: все поля опциональны.
+ * Добавлены “мульти-фильтры” (страны/категории/билдеры/модели/регионы) + диапазоны.
+ * Бэкенд может частично игнорировать те поля, которых нет в схеме.
+ */
+export class TestFiltersDto {
+  /** Страны по ISO-2 (например, HR/GR/TR) */
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
+  countryCodes?: string[];
+
+  /** Категории (ID из внутреннего каталога) */
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsInt({ each: true })
+  categoryIds?: number[];
+
+  /** Производители (ID из внутреннего каталога) */
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsInt({ each: true })
+  builderIds?: number[];
+}
+
+/** Новый тип ответа для /scrape/start */
 export type StartResponseDto = {
   jobId: string;
   status: JobStatus;
   kept: number; // сколько кандидатов прошло фильтры
-  reasons: string[]; // топ-причины отбраковки (агрегированные)
+  reasons: string[]; // агрегированные причины отбраковки
 };

@@ -17,8 +17,11 @@ import {
   ScrapeStatusQueryDto,
   CompetitorsQueryDto,
   AggregateDto,
+  TestFiltersDto,
 } from './scraper.dto';
 import { Roles } from '../auth/roles.decorator';
+import { Public } from '../auth/public.decorator';
+import { HttpCode, HttpStatus } from '@nestjs/common';
 
 @Controller('scrape')
 // Локальный ValidationPipe: трансформирует строки в числа/даты по декораторам и отсекает лишние поля.
@@ -72,5 +75,26 @@ export class ScraperController {
       yachtId: query.yachtId,
       week: query.week,
     });
+  }
+
+  /**
+   * Dry-run тест фильтров: возвращает только количество подходящих яхт.
+   * Поддерживаются countryCodes (ISO-2), categoryIds, builderIds.
+   */
+  /**
+   * Dry-run тест фильтров: возвращает только количество подходящих яхт.
+   * Поддерживаются countryCodes (ISO-2), categoryIds, builderIds.
+   */
+  @Post('test')
+  // @Public() // временно, чтобы фронт мог дернуть без настройки маппинга Clerk→User
+  @Roles('MANAGER', 'ADMIN')
+  @HttpCode(HttpStatus.OK) // 👈 теперь ответ всегда 200 вместо 201
+  async test(@Body() dto: TestFiltersDto): Promise<{ count: number }> {
+    this.logger.log('hit /scrape/test', {
+      countryCodes: dto.countryCodes?.length ?? 0,
+      categoryIds: dto.categoryIds?.length ?? 0,
+      builderIds: dto.builderIds?.length ?? 0,
+    });
+    return this.svc.testFilters(dto);
   }
 }

@@ -65,5 +65,4 @@ export class CompetitorFiltersController {
     }
     return this.svc.reset(user.orgId, user.id, scope);
   }
-
 }

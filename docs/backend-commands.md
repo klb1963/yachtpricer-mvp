@@ -17,6 +17,17 @@ docker compose stop backend - Остановка контейнера backend.
 
 docker compose build backend - Пересборка контейнера backend после изменений в коде.
 
+## Выключить Studio
+### остановить и удалить контейнер studio
+docker compose --profile tools down prisma-studio
+### (или точечно)
+docker rm -f yachtpricer-mvp-prisma-studio-1 2>/dev/null || true
+
+## Включить снова
+docker compose --profile tools up -d prisma-studio
+### проверить локально, что жив
+curl -I http://127.0.0.1:5557
+
 ⸻
 
 ## Prisma и база данных
