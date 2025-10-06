@@ -3,6 +3,7 @@
 
 import { Link } from 'react-router-dom';
 import type { Yacht, CompetitorPrice } from '../api';
+import { useTranslation } from 'react-i18next';
 
 // Бэкенд может прислать imageUrl (опционально)
 type YachtWithImage = Yacht & { imageUrl?: string | null };
@@ -74,6 +75,9 @@ export default function YachtCard({
   onToggleDetails,
   warning,
 }: Props) {
+
+  const { t } = useTranslation('yacht');
+
   const isNew =
     y.createdAt ? Date.now() - new Date(y.createdAt).getTime() < 7 * 24 * 3600 * 1000 : false;
 
@@ -95,7 +99,7 @@ export default function YachtCard({
         />
         {isNew && (
           <span className="absolute left-3 top-3 rounded-full bg-green-600/90 px-2 py-0.5 text-xs font-semibold text-white">
-            New
+            {t('new') || 'New'}
           </span>
         )}
       </div>
@@ -112,16 +116,25 @@ export default function YachtCard({
         </div>
 
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-700">
-          <div className="text-gray-500">Length</div>
+          <div className="text-gray-500">{t('fields.length')}</div>
           <div className="font-medium">{y.length} m</div>
 
-          <div className="text-gray-500">Year</div>
+          <div className="text-gray-500">{t('fields.built')}</div>
           <div className="font-medium">{y.builtYear}</div>
 
-          <div className="text-gray-500">Location</div>
-          <div className="truncate font-medium">{y.location}</div>
+          <div className="text-gray-500">{t('fields.location')}</div>
 
-          <div className="text-gray-500">Owner</div>
+          <div className="font-medium flex items-center gap-2">
+            <span className="truncate">{y.location || '—'}</span>
+            {(y.countryCode || y.countryName) && (
+              <span className="shrink-0 ml-1 inline-block rounded border px-1.5 py-0.5 text-xs text-gray-700">
+                {y.countryCode || ''}
+                {y.countryName ? ` · ${y.countryName}` : ''}
+              </span>
+            )}
+          </div>
+
+          <div className="text-gray-500">{t('fields.owner')}</div>
           <div className="truncate font-medium">{y.ownerName ?? '—'}</div>
         </div>
 
@@ -181,7 +194,7 @@ export default function YachtCard({
 
         <div className="mt-auto flex items-center justify-between pt-2">
           <div>
-            <div className="text-xs text-gray-500">Base price</div>
+            <div className="text-xs text-gray-500">{t('fields.basePrice')}</div>
             <div className="text-lg font-bold text-gray-900">€ {fmtPrice(y.basePrice)}</div>
           </div>
 
@@ -196,20 +209,20 @@ export default function YachtCard({
                 }`}
                 title="Fetch competitors and aggregate"
               >
-                {scanning ? 'Scanning…' : 'Scan'}
+                {scanning ? t('loading') : 'Scan'}
               </button>
             )}
             <Link
               className="rounded border px-3 py-1 hover:bg-gray-50"
               to={{ pathname: `/yacht/${y.id}`, search }}
             >
-              View
+              {t('actions.view') || 'View'}
             </Link>
             <Link
               to={{ pathname: `/yacht/${y.id}/edit`, search }}
               className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
             >
-              Edit
+              {t('actions.edit')}
             </Link>
           </div>
         </div>

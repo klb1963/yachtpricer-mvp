@@ -19,6 +19,8 @@ export interface Yacht {
   heads: number
   basePrice: string | number
   location: string
+  countryCode?: string | null
+  countryName?: string | null
   fleet: string
   charterCompany: string
   currentExtraServices: string | Array<{ name: string; price: number }>

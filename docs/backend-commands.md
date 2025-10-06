@@ -2,6 +2,26 @@
 
 # Backend: команды и их назначение
 
+## Через Docker Compose
+# из корня проекта
+docker compose build backend
+docker compose up -d backend
+docker compose logs -f backend
+
+## Локально (без Docker)
+cd backend
+npm i                # если менялись зависимости
+npm run build        # собрать TS → JS
+npm run start:prod   # прод-режим
+# или для hot-reload
+npm run start:dev
+
+## Если трогали Prisma-схему:
+cd backend
+npm run prisma:generate
+# при наличии миграций
+npm run prisma:migrate
+
 ## Запуск и остановка
 
 - **Из корня проекта (host):**

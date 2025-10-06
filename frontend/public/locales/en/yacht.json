@@ -12,7 +12,12 @@
     "delete": "Delete",
     "deleting": "Deleting…",
     "deleteTitle": "Delete this yacht",
-    "deleteConfirm": "Delete \"{{name}}\"? This cannot be undone."
+    "deleteConfirm": "Delete \"{{name}}\"? This cannot be undone.",
+    "view": "View",
+    "scan": "Scan",
+    "scanning": "Scanning…",
+    "details": "Details",
+    "hide": "Hide"
   },
   "sections": {
     "general": "General",
@@ -71,6 +76,7 @@
     "saveFailed": "Failed to save",
     "deleteFailed": "Failed to delete"
   },
+  "competitors": "Competitors",
   "thisYacht": "this yacht",
   "loading": "Loading…"
 }
