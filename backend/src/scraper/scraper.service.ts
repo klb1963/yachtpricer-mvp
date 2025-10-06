@@ -43,6 +43,7 @@ function dtoToJson(dto: StartScrapeDto): Prisma.InputJsonObject {
     cabins: dto.cabins ?? null,
     heads: dto.heads ?? null,
     source: dto.source ?? 'BOATAROUND',
+    filterId: dto.filterId ?? null,
   };
 }
 
@@ -117,10 +118,15 @@ export class ScraperService {
         : null;
 
       // загрузить конфиг фильтров (ORG-уровень; userId можно пробросить позже)
+      // теперь дополнительно прокидываем filterId — чтобы явно выбрать сохранённый набор критериев
       await this.filters.loadConfig(this.prisma, {
         orgId: target?.orgId ?? null,
         userId: null,
+        filterId: dto.filterId ?? null,
       });
+      this.logger.log(
+        `[${job.id}] filters config loaded (org=${target?.orgId ?? 'n/a'}, filterId=${dto.filterId ?? 'none'})`,
+      );
 
       const eff: StartScrapeDto = { ...dto };
       if (target) {
@@ -154,6 +160,7 @@ export class ScraperService {
       }
 
       // все прочие яхты (кроме target)
+      // (на этом этапе базовый выбор без жёстких where — тонкая фильтрация произойдёт в this.filters.passes())
       const others = await this.prisma.yacht.findMany({
         where: target ? { id: { not: target.id } } : {},
       });

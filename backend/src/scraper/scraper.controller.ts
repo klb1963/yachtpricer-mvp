@@ -20,7 +20,7 @@ import {
   TestFiltersDto,
 } from './scraper.dto';
 import { Roles } from '../auth/roles.decorator';
-import { Public } from '../auth/public.decorator';
+// import { Public } from '../auth/public.decorator';
 import { HttpCode, HttpStatus } from '@nestjs/common';
 
 @Controller('scrape')
@@ -42,11 +42,23 @@ export class ScraperController {
   @Post('start')
   @Roles('MANAGER', 'ADMIN')
   start(@Body() dto: StartScrapeDto): Promise<StartResponseDto> {
-    this.logger.log('hit /scrape/start', {
-      yachtId: dto.yachtId,
-      weekStart: dto.weekStart,
-      source: dto.source,
-    });
+    try {
+      const { yachtId, weekStart, source, filterId } = dto;
+
+      this.logger.log(
+        `hit /scrape/start: ${JSON.stringify({
+          yachtId,
+          weekStart,
+          source,
+          filterId: filterId ?? null,
+        })}`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `hit /scrape/start (failed to stringify dto): ${String(err)}`,
+      );
+    }
+
     return this.svc.start(dto);
   }
 

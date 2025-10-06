@@ -118,7 +118,7 @@ export class CompetitorFiltersDto {
   @IsOptional()
   @IsArray()
   @Transform(({ value }) =>
-    toStringArrayKeepEmpty(value)?.map((s) => s.toUpperCase())
+    toStringArrayKeepEmpty(value)?.map((s) => s.toUpperCase()),
   )
   countryCodes?: string[]; // ISO-2, теперь [] поддерживается для очистки
 

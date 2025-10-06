@@ -20,7 +20,12 @@ export type FilterConfig = {
   peoplePlus: number;
 };
 
-export type LoadArgs = { orgId: string | null; userId: string | null };
+export type LoadArgs = {
+  orgId: string | null;
+  userId: string | null;
+  /** Опционально: явно выбранный сохранённый Competitor Filter */
+  filterId?: string | null;
+};
 
 type CandidateLite = {
   lengthFt: number | null;
@@ -76,13 +81,42 @@ export class FiltersService {
    */
   async loadConfig(
     _prisma: PrismaService | PrismaClient, // оставлено на будущее, сейчас используем this.prisma
-    { orgId, userId }: LoadArgs,
+    { orgId, userId, filterId }: LoadArgs,
   ): Promise<void> {
     if (!orgId) {
       this.cfg = { ...DEFAULTS };
       return;
     }
 
+    // 1) Если явно передали filterId — пробуем взять этот фильтр приоритетно
+    if (filterId) {
+      const explicit = await this.prisma.competitorFilters.findUnique({
+        where: { id: filterId },
+      });
+      if (explicit && explicit.orgId === orgId) {
+        this.cfg = {
+          lenMinus: explicit.lenFtMinus,
+          lenPlus: explicit.lenFtPlus,
+          yearMinus: explicit.yearMinus,
+          yearPlus: explicit.yearPlus,
+          peopleMinus: explicit.peopleMinus,
+          peoplePlus: explicit.peoplePlus,
+          cabinsMinus: explicit.cabinsMinus,
+          cabinsPlus: explicit.cabinsPlus,
+          headsMin: explicit.headsMin,
+        };
+        this.log.log(
+          `loadConfig(): applied explicit filterId=${filterId} (org=${orgId})`,
+        );
+        return;
+      } else {
+        this.log.warn(
+          `loadConfig(): filterId=${filterId} not found or not in org=${orgId}, fallback to latest`,
+        );
+      }
+    }
+
+    // 2) Иначе — обычная стратегия: USER → ORG → DEFAULTS
     const byUser = userId
       ? await this.prisma.competitorFilters.findFirst({
           where: { orgId, scope: 'USER', userId },

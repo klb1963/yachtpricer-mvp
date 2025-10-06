@@ -32,14 +32,22 @@ export class CompetitorFiltersController {
   }
 
   @Patch()
-  update(
+  async update(
     @CurrentUser() user: Pick<User, 'id' | 'orgId'>,
     @Body() dto: CompetitorFiltersBody,
-  ) {
+  ): Promise<{ id: string }> {
     if (!user?.orgId) {
       throw new BadRequestException('User has no organization.');
     }
-    return this.svc.upsert(user.orgId, user.id, dto);
+
+    const saved = await this.svc.upsert(user.orgId, user.id, dto);
+
+    if (!saved || !saved.id) {
+      throw new BadRequestException('Failed to save competitor filters.');
+    }
+
+    // Возвращаем строго типизированный ответ
+    return { id: String(saved.id) };
   }
 
   // ---- Dry-run: вернуть только количество по текущим фильтрам
