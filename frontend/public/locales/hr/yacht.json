@@ -12,7 +12,12 @@
     "delete": "Izbriši",
     "deleting": "Brisanje…",
     "deleteTitle": "Izbriši ovu jahtu",
-    "deleteConfirm": "Izbrisati „{{name}}”? Ova radnja se ne može poništiti."
+    "deleteConfirm": "Izbrisati „{{name}}”? Ova radnja se ne može poništiti.",
+    "view": "Pogledaj",
+    "scan": "Skeniraj",
+    "scanning": "Skeniranje…",
+    "details": "Detalji",
+    "hide": "Sakrij"
   },
   "sections": {
     "general": "Općenito",
@@ -71,6 +76,7 @@
     "saveFailed": "Greška pri spremanju",
     "deleteFailed": "Greška pri brisanju"
   },
+  "competitors": "Konkurenti",
   "thisYacht": "ova jahta",
   "loading": "Učitavanje…"
 }

@@ -19,6 +19,8 @@ export interface Yacht {
   heads: number
   basePrice: string | number
   location: string
+  countryCode?: string | null
+  countryName?: string | null
   fleet: string
   charterCompany: string
   currentExtraServices: string | Array<{ name: string; price: number }>
@@ -288,6 +290,7 @@ export type StartScrapePayload = {
   source?: ScrapeSource;
   yachtId: string;
   weekStart: string; // ISO YYYY-MM-DD
+  filterId?: string; 
   location?: string;
   type?: string;
   minYear?: number;
@@ -486,6 +489,14 @@ export async function saveCompetitorFilters(dto: {
 export async function resetCompetitorFilters(scope: "USER" | "ORG") {
   const { data } = await api.delete("/filters/competitors", { params: { scope } });
   return data;
+}
+
+// ---- Upsert (sugar over save) ----
+export async function upsertCompetitorFilters(dto: Parameters<typeof saveCompetitorFilters>[0])
+  : Promise<{ id: string }> {
+  const data = await saveCompetitorFilters(dto);
+  // бек отдаёт объект с id — приводим тип явно
+  return data as { id: string };
 }
 
 // ---- Test scan (dry-run) ----

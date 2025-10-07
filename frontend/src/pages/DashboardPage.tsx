@@ -84,6 +84,17 @@ export default function DashboardPage() {
 
   // модалка фильтров конкуренток
   const [isCompFiltersOpen, setCompFiltersOpen] = useState(false);
+  
+  // активный фильтр конкуренток (id сохраняем в localStorage)
+  const [activeFilterId, setActiveFilterId] = useState<string | null>(
+    localStorage.getItem('competitor:activeFilterId')
+  );
+
+  useEffect(() => {
+    if (activeFilterId) {
+      localStorage.setItem('competitor:activeFilterId', activeFilterId);
+    }
+  }, [activeFilterId]);
 
   // загрузка списка яхт
   useEffect(() => {
@@ -209,9 +220,19 @@ export default function DashboardPage() {
 
   // принимаем значения из формы конкурентных фильтров
   const handleCompetitorFiltersSubmit = (filters: unknown) => {
-    // TODO: сохранить глобально (например, localStorage) или отправить на бэкенд
-    console.log('Competitor filters:', filters);
-    setCompFiltersOpen(false);
+    // сохраняем фильтры и передаём их на бэкенд
+    import('../api').then(async (api) => {
+      try {
+        const { id } = await api.upsertCompetitorFilters(filters as any);
+        setActiveFilterId(id);
+        console.log('✅ Competitor filters saved. Active filter id =', id);
+      } catch (e) {
+        console.error('Failed to save competitor filters', e);
+        alert('Failed to save competitor filters');
+      } finally {
+        setCompFiltersOpen(false);
+      }
+    });
   };
 
   return (

@@ -15,6 +15,7 @@ import {
   type ScrapeJob,
 } from '@prisma/client';
 import { FiltersService } from './filter/filters.service';
+import type { User } from '@prisma/client';
 
 /** Нормализует дату к началу чартерной недели (суббота 00:00 UTC). */
 function getCharterWeekStartSaturdayUTC(input: Date): Date {
@@ -43,6 +44,7 @@ function dtoToJson(dto: StartScrapeDto): Prisma.InputJsonObject {
     cabins: dto.cabins ?? null,
     heads: dto.heads ?? null,
     source: dto.source ?? 'BOATAROUND',
+    filterId: dto.filterId ?? null,
   };
 }
 
@@ -58,7 +60,10 @@ export class ScraperService {
   }
 
   /** Старт скрейпа (генерация «конкурентов» из нашей БД вместо моков). */
-  async start(dto: StartScrapeDto): Promise<StartResponseDto> {
+  async start(
+    dto: StartScrapeDto,
+    user?: Pick<User, 'id' | 'orgId'>,
+  ): Promise<StartResponseDto> {
     // Поддерживаем "виртуальный" source 'INNERDB' без изменения Prisma enum.
     // Маппим INNERDB -> BOATAROUND для поля source в БД.
     const srcRaw = (dto.source ?? 'BOATAROUND') as
@@ -116,11 +121,17 @@ export class ScraperService {
         ? await this.prisma.yacht.findUnique({ where: { id: dto.yachtId } })
         : null;
 
-      // загрузить конфиг фильтров (ORG-уровень; userId можно пробросить позже)
+      // загрузить конфиг фильтров
+      // приоритет orgId: из user → из target яхты → null
+      // дополнительно прокидываем filterId — чтобы явно выбрать сохранённый набор критериев
       await this.filters.loadConfig(this.prisma, {
-        orgId: target?.orgId ?? null,
-        userId: null,
+        orgId: user?.orgId ?? target?.orgId ?? null,
+        userId: user?.id ?? null,
+        filterId: dto.filterId ?? null,
       });
+      this.logger.log(
+        `[${job.id}] filters config loaded (org=${user?.orgId ?? target?.orgId ?? 'n/a'}, filterId=${dto.filterId ?? 'none'})`,
+      );
 
       const eff: StartScrapeDto = { ...dto };
       if (target) {
@@ -153,13 +164,34 @@ export class ScraperService {
         if (eff.heads == null && target.heads != null) eff.heads = target.heads;
       }
 
-      // все прочие яхты (кроме target)
+      // все прочие яхты (кроме target). Страну теперь проверяем в passes(), чтобы видеть причину в логах.
+      const cfg = this.filters.getConfig();
+      const countryCodes = (cfg.allowedCountryCodes ?? []).filter(Boolean);
+      const baseWhere: Prisma.YachtWhereInput = target
+        ? { id: { not: target.id } }
+        : {};
+      const where: Prisma.YachtWhereInput = baseWhere;
+
+      if (countryCodes.length > 0) {
+        this.logger.log(
+          `[${job.id}] country filter applied: [${countryCodes.join(', ')}]`,
+        );
+      }
+
+      // NB: тянем также code2 страны — пригодится для явной причины отсева по стране
       const others = await this.prisma.yacht.findMany({
-        where: target ? { id: { not: target.id } } : {},
+        where,
+        include: {
+          country: { select: { code2: true } }, // ISO-2
+        },
       });
 
       // мапим к «кандидатам»
       const rawCandidates = others.map((y) => {
+        // безопасно достаём ISO-2 код страны (если связь есть)
+        const yCountryCode =
+          (y as { country?: { code2?: string | null } | null }).country
+            ?.code2 ?? null;
         const builtYear =
           (y as { builtYear?: number | null }).builtYear ?? null;
 
@@ -182,6 +214,11 @@ export class ScraperService {
           year: builtYear,
           marina: y.location ?? null,
           type: (y as { type?: string | null }).type ?? null,
+          // ISO-2 код страны кандидата (если есть связь)
+          countryCode: yCountryCode,
+          // добавляем ID категории/производителя для фильтров
+          categoryId: (y as { categoryId?: number | null }).categoryId ?? null,
+          builderId: (y as { builderId?: number | null }).builderId ?? null,
           price: new Prisma.Decimal(basePriceNum),
           currency: 'EUR',
           link: `internal://yacht/${y.id}`,
@@ -233,6 +270,17 @@ export class ScraperService {
       // ===== устойчивые вставки: upsert по @@unique([source, link, weekStart])
       const yachtIdToWrite = yachtIdForInsert ?? dto.yachtId ?? null;
       let upserts = 0;
+
+      // 👇 Очищаем прошлые результаты для этой яхты/недели/источника
+      if (yachtIdToWrite) {
+        await this.prisma.competitorPrice.deleteMany({
+          where: {
+            yachtId: yachtIdToWrite,
+            weekStart,
+            source: sourceEnum,
+          },
+        });
+      }
 
       for (const c of kept) {
         await this.prisma.competitorPrice.upsert({

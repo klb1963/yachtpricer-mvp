@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import type { Yacht } from '../api';
 import type { CompetitorPrice } from '../api';
+import { useTranslation } from 'react-i18next';
 
 type SortKey = 'priceAsc' | 'priceDesc' | 'yearAsc' | 'yearDesc' | 'createdDesc';
 
@@ -42,44 +43,46 @@ const YachtTable: React.FC<Props> = ({
   onToggleDetails,
   lastWarningByYacht,
 }) => {
+  const { t } = useTranslation('yacht');
   return (
     <div className="overflow-x-auto rounded-lg border">
       <table className="min-w-full text-sm">
         <thead className="bg-gray-50">
           <tr className="[&>th]:px-4 [&>th]:py-2 [&>th]:font-semibold [&>th]:text-gray-800 text-left">
-            <th>Name</th>
-            <th>Model</th>
-            <th>Type</th>
-            <th>Length</th>
+            <th>{t('fields.name') || 'Name'}</th>
+            <th>{t('fields.model') || 'Model'}</th>
+            <th>{t('fields.type') || 'Type'}</th>
+            <th>{t('fields.length') || 'Length'}</th>
             <th>
               <button
                 type="button"
                 onClick={() => onSortBy('year')}
                 className="inline-flex items-center gap-1 rounded px-1 py-0.5 !text-gray-900 hover:!text-gray-900 hover:bg-gray-100"
-                title="Sort by year"
+                title={t('sort.byYear') || 'Sort by year'}
               >
-                Year
+                {t('fields.built') || 'Year'}
                 <span className={sort.startsWith('year') ? 'text-blue-600 font-bold' : 'text-gray-400'}>
                   {sort === 'yearAsc' ? '↑' : sort === 'yearDesc' ? '↓' : ''}
                 </span>
               </button>
             </th>
-            <th>Location</th>
+            <th>{t('fields.country') || 'Country'}</th>
+            <th>{t('fields.location') || 'Location'}</th>
             <th>
               <button
                 type="button"
                 onClick={() => onSortBy('price')}
                 className="inline-flex items-center gap-1 rounded px-1 py-0.5 !text-gray-900 hover:!text-gray-900 hover:bg-gray-100"
-                title="Sort by price"
+                title={t('sort.byPrice') || 'Sort by price'}
               >
-                Price (base)
+                {t('fields.basePrice') || 'Price (base)'}
                 <span className={sort.startsWith('price') ? 'text-blue-600 font-bold' : 'text-gray-400'}>
                   {sort === 'priceAsc' ? '↑' : sort === 'priceDesc' ? '↓' : ''}
                 </span>
               </button>
             </th>
-            <th>Competitors</th>
-            <th className="px-4 py-2 text-left">Owner</th>
+            <th>{t('competitors') || 'Competitors'}</th>
+            <th className="px-4 py-2 text-left">{t('fields.owner') || 'Owner'}</th>
           </tr>
         </thead>
 
@@ -105,6 +108,11 @@ const YachtTable: React.FC<Props> = ({
                 <td>{y.type}</td>
                 <td>{y.length} m</td>
                 <td>{y.builtYear}</td>
+                <td>
+                  {y.countryCode
+                    ? `${y.countryCode}${y.countryName ? ' — ' + y.countryName : ''}`
+                    : '—'}
+                </td>
                 <td>{y.location}</td>
                 <td>
                   {typeof y.basePrice === 'string'
@@ -126,9 +134,10 @@ const YachtTable: React.FC<Props> = ({
                           ? 'bg-gray-400 text-white cursor-not-allowed'
                           : 'bg-blue-600 text-white hover:bg-blue-700'
                       }`}
-                      title="Fetch competitors and aggregate"
+                      title={t('hints.fetchCompetitors') || 'Fetch competitors and aggregate'}
                     >
-                      {busyId === y.id ? 'Scanning…' : 'Scan'}
+                      {busyId === y.id ? (t('actions.scanning') || 'Scanning…') : (t('actions.scan') || 'Scan')}
+
                     </button>
 
                     {agg ? (
@@ -148,18 +157,22 @@ const YachtTable: React.FC<Props> = ({
                         type="button"
                         onClick={() => onToggleDetails(y.id)}
                         className="rounded border px-1.5 py-0.5 text-xs hover:bg-gray-100"
-                        title="Show raw competitor cards"
+                        title={t('hints.showDetails') || 'Show raw competitor cards'}
                       >
-                        {open ? 'Hide' : 'Details'}
+                        {open ? (t('actions.hide') || 'Hide') : (t('actions.details') || 'Details')}
                       </button>
                     )}
                   </div>
 
-                  {lastWarningByYacht?.[y.id] && (
+                  {/* Показывать предупреждение только если нет найденных конкурентов (agg отсутствует или agg.n === 0) */}
+                  {(!agg || agg.n === 0) && lastWarningByYacht?.[y.id] && (
                     <div className="mt-2 rounded bg-yellow-100 p-2 text-xs text-yellow-800">
-                      {Array.isArray(lastWarningByYacht[y.id])
-                        ? lastWarningByYacht[y.id]!.join(', ')
-                        : lastWarningByYacht[y.id]}
+                      <b>No competitors found</b> for this week with current Competitor filters.
+                      <div className="mt-1">
+                        {Array.isArray(lastWarningByYacht[y.id])
+                          ? (lastWarningByYacht[y.id] as string[]).join(', ')
+                          : (lastWarningByYacht[y.id] as string)}
+                      </div>
                     </div>
                   )}
 
@@ -192,7 +205,9 @@ const YachtTable: React.FC<Props> = ({
 
           {items.length === 0 && (
             <tr>
-              <td colSpan={9} className="px-4 py-6 text-center text-gray-500">No results</td>
+              <td colSpan={10} className="px-4 py-6 text-center text-gray-500">
+                {t('noResults') || 'No results'}
+              </td>
             </tr>
           )}
         </tbody>

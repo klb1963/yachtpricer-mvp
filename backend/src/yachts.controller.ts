@@ -15,6 +15,14 @@ import { Prisma, YachtType } from '@prisma/client';
 import { Roles } from './auth/roles.decorator';
 import { PrismaService } from './prisma/prisma.service';
 
+interface YachtWithCountry
+  extends Prisma.YachtGetPayload<{
+    include: { country: true; category: true; builder: true };
+  }> {
+  countryCode: string | null;
+  countryName: string | null;
+}
+
 /** Хелперы парсинга */
 const toInt = (v: unknown): number | undefined => {
   if (v === undefined || v === null || v === '') return undefined;
@@ -135,25 +143,45 @@ export class YachtsController {
 
     const [total, items] = await this.prisma.$transaction([
       this.prisma.yacht.count({ where }),
-      this.prisma.yacht.findMany({ where, orderBy, skip, take }),
+      this.prisma.yacht.findMany({
+        where,
+        orderBy,
+        skip,
+        take,
+        include: {
+          country: { select: { code2: true, name: true } },
+        },
+      }),
     ]);
 
-    return { items, total, page, pageSize };
+    // Разворачиваем страну в плоские поля для фронта
+    const mapped = items.map((y) => ({
+      ...y,
+      countryCode: y.country?.code2 ?? null,
+      countryName: y.country?.name ?? null,
+    }));
+
+    return { items: mapped, total, page, pageSize };
   }
 
   // -------- by id --------
   @Get(':id')
-  async byId(@Param('id') id: string) {
+  async byId(@Param('id') id: string): Promise<YachtWithCountry> {
     const y = await this.prisma.yacht.findUnique({
       where: { id },
       include: {
-        country: { select: { id: true, code2: true, name: true } },
-        category: { select: { id: true, nameEn: true, nameRu: true } },
-        builder: { select: { id: true, name: true } },
+        country: true, // ← полная сущность, без select
+        category: true,
+        builder: true,
       },
     });
     if (!y) throw new NotFoundException('Yacht not found');
-    return y;
+
+    return {
+      ...y,
+      countryCode: y.country?.code2 ?? null,
+      countryName: y.country?.name ?? null,
+    };
   }
 
   // ===== helpers =====

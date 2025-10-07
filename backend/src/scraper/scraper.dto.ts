@@ -28,6 +28,11 @@ export class StartScrapeDto {
   @IsEnum(ScrapeSource)
   source?: ScrapeSourceLiteral;
 
+  /** ID сохранённого Competitor Filter (активный) */
+  @IsOptional()
+  @IsString()
+  filterId?: string;
+
   /** ID нашей яхты (для сравнения) */
   @IsOptional()
   @IsString()

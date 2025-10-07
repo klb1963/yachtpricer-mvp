@@ -2,7 +2,7 @@
   "actions": {
     "addYacht": "Добавить яхту",
     "editYacht": "Редактировать яхту",
-    "edit": "Редактировать",
+    "edit": "Править",
     "back": "Назад",
     "create": "Создать",
     "creating": "Создание…",
@@ -12,7 +12,12 @@
     "delete": "Удалить",
     "deleting": "Удаление…",
     "deleteTitle": "Удалить эту яхту",
-    "deleteConfirm": "Удалить «{{name}}»? Это действие невозможно отменить."
+    "deleteConfirm": "Удалить «{{name}}»? Это действие невозможно отменить.",
+    "view": "Просмотр",
+    "scan": "Scan",
+    "scanning": "Scanning…",
+    "details": "Подробнее",
+    "hide": "Спрятать"
   },
   "sections": {
     "general": "Общие сведения",
@@ -71,6 +76,7 @@
     "saveFailed": "Ошибка сохранения",
     "deleteFailed": "Ошибка удаления"
   },
+  "competitors": "Конкуренты",
   "thisYacht": "эта яхта",
   "loading": "Загрузка…"
 }
