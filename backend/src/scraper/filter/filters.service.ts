@@ -21,6 +21,10 @@ export type FilterConfig = {
   peoplePlus: number;
   /** Разрешённые ISO-2 коды стран из сохранённого Competitor Filter */
   allowedCountryCodes: string[];
+  /** Разрешённые категории яхт (ID) */
+  allowedCategoryIds: number[];
+  /** Разрешённые производители/бренды (ID) */
+  allowedBuilderIds: number[];
 };
 
 export type LoadArgs = {
@@ -39,6 +43,10 @@ type CandidateLite = {
   marina?: string | null;
   /** ISO-2 код страны кандидата (например, "GR" / "HR") */
   countryCode?: string | null;
+  /** числовой ID категории кандидата */
+  categoryId?: number | null;
+  /** числовой ID производителя кандидата */
+  builderId?: number | null;
 };
 
 type DtoLike = { location?: string | null | undefined };
@@ -65,6 +73,8 @@ const DEFAULTS: FilterConfig = {
   cabinsPlus: 1,
   headsMin: 0,
   allowedCountryCodes: [],
+  allowedCategoryIds: [],
+  allowedBuilderIds: [],
 };
 
 @Injectable()
@@ -96,7 +106,11 @@ export class FiltersService {
     const byId = filterId
       ? await this.prisma.competitorFilters.findUnique({
           where: { id: filterId },
-          include: { countries: { select: { code2: true } } },
+          include: {
+            countries: { select: { code2: true } },
+            categories: { select: { id: true } },
+            builders: { select: { id: true } },
+          },
         })
       : null;
 
@@ -119,6 +133,8 @@ export class FiltersService {
           allowedCountryCodes: (byId.countries ?? [])
             .map((c) => (c.code2 ?? '').toUpperCase())
             .filter((s): s is string => s.length > 0),
+          allowedCategoryIds: (byId.categories ?? []).map((c) => c.id),
+          allowedBuilderIds: (byId.builders ?? []).map((b) => b.id),
         };
         this.log.log(
           `loadConfig(): applied explicit filterId=${filterId} (org=${orgId}) with countries=[${this.cfg.allowedCountryCodes.join(', ')}]`,
@@ -132,7 +148,11 @@ export class FiltersService {
       ? await this.prisma.competitorFilters.findFirst({
           where: { orgId, scope: 'USER', userId },
           orderBy: { updatedAt: 'desc' },
-          include: { countries: { select: { code2: true } } },
+          include: {
+            countries: { select: { code2: true } },
+            categories: { select: { id: true } },
+            builders: { select: { id: true } },
+          },
         })
       : null;
 
@@ -141,7 +161,11 @@ export class FiltersService {
       (await this.prisma.competitorFilters.findFirst({
         where: { orgId, scope: 'ORG' },
         orderBy: { updatedAt: 'desc' },
-        include: { countries: { select: { code2: true } } },
+        include: {
+          countries: { select: { code2: true } },
+          categories: { select: { id: true } },
+          builders: { select: { id: true } },
+        },
       }));
 
     if (!row) {
@@ -162,6 +186,8 @@ export class FiltersService {
       allowedCountryCodes: (row.countries ?? [])
         .map((c) => (c.code2 ?? '').toUpperCase())
         .filter((s): s is string => s.length > 0),
+      allowedCategoryIds: (row.categories ?? []).map((c) => c.id),
+      allowedBuilderIds: (row.builders ?? []).map((b) => b.id),
     };
   }
 
@@ -284,6 +310,28 @@ export class FiltersService {
       if (!cand || !allowed.includes(cand)) {
         reasons.push(
           `country mismatch: ${cand ?? '∅'} ∉ [${allowed.join(', ')}]`,
+        );
+      }
+    }
+
+    // Категория: если в конфиге заданы разрешённые категории (типы) яхт — проверяем
+    const allowedCats = this.cfg.allowedCategoryIds ?? [];
+    if (allowedCats.length > 0) {
+      const cid = candidate.categoryId ?? null;
+      if (cid == null || !allowedCats.includes(cid)) {
+        reasons.push(
+          `category mismatch: ${cid ?? '∅'} ∉ [${allowedCats.join(', ')}]`,
+        );
+      }
+    }
+
+    // Производитель: если в конфиге заданы разрешённые builder’ы — проверяем
+    const allowedBuilders = this.cfg.allowedBuilderIds ?? [];
+    if (allowedBuilders.length > 0) {
+      const bid = candidate.builderId ?? null;
+      if (bid == null || !allowedBuilders.includes(bid)) {
+        reasons.push(
+          `builder mismatch: ${bid ?? '∅'} ∉ [${allowedBuilders.join(', ')}]`,
         );
       }
     }

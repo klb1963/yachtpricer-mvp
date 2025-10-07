@@ -182,7 +182,7 @@ export class ScraperService {
       const others = await this.prisma.yacht.findMany({
         where,
         include: {
-          country: { select: { code2: true } },
+          country: { select: { code2: true } }, // ISO-2
         },
       });
 
@@ -216,6 +216,9 @@ export class ScraperService {
           type: (y as { type?: string | null }).type ?? null,
           // ISO-2 код страны кандидата (если есть связь)
           countryCode: yCountryCode,
+          // добавляем ID категории/производителя для фильтров
+          categoryId: (y as { categoryId?: number | null }).categoryId ?? null,
+          builderId: (y as { builderId?: number | null }).builderId ?? null,
           price: new Prisma.Decimal(basePriceNum),
           currency: 'EUR',
           link: `internal://yacht/${y.id}`,
