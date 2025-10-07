@@ -15,5 +15,9 @@
     "typecheck:backend": "npm -w backend run typecheck",
     "lint:backend": "npm -w backend run lint",
     "seed:backend": "npm -w backend run seed:geo"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3"
   }
 }
