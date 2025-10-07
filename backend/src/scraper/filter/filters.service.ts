@@ -1,4 +1,5 @@
 // backend/src/scraper/filter/filters.service.ts
+
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -18,6 +19,8 @@ export type FilterConfig = {
   // запас на будущее (пока не используем в passes)
   peopleMinus: number;
   peoplePlus: number;
+  /** Разрешённые ISO-2 коды стран из сохранённого Competitor Filter */
+  allowedCountryCodes: string[];
 };
 
 export type LoadArgs = {
@@ -34,6 +37,8 @@ type CandidateLite = {
   year: number | null;
   type?: string | null;
   marina?: string | null;
+  /** ISO-2 код страны кандидата (например, "GR" / "HR") */
+  countryCode?: string | null;
 };
 
 type DtoLike = { location?: string | null | undefined };
@@ -59,6 +64,7 @@ const DEFAULTS: FilterConfig = {
   cabinsMinus: 1,
   cabinsPlus: 1,
   headsMin: 0,
+  allowedCountryCodes: [],
 };
 
 @Injectable()
@@ -72,15 +78,13 @@ export class FiltersService {
 
   /**
    * Загружаем фильтры:
-   * - при наличии userId берём USER-скоуп (последний updatedAt),
+   * - если пришёл filterId и он принадлежит orgId — используем его,
+   * - иначе берём USER-скоуп (последний updatedAt),
    * - иначе ORG-скоуп,
    * - иначе — дефолты из DEFAULTS.
-   *
-   * Сигнатура соответствует вызову из scraper.service.ts:
-   *   await filters.loadConfig(this.prisma, { orgId, userId })
    */
   async loadConfig(
-    _prisma: PrismaService | PrismaClient, // оставлено на будущее, сейчас используем this.prisma
+    _prisma: PrismaService | PrismaClient,
     { orgId, userId, filterId }: LoadArgs,
   ): Promise<void> {
     if (!orgId) {
@@ -88,39 +92,47 @@ export class FiltersService {
       return;
     }
 
-    // 1) Если явно передали filterId — пробуем взять этот фильтр приоритетно
-    if (filterId) {
-      const explicit = await this.prisma.competitorFilters.findUnique({
-        where: { id: filterId },
-      });
-      if (explicit && explicit.orgId === orgId) {
+    // 1) Явно выбранный фильтр
+    const byId = filterId
+      ? await this.prisma.competitorFilters.findUnique({
+          where: { id: filterId },
+          include: { countries: { select: { code2: true } } },
+        })
+      : null;
+
+    if (byId) {
+      if (byId.orgId !== orgId) {
+        this.log.warn(
+          `loadConfig(): filterId=${filterId} does not belong to org=${orgId}, ignoring`,
+        );
+      } else {
         this.cfg = {
-          lenMinus: explicit.lenFtMinus,
-          lenPlus: explicit.lenFtPlus,
-          yearMinus: explicit.yearMinus,
-          yearPlus: explicit.yearPlus,
-          peopleMinus: explicit.peopleMinus,
-          peoplePlus: explicit.peoplePlus,
-          cabinsMinus: explicit.cabinsMinus,
-          cabinsPlus: explicit.cabinsPlus,
-          headsMin: explicit.headsMin,
+          lenMinus: byId.lenFtMinus,
+          lenPlus: byId.lenFtPlus,
+          yearMinus: byId.yearMinus,
+          yearPlus: byId.yearPlus,
+          peopleMinus: byId.peopleMinus,
+          peoplePlus: byId.peoplePlus,
+          cabinsMinus: byId.cabinsMinus,
+          cabinsPlus: byId.cabinsPlus,
+          headsMin: byId.headsMin,
+          allowedCountryCodes: (byId.countries ?? [])
+            .map((c) => (c.code2 ?? '').toUpperCase())
+            .filter((s): s is string => s.length > 0),
         };
         this.log.log(
-          `loadConfig(): applied explicit filterId=${filterId} (org=${orgId})`,
+          `loadConfig(): applied explicit filterId=${filterId} (org=${orgId}) with countries=[${this.cfg.allowedCountryCodes.join(', ')}]`,
         );
         return;
-      } else {
-        this.log.warn(
-          `loadConfig(): filterId=${filterId} not found or not in org=${orgId}, fallback to latest`,
-        );
       }
     }
 
-    // 2) Иначе — обычная стратегия: USER → ORG → DEFAULTS
+    // 2) Иначе — USER → ORG → DEFAULTS
     const byUser = userId
       ? await this.prisma.competitorFilters.findFirst({
           where: { orgId, scope: 'USER', userId },
           orderBy: { updatedAt: 'desc' },
+          include: { countries: { select: { code2: true } } },
         })
       : null;
 
@@ -129,6 +141,7 @@ export class FiltersService {
       (await this.prisma.competitorFilters.findFirst({
         where: { orgId, scope: 'ORG' },
         orderBy: { updatedAt: 'desc' },
+        include: { countries: { select: { code2: true } } },
       }));
 
     if (!row) {
@@ -146,6 +159,9 @@ export class FiltersService {
       cabinsMinus: row.cabinsMinus,
       cabinsPlus: row.cabinsPlus,
       headsMin: row.headsMin,
+      allowedCountryCodes: (row.countries ?? [])
+        .map((c) => (c.code2 ?? '').toUpperCase())
+        .filter((s): s is string => s.length > 0),
     };
   }
 
@@ -173,7 +189,7 @@ export class FiltersService {
     return s?.trim().toLowerCase() ?? null;
   }
 
-  /** Эвристика по стране (для будущей доработки локаций). */
+  /** Эвристика по стране (оставляем на будущее; сейчас страна берётся из allowedCountryCodes). */
   private guessCountry(place?: string | null): 'GR' | 'HR' | null {
     const map: Record<string, 'GR' | 'HR'> = {
       // Greece
@@ -203,9 +219,7 @@ export class FiltersService {
   /**
    * Главный фильтр кандидата.
    * Использует КЕШИРОВАННУЮ конфигурацию (this.cfg), которую загрузили через loadConfig().
-   * Сигнатура: passes(candidate, ctx) — именно так ты вызываешь из scraper.service.ts.
-   * Возвращает объект с флагом и короткой причиной (для UI/логов).
-   * Сигнатура: passes(candidate, ctx): { ok: boolean; reason?: string }
+   * Возвращает { ok, reason? } — причина для логов/UI.
    */
   passes(
     candidate: CandidateLite,
@@ -262,6 +276,18 @@ export class FiltersService {
       }
     }
 
+    // === Страна (унифицированная проверка)
+    // если в конфиге заданы разрешённые ISO-2 коды — кандидат обязан иметь код из списка
+    const allowed = this.cfg.allowedCountryCodes ?? [];
+    if (allowed.length > 0) {
+      const cand = (candidate.countryCode ?? '').toUpperCase() || null;
+      if (!cand || !allowed.includes(cand)) {
+        reasons.push(
+          `country mismatch: ${cand ?? '∅'} ∉ [${allowed.join(', ')}]`,
+        );
+      }
+    }
+
     // Локация (пока упрощённо): если в dto задано location — проверим подстроку
     if (ctx.dto?.location && candidate.marina) {
       const a = this.norm(candidate.marina);
@@ -273,7 +299,6 @@ export class FiltersService {
 
     if (reasons.length) {
       this.log.log(`[${ctx.jobId ?? '-'}] DROP: ${reasons.join(' | ')}`);
-      // Вернём объединённую строку причин (подходит для toast/логов)
       return { ok: false, reason: reasons.join(' | ') };
     }
     this.log.log(`[${ctx.jobId ?? '-'}] KEEP`);

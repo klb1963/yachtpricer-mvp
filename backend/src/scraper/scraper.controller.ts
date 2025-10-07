@@ -22,6 +22,8 @@ import {
 import { Roles } from '../auth/roles.decorator';
 // import { Public } from '../auth/public.decorator';
 import { HttpCode, HttpStatus } from '@nestjs/common';
+import { CurrentUser } from '../auth/current-user.decorator';
+import { User } from '@prisma/client';
 
 @Controller('scrape')
 // Локальный ValidationPipe: трансформирует строки в числа/даты по декораторам и отсекает лишние поля.
@@ -41,7 +43,10 @@ export class ScraperController {
    */
   @Post('start')
   @Roles('MANAGER', 'ADMIN')
-  start(@Body() dto: StartScrapeDto): Promise<StartResponseDto> {
+  start(
+    @CurrentUser() user: Pick<User, 'id' | 'orgId'>,
+    @Body() dto: StartScrapeDto,
+  ): Promise<StartResponseDto> {
     try {
       const { yachtId, weekStart, source, filterId } = dto;
 
@@ -51,6 +56,7 @@ export class ScraperController {
           weekStart,
           source,
           filterId: filterId ?? null,
+          userOrgId: user?.orgId ?? null,
         })}`,
       );
     } catch (err) {
@@ -58,8 +64,7 @@ export class ScraperController {
         `hit /scrape/start (failed to stringify dto): ${String(err)}`,
       );
     }
-
-    return this.svc.start(dto);
+    return this.svc.start(dto, user);
   }
 
   @Post('aggregate')
@@ -101,12 +106,19 @@ export class ScraperController {
   // @Public() // временно, чтобы фронт мог дернуть без настройки маппинга Clerk→User
   @Roles('MANAGER', 'ADMIN')
   @HttpCode(HttpStatus.OK) // 👈 теперь ответ всегда 200 вместо 201
-  async test(@Body() dto: TestFiltersDto): Promise<{ count: number }> {
-    this.logger.log('hit /scrape/test', {
-      countryCodes: dto.countryCodes?.length ?? 0,
-      categoryIds: dto.categoryIds?.length ?? 0,
-      builderIds: dto.builderIds?.length ?? 0,
-    });
+  async test(
+    @CurrentUser() user: Pick<User, 'id' | 'orgId'>,
+    @Body() dto: TestFiltersDto,
+  ): Promise<{ count: number }> {
+    this.logger.log(
+      `hit /scrape/test: ${JSON.stringify({
+        countryCodes: dto.countryCodes?.length ?? 0,
+        categoryIds: dto.categoryIds?.length ?? 0,
+        builderIds: dto.builderIds?.length ?? 0,
+        userOrgId: user?.orgId ?? null,
+      })}`,
+    );
+    // Сервис пока не принимает user — передаём только dto.
     return this.svc.testFilters(dto);
   }
 }

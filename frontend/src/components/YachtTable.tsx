@@ -164,11 +164,15 @@ const YachtTable: React.FC<Props> = ({
                     )}
                   </div>
 
-                  {lastWarningByYacht?.[y.id] && (
+                  {/* Показывать предупреждение только если нет найденных конкурентов (agg отсутствует или agg.n === 0) */}
+                  {(!agg || agg.n === 0) && lastWarningByYacht?.[y.id] && (
                     <div className="mt-2 rounded bg-yellow-100 p-2 text-xs text-yellow-800">
-                      {Array.isArray(lastWarningByYacht[y.id])
-                        ? lastWarningByYacht[y.id]!.join(', ')
-                        : lastWarningByYacht[y.id]}
+                      <b>No competitors found</b> for this week with current Competitor filters.
+                      <div className="mt-1">
+                        {Array.isArray(lastWarningByYacht[y.id])
+                          ? (lastWarningByYacht[y.id] as string[]).join(', ')
+                          : (lastWarningByYacht[y.id] as string)}
+                      </div>
                     </div>
                   )}
 

@@ -165,10 +165,13 @@ export default function YachtCard({
           )}
         </div>
 
-        {/* Предупреждение от фильтров */}
-        {warning && (
+        {/* Предупреждение, если конкуренты не найдены */}
+        {(!agg || agg.n === 0) && warning && (
           <div className="mt-2 rounded bg-yellow-100 p-2 text-sm text-yellow-800">
-            {Array.isArray(warning) ? warning.join(", ") : warning}
+            <b>No competitors found</b> for this week with current Competitor filters.
+            <div style={{ marginTop: 4 }}>
+              {Array.isArray(warning) ? warning.join(', ') : warning}
+            </div>
           </div>
         )}
 
