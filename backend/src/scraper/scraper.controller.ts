@@ -20,7 +20,7 @@ import {
   TestFiltersDto,
 } from './scraper.dto';
 import { Roles } from '../auth/roles.decorator';
-// import { Public } from '../auth/public.decorator';
+import { Public } from '../auth/public.decorator';
 import { HttpCode, HttpStatus } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { User } from '@prisma/client';
@@ -41,6 +41,7 @@ export class ScraperController {
    * Старт задачи скрейпа.
    * В лог пишем только ключевые поля (без полного JSON), чтобы не засорять логи и не светить лишнее.
    */
+  @Public() // временно, чтобы фронт мог дернуть без настройки маппинга Clerk→User
   @Post('start')
   @Roles('MANAGER', 'ADMIN')
   start(

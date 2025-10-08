@@ -1,3 +1,10 @@
+# Полная переустановка зависимостей
+cd frontend
+rm -rf node_modules package-lock.json
+npm cache clean --force
+npm i
+
+
 # Frontend (Vite) — запуск локально на Mac (НЕ в Docker)
 
 > **Важно:** все команды ниже выполняются **в обычном терминале macOS** (iTerm/Terminal),  

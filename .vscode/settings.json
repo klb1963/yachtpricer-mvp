@@ -1,16 +1,24 @@
 {
   "eslint.workingDirectories": [
-    { "directory": "frontend", "changeProcessCWD": true },
-    { "directory": "backend",  "changeProcessCWD": true }
+    {
+      "directory": "frontend",
+      "changeProcessCWD": true
+    },
+    {
+      "directory": "backend",
+      "changeProcessCWD": true
+    }
   ],
-  "typescript.tsdk": "node_modules/typescript/lib",
-  "typescript.enablePromptUseWorkspaceTsdk": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
   "prettier.requireConfig": false,
-  "eslint.validate": ["typescript", "javascript"],
+  "eslint.validate": [
+    "typescript",
+    "javascript"
+  ],
   "editor.codeActionsOnSave": {
     "source.fixAll": "explicit",
     "source.fixAll.eslint": "explicit"
-  }
+  },
+  "typescript.tsdk": "node_modules/typescript/lib"
 }
