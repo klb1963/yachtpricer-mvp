@@ -6,14 +6,21 @@
   ],
   "service": "workspace",
   "workspaceFolder": "/workspace",
-
   "mounts": [
     "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
   ],
-
-  "runServices": ["db", "backend", "prisma-studio"],
+  "runServices": [
+    "db",
+    "backend",
+    "prisma-studio"
+  ],
   "shutdownAction": "stopCompose",
-  "forwardPorts": [3000, 8000, 5432, 5556],
+  "forwardPorts": [
+    3000,
+    8000,
+    5432,
+    5555
+  ],
   "customizations": {
     "vscode": {
       "extensions": [
@@ -23,7 +30,13 @@
         "ms-azuretools.vscode-docker"
       ],
       "settings": {
-        "typescript.tsdk": "frontend/node_modules/typescript/lib",
+        // общий TypeScript SDK из корня репо (правильно для mono-repo)
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "typescript.enablePromptUseWorkspaceTsdk": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll": "explicit",
+          "source.fixAll.eslint": "explicit"
+        },
         "editor.formatOnSave": true,
         "files.exclude": {
           "**/.turbo": true,

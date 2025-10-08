@@ -42,8 +42,7 @@
     "seed:group:geo": "npm run seed:countries && npm run seed:locations && npm run seed:aliases && npm run seed:regions",
     "seed:group:yachts": "npm run seed:categories && npm run seed:builders && npm run seed:models",
     "seed:group:legacy": "npm run seed:weekslots && npm run seed:monohulls && npm run seed:cats && npm run seed:rbac",
-    "seed:all": "npm run seed:group:geo && npm run seed:group:yachts && npm run seed:group:legacy",
-    "postinstall": "prisma generate"
+    "seed:all": "npm run seed:group:geo && npm run seed:group:yachts && npm run seed:group:legacy"
   },
   "dependencies": {
     "@clerk/backend": "^2.14.0",
