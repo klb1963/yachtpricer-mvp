@@ -27,9 +27,22 @@ docker compose run --rm --entrypoint "" \
 
 	3.	Внутри backend/ (VS Code терминал):
 
+cd /workspace/backend
+
+# 1) Полная переустановка зависимостей бекэнда
+rm -rf node_modules
 npm ci
-npx prisma migrate dev
+
+# 2) Сгенерить Prisma Client (иначе @prisma/client будет "красным")
 npx prisma generate
+
+# 3) (Опционально) миграции — только если меняли schema.prisma
+# npx prisma migrate dev
+
+# 4) Проверка сборки
+npm run build
+
+# 5) Локальный запуск дев-сервера (если нужен)
 npm run start:dev
 
 Затем в локальном терминале:
@@ -40,6 +53,25 @@ npm ci             # поставить node_modules по lock-файлу
 и перезапустить TS-сервер в VS Code
 
 запуск фронтенда Vite локально:
+npm run dev -- --config vite.config.local.ts
+
+cd frontend
+
+# 1) Убедись, что активен Node 20 из nvm
+nvm use 20
+node -v    # должно показать v20.x
+
+# 2) Полная очистка
+rm -rf node_modules package-lock.json
+npm cache clean --force
+
+# 3) Свежая установка (без --no-optional!)
+npm install
+
+# 4) На всякий случай перестроить бинарники Rollup
+npm rebuild rollup
+
+# 5) Запуск Vite (одного --config достаточно)
 npm run dev -- --config vite.config.local.ts
 
 	4.	Проверяем статус:

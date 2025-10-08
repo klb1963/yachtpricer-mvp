@@ -28,6 +28,7 @@ enum ScrapeSource {
   BOATAROUND
   SEARADAR
   NAUSYS
+  INNERDB
 }
 
 enum JobStatus {
