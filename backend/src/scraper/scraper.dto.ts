@@ -12,11 +12,10 @@ import {
 } from 'class-validator';
 import { JobStatus } from '@prisma/client';
 
-export type ScrapeSourceLiteral = 'BOATAROUND' | 'SEARADAR' | 'INNERDB';
+export type ScrapeSourceLiteral = 'INNERDB' | 'NAUSYS';
 export const ScrapeSource = {
-  BOATAROUND: 'BOATAROUND',
-  SEARADAR: 'SEARADAR',
   INNERDB: 'INNERDB',
+  NAUSYS: 'NAUSYS',
 } as const;
 
 /**
@@ -126,7 +125,7 @@ export class AggregateDto {
 
   @IsOptional()
   @IsEnum(ScrapeSource)
-  source?: ScrapeSourceLiteral; // по умолчанию BOATAROUND
+  source?: ScrapeSourceLiteral; // по умолчанию INNERDB (маппим на BOATAROUND внутри сервиса)
 }
 
 /**

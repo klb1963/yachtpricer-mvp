@@ -36,7 +36,7 @@ services:
       NAUSYS_USERNAME: rest388@TTTTT
       NAUSYS_PASSWORD: e2THubBC
 
-      AUTH_MODE: clerk  # "clerk" или "fake" (для локальной разработки)
+      AUTH_MODE: fake  # "clerk" или "fake" (для локальной разработки)
       
       CLERK_SECRET_KEY: sk_test_b2GEuGwtyyfcZ27SAA4ZSGLBsihQ9E5ipVQ4q0ureQ
       CLERK_ISSUER: https://exciting-mule-31.clerk.accounts.dev

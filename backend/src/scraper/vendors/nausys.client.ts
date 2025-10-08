@@ -59,3 +59,14 @@ export function ddmmyyyy(d: Date): string {
   const yyyy = d.getUTCFullYear();
   return `${dd}.${mm}.${yyyy}`;
 }
+
+/** Получить описание модели яхты (для длины и т.п.) */
+export async function getYachtModel(
+  creds: NauSysCreds,
+  modelId: number,
+) {
+  return postJson<any>(
+    `https://ws.nausys.com/CBMS-external/rest/catalogue/v6/yachtModel/${modelId}`,
+    { username: creds.username, password: creds.password },
+  );
+}

@@ -16,6 +16,7 @@ import {
 } from '@prisma/client';
 import { FiltersService } from './filter/filters.service';
 import type { User } from '@prisma/client';
+import { runNausysJob } from './vendors/nausys.runner'; // ⬅ добавить импорт
 
 /** Нормализует дату к началу чартерной недели (суббота 00:00 UTC). */
 function getCharterWeekStartSaturdayUTC(input: Date): Date {
@@ -69,8 +70,16 @@ export class ScraperService {
     const srcRaw = (dto.source ?? 'BOATAROUND') as
       | 'BOATAROUND'
       | 'SEARADAR'
-      | 'INNERDB';
-    const srcKey = srcRaw === 'INNERDB' ? 'BOATAROUND' : srcRaw;
+      | 'INNERDB'
+      | 'NAUSYS';
+
+    const srcKey =
+      srcRaw === 'INNERDB'
+        ? 'BOATAROUND'
+        : srcRaw === 'NAUSYS'
+        ? 'BOATAROUND'
+        : srcRaw;
+    
     const sourceEnum: PrismaScrapeSource = PrismaScrapeSource[srcKey];
 
     const job: ScrapeJob = await this.prisma.scrapeJob.create({
@@ -94,6 +103,50 @@ export class ScraperService {
 
       const base = dto.weekStart ? new Date(dto.weekStart) : new Date();
       const weekStart = getCharterWeekStartSaturdayUTC(base);
+
+      // ───────────────────────────────────────────────────────────────
+      // NauSYS: отдельная ветка выполнения до "INNERDB" логики
+      // ───────────────────────────────────────────────────────────────
+      if (srcRaw === 'NAUSYS') {
+        if (!dto.yachtId) {
+          // для NauSYS нам нужен target (якорная яхта)
+          this.logger.error(`[${job.id}] NAUSYS requires yachtId in DTO`);
+          await this.prisma.scrapeJob.update({
+            where: { id: job.id },
+            data: {
+              status: JobStatus.FAILED,
+              finishedAt: new Date(),
+              error: 'NAUSYS requires yachtId',
+            },
+          });
+          return {
+            jobId: job.id,
+            status: JobStatus.FAILED,
+            kept: 0,
+            reasons: ['yachtId is required for NAUSYS'],
+          };
+        }
+
+        const periodTo = new Date(weekStart);
+        periodTo.setUTCDate(periodTo.getUTCDate() + 7);
+
+        await runNausysJob({
+          jobId: job.id,
+          targetYachtId: dto.yachtId,
+          creds: {
+            username: process.env.NAUSYS_USERNAME!,
+            password: process.env.NAUSYS_PASSWORD!,
+          },
+          periodFrom: weekStart,
+          periodTo,
+        });
+
+        // вернём актуальный sampleSize по факту
+        const keptAfter = await this.prisma.competitorPrice.count({
+          where: { yachtId: dto.yachtId, weekStart, source: PrismaScrapeSource.NAUSYS },
+        });
+        return { jobId: job.id, status: JobStatus.DONE, kept: keptAfter, reasons: [] };
+      }
 
       // FK и целевая длина (оставлено для совместимости)
       let yachtIdForInsert: string | undefined;
@@ -432,8 +485,16 @@ export class ScraperService {
     const srcRaw = (dto.source ?? 'BOATAROUND') as
       | 'BOATAROUND'
       | 'SEARADAR'
-      | 'INNERDB';
-    const srcKey = srcRaw === 'INNERDB' ? 'BOATAROUND' : srcRaw;
+      | 'INNERDB'
+      | 'NAUSYS';
+
+    const srcKey =
+      srcRaw === 'INNERDB'
+        ? 'BOATAROUND'
+        : srcRaw === 'NAUSYS'
+        ? 'BOATAROUND'
+        : srcRaw;
+    
     const source: PrismaScrapeSource = PrismaScrapeSource[srcKey];
 
     const prices = await this.prisma.competitorPrice.findMany({
