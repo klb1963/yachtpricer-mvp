@@ -77,9 +77,9 @@ export class ScraperService {
       srcRaw === 'INNERDB'
         ? 'BOATAROUND'
         : srcRaw === 'NAUSYS'
-        ? 'BOATAROUND'
-        : srcRaw;
-    
+          ? 'BOATAROUND'
+          : srcRaw;
+
     const sourceEnum: PrismaScrapeSource = PrismaScrapeSource[srcKey];
 
     const job: ScrapeJob = await this.prisma.scrapeJob.create({
@@ -143,9 +143,18 @@ export class ScraperService {
 
         // вернём актуальный sampleSize по факту
         const keptAfter = await this.prisma.competitorPrice.count({
-          where: { yachtId: dto.yachtId, weekStart, source: PrismaScrapeSource.NAUSYS },
+          where: {
+            yachtId: dto.yachtId,
+            weekStart,
+            source: PrismaScrapeSource.NAUSYS,
+          },
         });
-        return { jobId: job.id, status: JobStatus.DONE, kept: keptAfter, reasons: [] };
+        return {
+          jobId: job.id,
+          status: JobStatus.DONE,
+          kept: keptAfter,
+          reasons: [],
+        };
       }
 
       // FK и целевая длина (оставлено для совместимости)
@@ -492,9 +501,9 @@ export class ScraperService {
       srcRaw === 'INNERDB'
         ? 'BOATAROUND'
         : srcRaw === 'NAUSYS'
-        ? 'BOATAROUND'
-        : srcRaw;
-    
+          ? 'BOATAROUND'
+          : srcRaw;
+
     const source: PrismaScrapeSource = PrismaScrapeSource[srcKey];
 
     const prices = await this.prisma.competitorPrice.findMany({
