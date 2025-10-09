@@ -88,9 +88,18 @@ export default function CompetitorFiltersPage({
   onClose,
 }: {
   scope?: Scope;
-  onSubmit?: (dto: SaveDto) => void;
+  onSubmit?: (dto: SaveDto, scanSource?: "INNERDB" | "NAUSYS") => void;
   onClose?: () => void;
 }) {
+
+  // === Scan source (persisted) ===
+  const [scanSource, setScanSource] = useState<"INNERDB" | "NAUSYS">(
+    (localStorage.getItem("competitor:scanSource") as any) || "INNERDB"
+  );
+  useEffect(() => {
+    localStorage.setItem("competitor:scanSource", scanSource);
+  }, [scanSource]);
+
   // --- ranges / numeric ---
   const [lenFtMinus, setLenFtMinus] = useState(3)
   const [lenFtPlus, setLenFtPlus] = useState(3)
@@ -288,7 +297,7 @@ export default function CompetitorFiltersPage({
 
   async function handleApplySave() {
     try {
-      onSubmit?.(dto)
+      onSubmit?.(dto, scanSource)
       await saveCompetitorFilters(dto)
       alert('Filters applied and saved.')
       onClose?.()
@@ -420,7 +429,31 @@ export default function CompetitorFiltersPage({
       }}
     >
       {/* Header */}
-      <h2 className="text-xl font-bold mb-2">{t.title}</h2>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h2 className="text-xl font-bold">{t.title}</h2>
+        <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm select-none">
+          <button
+            type="button"
+            onClick={() => setScanSource("INNERDB")}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+              scanSource === "INNERDB" ? "bg-gray-900 text-white" : "!text-gray-800 hover:bg-gray-100"
+            }`}
+            title="Use internal DB (demo)"
+          >
+            INNERDB
+          </button>
+          <button
+            type="button"
+            onClick={() => setScanSource("NAUSYS")}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+              scanSource === "NAUSYS" ? "bg-gray-900 text-white" : "!text-gray-800 hover:bg-gray-100"
+            }`}
+            title="Use NauSYS API results"
+          >
+            NAUSYS
+          </button>
+        </div>
+      </div>
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto pr-1 space-y-4">
