@@ -4,6 +4,7 @@
 import { Link } from 'react-router-dom';
 import type { Yacht, CompetitorPrice } from '../api';
 import { useTranslation } from 'react-i18next';
+import type { ScrapeSource } from '../api'
 
 // Бэкенд может прислать imageUrl (опционально)
 type YachtWithImage = Yacht & { imageUrl?: string | null };
@@ -22,6 +23,7 @@ type Props = {
   open?: boolean;
   onToggleDetails?: () => void;
   warning?: string | string[] | null;
+  scanSource?: ScrapeSource;  // ← добавлено
 };
 
 // Карта типов -> картинка из /public/images/yachts
@@ -74,6 +76,7 @@ export default function YachtCard({
   open = false,
   onToggleDetails,
   warning,
+  scanSource = 'INNERDB', // дефолтное значение
 }: Props) {
 
   const { t } = useTranslation('yacht');

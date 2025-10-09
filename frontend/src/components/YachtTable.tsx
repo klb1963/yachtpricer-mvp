@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { Yacht } from '../api';
 import type { CompetitorPrice } from '../api';
 import { useTranslation } from 'react-i18next';
+import type { ScrapeSource } from '../api'
 
 type SortKey = 'priceAsc' | 'priceDesc' | 'yearAsc' | 'yearDesc' | 'createdDesc';
 
@@ -28,6 +29,7 @@ interface Props {
   onToggleDetails: (id: string) => void;
 
   lastWarningByYacht?: Record<string, string | string[] | null>;
+  scanSource?: ScrapeSource;  // ← добавлено
 }
 
 const YachtTable: React.FC<Props> = ({
@@ -42,6 +44,7 @@ const YachtTable: React.FC<Props> = ({
   onScan,
   onToggleDetails,
   lastWarningByYacht,
+  scanSource = 'INNERDB',  // дефол
 }) => {
   const { t } = useTranslation('yacht');
   return (

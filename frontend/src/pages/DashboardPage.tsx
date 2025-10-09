@@ -19,7 +19,8 @@ import {
   aggregateSnapshot,
   listCompetitorPrices,
 } from '../api';
-import type { CompetitorPrice, StartResponseDto } from '../api';
+
+import type { CompetitorPrice, StartResponseDto, ScrapeSource } from '../api';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -47,7 +48,27 @@ const useViewMode = () => {
 export default function DashboardPage() {
   const { view, setView } = useViewMode();
   const location = useLocation();
+  const navigate = useNavigate();
   const [weekStart, setWeekStart] = useState<string>(weekIso());
+
+  // источник скана (persisted + синхронизация с URL), используем тип из api.ts
+  const initSource = (): ScrapeSource => {
+    const fromUrl = new URLSearchParams(location.search).get('source');
+    const fromLs = localStorage.getItem('competitor:scanSource');
+    if (fromUrl === 'INNERDB' || fromUrl === 'NAUSYS') return fromUrl as ScrapeSource;
+    if (fromLs === 'INNERDB' || fromLs === 'NAUSYS') return fromLs as ScrapeSource;
+    return 'INNERDB';
+  };
+  const [scanSource, setScanSource] = useState<ScrapeSource>(initSource());
+
+  useEffect(() => {
+    localStorage.setItem('competitor:scanSource', scanSource);
+    const sp = new URLSearchParams(location.search);
+    sp.set('source', scanSource);
+    sp.set('view', view);
+    navigate({ pathname: '/dashboard', search: sp.toString() }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanSource]);
 
   // фильтры/сортировка/пагинация
   const [q, setQ] = useState('');
@@ -157,14 +178,19 @@ export default function DashboardPage() {
 
   async function handleScan(y: Yacht) {
     try {
+        if (scanSource === 'NAUSYS' && !activeFilterId) {
+        alert('Please set and save Competitor filters first.');
+        setCompFiltersOpen(true);
+        return;
+      }
       setBusyId(y.id)
       const week = weekStart || new Date().toISOString().slice(0, 10) // YYYY-MM-DD
 
-      // можно передать source: 'INNERDB' если сканим только внутри своей БД
       const startRes: StartResponseDto = await startScrape({
         yachtId: y.id,
         weekStart: week,
-        source: 'INNERDB',
+        source: scanSource,                                  // ← теперь тип совпадает
+        filterId: scanSource === 'NAUSYS' ? (activeFilterId ?? undefined) : undefined,
       })
       const { jobId } = startRes
 
@@ -193,7 +219,7 @@ export default function DashboardPage() {
         })
       }
 
-      const snap = await aggregateSnapshot({ yachtId: y.id, week, source: 'BOATAROUND' })
+      const snap = await aggregateSnapshot({ yachtId: y.id, week, source: scanSource as any })
       if (snap) {
         setAggByYacht((prev) => ({
           ...prev,
@@ -206,7 +232,7 @@ export default function DashboardPage() {
         }))
       }
 
-      const raw = await listCompetitorPrices({ yachtId: y.id, week })
+      const raw = await listCompetitorPrices({ yachtId: y.id, week, source: scanSource as any })
       setRawByYacht((prev) => ({ ...prev, [y.id]: { prices: raw } }))
       // раскрываем строку/карточку в любом случае — даже если пусто, покажем предупреждение
       setRowsOpen((prev) => ({ ...prev, [y.id]: true }))
@@ -219,13 +245,16 @@ export default function DashboardPage() {
   }
 
   // принимаем значения из формы конкурентных фильтров
-  const handleCompetitorFiltersSubmit = (filters: unknown) => {
+  const handleCompetitorFiltersSubmit = (filters: unknown, selectedSource?: ScrapeSource) => {
     // сохраняем фильтры и передаём их на бэкенд
     import('../api').then(async (api) => {
       try {
         const { id } = await api.upsertCompetitorFilters(filters as any);
         setActiveFilterId(id);
         console.log('✅ Competitor filters saved. Active filter id =', id);
+        if (selectedSource) {
+          setScanSource(selectedSource);
+        }
       } catch (e) {
         console.error('Failed to save competitor filters', e);
         alert('Failed to save competitor filters');
@@ -316,6 +345,7 @@ export default function DashboardPage() {
               warning={lastWarningByYacht[y.id] ?? null}
               open={!!rowsOpen[y.id]}
               onToggleDetails={() => setRowsOpen((p) => ({ ...p, [y.id]: !p[y.id] }))}
+              scanSource={scanSource}
             />
           ))}
           {items.length === 0 && (
@@ -335,6 +365,7 @@ export default function DashboardPage() {
           rowsOpen={rowsOpen}
           onScan={handleScan}
           onToggleDetails={(id) => setRowsOpen((p) => ({ ...p, [id]: !p[id] }))}
+          scanSource={scanSource}
         />
       )}
 
