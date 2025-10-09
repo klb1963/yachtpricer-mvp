@@ -11,7 +11,7 @@
   ],
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
-  "prettier.requireConfig": false,
+  "prettier.requireConfig": true,                 // ← форматировать только если есть .prettierrc в проекте
   "eslint.validate": [
     "typescript",
     "javascript"
@@ -20,5 +20,11 @@
     "source.fixAll": "explicit",
     "source.fixAll.eslint": "explicit"
   },
-  "typescript.tsdk": "node_modules/typescript/lib"
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "files.associations": {                         // ← насильно ассоциируем .ts с TypeScript
+    "*.ts":  "typescript",
+    "*.tsx": "typescriptreact",
+    "*.mts": "typescript",
+    "*.cts": "typescript"
+  }
 }

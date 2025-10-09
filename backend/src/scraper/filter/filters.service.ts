@@ -1,5 +1,18 @@
 // backend/src/scraper/filter/filters.service.ts
 
+// FiltersService — это модуль, который:
+// 	1.	Загружает конфигурацию фильтров (CompetitorFilters)
+// → выбирает приоритетно filterId, потом USER, потом ORG, потом дефолты.
+// → данные кешируются в this.cfg.
+// 	2.	Содержит бизнес-логику отбора кандидатов (passes())
+// → проверяет длину, год, каюты, heads, страну, категорию, билдера, локацию;
+// → логирует KEEP / DROP c jobId;
+// → возвращает { ok, reason }.
+// 	3.	Нормализует единицы измерения и строки
+// → футы ↔ метры, нормализация trim().toLowerCase().
+// 	4.	Позволяет найти Nausys-IDs по подстроке в алиасах
+// (resolveNausysLocationIdsByAliasSubstring) — это важный мост к NauSYS API.
+
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';

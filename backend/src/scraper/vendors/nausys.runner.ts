@@ -1,15 +1,57 @@
 // backend/src/scraper/vendors/nausys.runner.ts
+
 import { PrismaClient, ScrapeSource, JobStatus } from '@prisma/client';
 import {
   getCharterBases,
   getYachtsByCompany,
   getFreeYachts,
-  getYachtModel,
   ddmmyyyy,
   NauSysCreds,
+  NauSysCharterBase,
+  NauSysYacht,
+  NauSysFreeYachtItem,
 } from './nausys.client';
 
 const prisma = new PrismaClient();
+
+// ───────── Type guards + helpers (без any и без жёстких cast’ов)
+function isCharterBase(v: unknown): v is NauSysCharterBase {
+  const r = v as { companyId?: unknown };
+  return r != null && typeof r.companyId === 'number';
+}
+
+function isYacht(v: unknown): v is NauSysYacht {
+  const r = v as { id?: unknown };
+  return r != null && typeof r.id === 'number';
+}
+
+function isFreeItem(v: unknown): v is NauSysFreeYachtItem {
+  const r = v as { yachtId?: unknown };
+  return r != null && typeof r.yachtId === 'number';
+}
+
+function pickArray<T>(val: unknown, guard: (u: unknown) => u is T): T[] {
+  return Array.isArray(val) ? (val as unknown[]).filter(guard) : [];
+}
+
+// ─────────────────────────────────────────────────────────────
+// Вспомогательные типы-обёртки под «двойной формат» NauSYS
+// ─────────────────────────────────────────────────────────────
+type BasesWrap = { bases?: unknown };
+type YWrap = { yachts?: unknown };
+type FWrap = { freeYachts?: unknown };
+
+// «расширенная» форма NauSysYacht без any
+type NauSysYachtLoose = NauSysYacht &
+  Partial<{
+    yachtBuildYear: number;
+    yachtCabins: number;
+    heads: number;
+    yachtHeads: number;
+    length: number;
+    yachtLengthMeters: number;
+    baseLocationId: number;
+  }>;
 
 // вспомогательные утилиты
 function num(v: unknown): number | null {
@@ -35,7 +77,7 @@ export async function runNausysJob(params: {
   periodTo: Date;
 }) {
   const { jobId, targetYachtId, creds, periodFrom, periodTo } = params;
-  const weekStart = periodFrom;
+  const weekStart = periodFrom; // Date в БД (DateTime)
 
   const PERIOD_FROM = ddmmyyyy(periodFrom);
   const PERIOD_TO = ddmmyyyy(periodTo);
@@ -46,7 +88,7 @@ export async function runNausysJob(params: {
   });
 
   try {
-    // 0) “полная замена за неделю”, строго актуальный срез перед циклом upsert-ов, сразу после расчёта weekStart/periodFrom/To:
+    // 0) Полная замена за неделю перед апсертом
     await prisma.competitorPrice.deleteMany({
       where: {
         yachtId: targetYachtId,
@@ -57,19 +99,25 @@ export async function runNausysJob(params: {
 
     // 1) charterBases → companyIds
     const basesRes = await getCharterBases(creds);
+    let bases: NauSysCharterBase[] = pickArray(basesRes, isCharterBase);
+    if (bases.length === 0) {
+      const maybe = (basesRes as BasesWrap)?.bases;
+      bases = pickArray(maybe, isCharterBase);
+    }
+
     const companyIds = Array.from(
       new Set(
-        (basesRes?.bases ?? [])
-          .map((b: any) => Number(b?.companyId))
+        bases
+          .map((b) => Number(b?.companyId))
           .filter(
-            (v: unknown): v is number =>
-              typeof v === 'number' && Number.isFinite(v),
+            (v): v is number => typeof v === 'number' && Number.isFinite(v),
           ),
       ),
     );
 
-    if (companyIds.length === 0)
+    if (companyIds.length === 0) {
       throw new Error('No companies found from charterBases()');
+    }
 
     // 2) yachts by company (+ собираем метаданные по лодкам для обогащения)
     type YachtMeta = {
@@ -91,11 +139,18 @@ export async function runNausysJob(params: {
       }
 
       const yRes = await getYachtsByCompany(creds, companyId);
-      const yachts = Array.isArray(yRes?.yachts) ? yRes.yachts : [];
+      let yachts: NauSysYacht[] = pickArray(yRes, isYacht);
+      if (yachts.length === 0) {
+        const maybe = (yRes as YWrap)?.yachts;
+        yachts = pickArray(maybe, isYacht);
+      }
 
-      yachts.forEach((y: any) => {
+      yachts.forEach((yRaw) => {
+        const y = yRaw as NauSysYachtLoose;
+
         const id = Number(y?.id);
         if (Number.isFinite(id)) yachtIds.push(id);
+
         // Мягко достаём метаданные, где бы они ни лежали
         const meta: YachtMeta = {
           year:
@@ -121,11 +176,9 @@ export async function runNausysJob(params: {
             (typeof y?.locationId === 'number' ? y.locationId : null) ??
             (typeof y?.baseLocationId === 'number' ? y.baseLocationId : null) ??
             null,
-          modelId:
-            (typeof y?.yachtModelId === 'number' ? y.yachtModelId : null) ??
-            null,
+          modelId: typeof y?.yachtModelId === 'number' ? y.yachtModelId : null,
         };
-        // Запишем, только если что-то полезное есть
+
         if (
           meta.year != null ||
           meta.cabins != null ||
@@ -142,18 +195,17 @@ export async function runNausysJob(params: {
     }
 
     const uniqueYachtIds = Array.from(new Set(yachtIds));
-    if (uniqueYachtIds.length === 0)
+    if (uniqueYachtIds.length === 0) {
       throw new Error('No yachts found for given companies');
+    }
 
-    // ───────────────────────────────────────────────────────────
-    // 2b) ДОТЯГИВАЕМ длину из локальной таблицы YachtModel (loa — метры)
-    // ───────────────────────────────────────────────────────────
+    // 2b) Дотягиваем длину из локальной таблицы YachtModel (loa — метры)
     const modelIdsToFetch = Array.from(
       new Set(
         [...byYachtMeta.values()]
-          .filter(m => (m.lengthM == null) && (typeof m.modelId === 'number'))
-          .map(m => m.modelId!) // non-null после фильтра
-      )
+          .filter((m) => m.lengthM == null && typeof m.modelId === 'number')
+          .map((m) => m.modelId!), // non-null после фильтра
+      ),
     );
 
     const modelLenById = new Map<number, number>(); // modelId -> lengthM
@@ -185,7 +237,7 @@ export async function runNausysJob(params: {
     }
 
     // 3) freeYachts — по батчам
-    const freeItems: any[] = [];
+    const freeItems: NauSysFreeYachtItem[] = [];
     const BATCH = 80;
     for (let i = 0; i < uniqueYachtIds.length; i += BATCH) {
       const slice = uniqueYachtIds.slice(i, i + BATCH);
@@ -194,8 +246,13 @@ export async function runNausysJob(params: {
         periodTo: PERIOD_TO,
         yachtIds: slice,
       });
-      const arr = Array.isArray(freeRes?.freeYachts) ? freeRes.freeYachts : [];
-      freeItems.push(...arr);
+
+      let freeArr: NauSysFreeYachtItem[] = pickArray(freeRes, isFreeItem);
+      if (freeArr.length === 0) {
+        const maybe = (freeRes as FWrap)?.freeYachts;
+        freeArr = pickArray(maybe, isFreeItem);
+      }
+      freeItems.push(...freeArr);
     }
 
     // 4) upsert competitor_prices
@@ -211,10 +268,12 @@ export async function runNausysJob(params: {
       const discountPct = (() => {
         const d = Array.isArray(fy?.price?.discounts) ? fy.price.discounts : [];
         const percents = d
-          .map((x: any) => num(x?.amount))
+          .map((x) => {
+            const item = x as { amount?: number; value?: number };
+            return num(item?.amount ?? item?.value);
+          })
           .filter(
-            (v: unknown): v is number =>
-              typeof v === 'number' && Number.isFinite(v),
+            (v): v is number => typeof v === 'number' && Number.isFinite(v),
           );
         if (percents.length > 0) return Math.max(...percents);
         const list = num(fy?.price?.priceListPrice);
@@ -222,8 +281,9 @@ export async function runNausysJob(params: {
         return null;
       })();
 
-      // ── NEW: метаданные для фильтров
+      // ── метаданные для фильтров
       const meta = byYachtMeta.get(yachtIdNum);
+
       const year =
         num(fy?.yacht?.buildYear) ??
         num(fy?.buildYear) ??
@@ -267,7 +327,7 @@ export async function runNausysJob(params: {
             ? String(meta.locationId)
             : null;
 
-      // Попробуем собрать удобочитаемое имя конкурента
+      // Удобочитаемое имя конкурента
       const competitorLabelRaw =
         fy?.yacht?.name ??
         fy?.yacht?.modelName ??
@@ -290,6 +350,7 @@ export async function runNausysJob(params: {
         },
         update: {
           yachtId: targetYachtId,
+          externalId: String(yachtIdNum), // сохраняем внешний ID
           competitorYacht,
           price: priceFinal,
           currency,
@@ -297,7 +358,7 @@ export async function runNausysJob(params: {
           raw: fy,
           scrapeJobId: jobId,
           scrapedAt: new Date(),
-          // NEW: поля для фильтров
+          // поля для фильтров
           year: year ?? undefined,
           cabins: cabins ?? undefined,
           heads: heads ?? undefined,
@@ -308,6 +369,7 @@ export async function runNausysJob(params: {
           source: ScrapeSource.NAUSYS,
           weekStart,
           yachtId: targetYachtId,
+          externalId: String(yachtIdNum), // сохраняем внешний ID
           competitorYacht,
           price: priceFinal,
           currency,
@@ -315,7 +377,7 @@ export async function runNausysJob(params: {
           raw: fy,
           discountPct,
           scrapeJobId: jobId,
-          // NEW
+          // поля для фильтров
           year: year ?? null,
           cabins: cabins ?? null,
           heads: heads ?? null,
@@ -383,14 +445,15 @@ export async function runNausysJob(params: {
       data: { status: JobStatus.DONE, finishedAt: new Date() },
     });
     console.log(`[NAUSYS] job done: ${upserted} rows saved`);
-  } catch (err: any) {
-    console.error('[NAUSYS] failed:', err?.message || err);
+  } catch (err: unknown) {
+    const msg = (err as Error)?.message ?? String(err);
+    console.error('[NAUSYS] failed:', msg);
     await prisma.scrapeJob.update({
       where: { id: jobId },
       data: {
         status: JobStatus.FAILED,
         finishedAt: new Date(),
-        error: String(err?.message || err),
+        error: msg,
       },
     });
   }
