@@ -96,6 +96,7 @@ async function apiFetch(inputPath: string, init?: RequestInit) {
   // лог на всякий
   try {
     console.log("[api.ts] fetch", init?.method ?? "GET", url);
+  // eslint-disable-next-line no-empty
   } catch {}
   return fetch(url, { ...init, headers });
 }
@@ -277,7 +278,7 @@ export async function deleteYacht(id: string): Promise<{ success: boolean }> {
 // Scraper API (mock backend)
 // ============================
 
-export type ScrapeSource = "INNERDB" | "BOATAROUND" | "SEARADAR";
+export type ScrapeSource = 'INNERDB' | 'NAUSYS'  | 'BOATAROUND';
 export type JobStatus = "PENDING" | "RUNNING" | "DONE" | "FAILED";
 
 export type ScrapeJobDTO = {
@@ -364,9 +365,11 @@ export type CompetitorPrice = {
   marina?: string | null;
 };
 
-export async function listCompetitorPrices(params: { yachtId?: string; week?: string }) {
-  const { data } = await api.get<CompetitorPrice[]>("/scrape/competitors-prices", { params });
-  return data;
+export async function listCompetitorPrices(params: { yachtId?: string; week?: string; source?: ScrapeSource }) {
+  const { data } = await api.get<CompetitorPrice[]>('/scrape/competitors-prices', {
+    params: params as { yachtId?: string; week?: string; source?: ScrapeSource },
+  })
+  return data
 }
 
 // --- GEO API ---
