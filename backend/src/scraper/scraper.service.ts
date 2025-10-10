@@ -44,7 +44,7 @@ function dtoToJson(dto: StartScrapeDto): Prisma.InputJsonObject {
     people: dto.people ?? null,
     cabins: dto.cabins ?? null,
     heads: dto.heads ?? null,
-    source: dto.source ?? 'BOATAROUND',
+    source: dto.source ?? 'INNERDB',
     filterId: dto.filterId ?? null,
   };
 }
@@ -66,10 +66,8 @@ export class ScraperService {
     user?: Pick<User, 'id' | 'orgId'>,
   ): Promise<StartResponseDto> {
     // Используем source напрямую, без "виртуальных" маппингов
-    const srcRaw = (dto.source ??
-      'BOATAROUND') as keyof typeof PrismaScrapeSource;
-    const sourceEnum =
-      PrismaScrapeSource[srcRaw] ?? PrismaScrapeSource.BOATAROUND;
+    const srcRaw = (dto.source ?? 'INNERDB') as keyof typeof PrismaScrapeSource;
+    const sourceEnum = PrismaScrapeSource[srcRaw] ?? PrismaScrapeSource.INNERDB;
 
     const job: ScrapeJob = await this.prisma.scrapeJob.create({
       data: {
@@ -476,7 +474,7 @@ export class ScraperService {
       ? {
           source:
             PrismaScrapeSource[q.source as keyof typeof PrismaScrapeSource] ??
-            PrismaScrapeSource.BOATAROUND,
+            PrismaScrapeSource.INNERDB,
         }
       : {};
 
@@ -499,8 +497,8 @@ export class ScraperService {
     // Прямое сопоставление source → Prisma enum (как в start())
     const source: PrismaScrapeSource =
       PrismaScrapeSource[
-        (dto.source ?? 'BOATAROUND') as keyof typeof PrismaScrapeSource
-      ] ?? PrismaScrapeSource.BOATAROUND;
+        (dto.source ?? 'INNERDB') as keyof typeof PrismaScrapeSource
+      ] ?? PrismaScrapeSource.INNERDB;
 
     const prices = await this.prisma.competitorPrice.findMany({
       where: { yachtId: dto.yachtId, weekStart, source },
