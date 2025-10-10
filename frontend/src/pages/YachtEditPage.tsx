@@ -372,37 +372,6 @@ export default function YachtEditPage() {
           <Legend>{t('sections.general', 'General')}</Legend>
 
           <Field label={t('fields.name', 'Name')} value={form.name} onChange={onChange('name')} />
-          <Field
-            label={t('fields.manufacturer')}
-            value={form.manufacturer}
-            onChange={onChange('manufacturer')}
-          />
-          <Field label={t('fields.model')} value={form.model} onChange={onChange('model')} />
-
-          {/* Type */}
-          <label className="flex flex-col">
-            <span className="text-sm text-gray-600">{t('fields.type')}</span>
-            <select
-              className="mt-1 rounded border p-2 bg-white"
-              value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-            >
-              <option value="" disabled>
-                {t('placeholders.chooseType', 'Choose type…')}
-              </option>
-              {TYPE_OPTIONS.map((tOpt) => (
-                <option key={tOpt} value={tOpt}>
-                  {t(`type.${tOpt}`, tOpt)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <Field
-            label={t('fields.location')}
-            value={form.location}
-            onChange={onChange('location')}
-          />
           <Field label={t('fields.fleet')} value={form.fleet} onChange={onChange('fleet')} />
           <Field
             label={t('fields.company', 'Charter company')}
@@ -567,17 +536,18 @@ export default function YachtEditPage() {
             </select>
           </label>
 
-          <Field
-            label={t('fields.basePrice')}
-            value={form.basePrice}
-            onChange={onChange('basePrice')}
-          />
         </fieldset>
 
         {/* NEW: Pricing section */}
         <fieldset className="rounded-2xl border p-5">
           <Legend>{t('sections.pricing')}</Legend>
-          <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-3">
+            {/* Base price moved here */}
+            <Field
+              label={t('fields.basePrice')}
+              value={form.basePrice}
+              onChange={onChange('basePrice')}
+            />
             <label className="flex flex-col">
               <span className="text-sm text-gray-600">{t('fields.maxDiscountPct')}</span>
               <input
