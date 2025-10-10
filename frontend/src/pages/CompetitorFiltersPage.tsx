@@ -48,6 +48,9 @@ const t = {
   resetFilters: "Reset filters",
 };
 
+// Feature flag: скрыть People фильтр в UI (оставляем в DTO/стейте)
+const SHOW_PEOPLE = false;
+
 type Scope = "USER" | "ORG";
 
 type SaveDto = {
@@ -568,15 +571,17 @@ export default function CompetitorFiltersPage({
             min={0}
             max={5}
           />
-          <RangePair
-            label={t.people}
-            minus={peopleMinus}
-            plus={peoplePlus}
-            setMinus={setPeopleMinus}
-            setPlus={setPeoplePlus}
-            min={0}
-            max={5}
-          />
+          {SHOW_PEOPLE && (
+            <RangePair
+              label={t.people}
+              minus={peopleMinus}
+              plus={peoplePlus}
+              setMinus={setPeopleMinus}
+              setPlus={setPeoplePlus}
+              min={0}
+              max={5}
+            />
+          )}
           <RangePair
             label={t.cabins}
             minus={cabinsMinus}
