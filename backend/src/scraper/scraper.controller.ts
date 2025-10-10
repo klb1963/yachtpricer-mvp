@@ -92,6 +92,8 @@ export class ScraperController {
     return this.svc.getCompetitors({
       yachtId: query.yachtId,
       week: query.week,
+      // 👇 ВАЖНО: прокинуть source, чтобы можно было получить только INNERDB/NAUSYS/и т.д.
+      source: query.source,
     });
   }
 

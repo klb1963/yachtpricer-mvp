@@ -113,6 +113,8 @@ export class CompetitorsQueryDto {
   @IsOptional()
   @IsISO8601({ strict: true })
   week?: string;
+
+  source?: string;
 }
 
 export class AggregateDto {
