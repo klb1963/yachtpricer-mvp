@@ -1,12 +1,23 @@
 // backend/src/scraper/vendors/nausys.client.ts
 
-/* Клиент NauSYS: charterBases → companyIds,
- * yachts(companyId) → yachtIds, freeYachts → цены по периоду.
- */
+/* ===========================================================
+ * NauSYS Client — низкоуровневые вызовы REST API NauSYS
+ * Используется в nausys.runner.ts для загрузки данных о:
+ *   1. Базах и компаниях (charterBases)
+ *   2. Яхтах компаний (yachts/{companyId})
+ *   3. Ценах и доступности (freeYachts / freeYachtsSearch)
+ *   4. Моделях яхт (yachtModel/{id})
+ * =========================================================== */
 
+/** Учетные данные NauSYS API */
 export type NauSysCreds = { username: string; password: string };
 
-// --- Minimal response shapes we actually consume downstream ---
+/* ---------------------------------------------------------------------
+ * Типы данных, которые реально используются в коде (минимальные версии).
+ * Мы не описываем весь ответ NauSYS, а только нужные поля.
+ * ------------------------------------------------------------------- */
+
+/** База (charter base) — принадлежит компании, имеет ID и локацию */
 export type NauSysCharterBase = {
   id?: number;
   name?: string;
@@ -14,18 +25,21 @@ export type NauSysCharterBase = {
   locationId?: number | null;
 };
 
+/** Яхта компании (из /catalogue/v6/yachts/{companyId}) */
 export type NauSysYacht = {
-  id: number; // primary key in NauSYS
-  yachtModelId?: number | null; // to fetch model details
+  id: number; // основной идентификатор лодки в NauSYS
+  yachtModelId?: number | null; // модель, чтобы потом запросить длину/параметры
   buildYear?: number | null;
   cabins?: number | null;
   wc?: number | null; // heads
-  locationId?: number | null; // base/marina location
+  locationId?: number | null; // базовая локация (марина)
 };
 
+/** Элемент из ответа freeYachts / freeYachtsSearch */
 export type NauSysFreeYachtItem = {
   yachtId: number;
-  // Иногда NauSYS вкладывает часть полей внутрь под-объекта `yacht`
+
+  // Иногда NauSYS возвращает вложенный объект `yacht`, иногда — "плоско"
   yacht?: {
     name?: string | null;
     modelName?: string | null;
@@ -33,44 +47,56 @@ export type NauSysFreeYachtItem = {
     cabins?: number | null;
     heads?: number | null;
     wc?: number | null;
-    length?: number | null; // метры
+    length?: number | null; // длина в метрах
   } | null;
-  // Иногда те же поля приходят "плоско" на верхнем уровне
+
+  // Альтернативные варианты полей, в зависимости от структуры JSON
   buildYear?: number | null;
   yachtBuildYear?: number | null;
   cabins?: number | null;
   yachtCabins?: number | null;
   heads?: number | null;
   yachtHeads?: number | null;
-  length?: number | null; // метры
-  yachtLengthMeters?: number | null; // метры
+  length?: number | null; // длина (метры)
+  yachtLengthMeters?: number | null;
   yachtModelName?: string | null;
   modelName?: string | null;
+
+  // Цена и скидки
   price?: {
-    clientPrice?: number | null;
+    clientPrice?: number | null; // финальная цена для клиента
     priceListPrice?: number | null;
     currency?: string | null;
     discounts?: Array<{ type?: string | null; value?: number | null }>;
   };
+
   feesTotal?: number | null;
-  locationFromId?: number | null;
+  locationFromId?: number | null; // ID локации отправления
 };
 
+/** Модель яхты (используется, чтобы дотянуть длину) */
 export type NauSysYachtModel = {
   id: number;
   name?: string | null;
-  length?: number | null; // meters (sometimes)
-  lengthFt?: number | null; // feet (sometimes)
+  length?: number | null; // метры
+  lengthFt?: number | null; // футы
 };
 
+/* ===========================================================
+ * Вспомогательная функция POST-запроса с JSON
+ * Универсальный метод для всех NauSYS endpoints.
+ * =========================================================== */
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   const r = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+
+  // Считываем текст, чтобы при ошибке отдать часть тела ответа
   const text = await r.text();
   if (!r.ok) throw new Error(`${url} HTTP ${r.status} ${text.slice(0, 300)}`);
+
   try {
     return JSON.parse(text) as T;
   } catch {
@@ -78,6 +104,10 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   }
 }
 
+/* ===========================================================
+ * 1️⃣ Получение списка чартерных баз (charterBases)
+ *    - Используется для извлечения companyId (владельцев)
+ * =========================================================== */
 export async function getCharterBases(creds: NauSysCreds) {
   return postJson<NauSysCharterBase[]>(
     'https://ws.nausys.com/CBMS-external/rest/catalogue/v6/charterBases',
@@ -85,6 +115,10 @@ export async function getCharterBases(creds: NauSysCreds) {
   );
 }
 
+/* ===========================================================
+ * 2️⃣ Получение яхт конкретной компании
+ *    - Возвращает массив объектов с метаданными яхт
+ * =========================================================== */
 export async function getYachtsByCompany(
   creds: NauSysCreds,
   companyId: number,
@@ -95,6 +129,10 @@ export async function getYachtsByCompany(
   );
 }
 
+/* ===========================================================
+ * 3️⃣ Получение доступных яхт за период
+ *    (старый endpoint /freeYachts — работает по yachtIds)
+ * =========================================================== */
 export async function getFreeYachts(
   creds: NauSysCreds,
   opts: { periodFrom: string; periodTo: string; yachtIds: number[] },
@@ -110,14 +148,47 @@ export async function getFreeYachts(
   );
 }
 
+/* ===========================================================
+ * 4️⃣ Новый endpoint — /freeYachtsSearch
+ *    (наша цель на этот спринт — использовать его вместо freeYachts)
+ * =========================================================== */
+export async function getFreeYachtsSearch(
+  creds: NauSysCreds,
+  opts: {
+    periodFrom: string;
+    periodTo: string;
+    countries?: number[];
+    resultsPerPage?: number;
+    resultsPage?: number;
+  },
+) {
+  return postJson<NauSysFreeYachtItem[]>(
+    'https://ws.nausys.com/CBMS-external/rest/yachtReservation/v6/freeYachtsSearch',
+    {
+      credentials: { username: creds.username, password: creds.password },
+      periodFrom: opts.periodFrom,
+      periodTo: opts.periodTo,
+      countries: opts.countries ?? [],
+      resultsPerPage: opts.resultsPerPage ?? 100,
+      resultsPage: opts.resultsPage ?? 1,
+    },
+  );
+}
+
+/* ===========================================================
+ * Утилита форматирования даты для NauSYS (DD.MM.YYYY)
+ * =========================================================== */
 export function ddmmyyyy(d: Date): string {
   const dd = String(d.getUTCDate()).padStart(2, '0');
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0'); // ← тут был баг
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0'); // фикс бага (месяц с 0)
   const yyyy = d.getUTCFullYear();
   return `${dd}.${mm}.${yyyy}`;
 }
 
-/** Получить описание модели яхты (для длины и т.п.) */
+/* ===========================================================
+ * 5️⃣ Получение описания модели яхты
+ *    Используется для вытягивания длины в метрах (loa)
+ * =========================================================== */
 export async function getYachtModel(creds: NauSysCreds, modelId: number) {
   return postJson<NauSysYachtModel>(
     `https://ws.nausys.com/CBMS-external/rest/catalogue/v6/yachtModel/${modelId}`,

@@ -311,6 +311,7 @@ export type StartResponseDto = {
   reasons?: string[];
 };
 
+// ---- Start a scrape job ----
 export async function startScrape(payload: StartScrapePayload): Promise<StartResponseDto> {
   const { data } = await api.post<StartResponseDto>("/scrape/start", payload);
   return data;
