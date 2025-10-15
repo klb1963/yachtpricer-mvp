@@ -8,20 +8,20 @@ export class CatalogController {
   constructor(private readonly svc: CatalogService) {}
 
   @Get('categories')
-  getCategories(
-    @Query('query') query = '',
-    @Query('take') takeStr = '20',
-  ) {
-    const take = Math.min(Math.max(parseInt(takeStr || '20', 10) || 20, 1), 200);
+  getCategories(@Query('query') query = '', @Query('take') takeStr = '20') {
+    const take = Math.min(
+      Math.max(parseInt(takeStr || '20', 10) || 20, 1),
+      200,
+    );
     return this.svc.findCategories(query, take);
   }
 
   @Get('builders')
-  getBuilders(
-    @Query('query') query = '',
-    @Query('take') takeStr = '20',
-  ) {
-    const take = Math.min(Math.max(parseInt(takeStr || '20', 10) || 20, 1), 200);
+  getBuilders(@Query('query') query = '', @Query('take') takeStr = '20') {
+    const take = Math.min(
+      Math.max(parseInt(takeStr || '20', 10) || 20, 1),
+      200,
+    );
     return this.svc.findBuilders(query, take);
   }
 
@@ -32,19 +32,25 @@ export class CatalogController {
     @Query('categoryId') categoryIdStr?: string,
     @Query('take') takeStr = '20',
   ) {
-    const take = Math.min(Math.max(parseInt(takeStr || '20', 10) || 20, 1), 200);
+    const take = Math.min(
+      Math.max(parseInt(takeStr || '20', 10) || 20, 1),
+      200,
+    );
     const builderId = builderIdStr ? parseInt(builderIdStr, 10) : undefined;
     const categoryId = categoryIdStr ? parseInt(categoryIdStr, 10) : undefined;
     return this.svc.findModels({ query, builderId, categoryId, take });
   }
 
-   @Get('regions')
+  @Get('regions')
   getRegions(
     @Query('query') query = '',
     @Query('countryCode') countryCode?: string,
     @Query('take') takeStr = '20',
   ) {
-    const take = Math.min(Math.max(parseInt(takeStr || '20', 10) || 20, 1), 200);
+    const take = Math.min(
+      Math.max(parseInt(takeStr || '20', 10) || 20, 1),
+      200,
+    );
     return this.svc.findRegions({ query, countryCode, take });
   }
 }

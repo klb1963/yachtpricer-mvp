@@ -4,9 +4,15 @@
 
 ## Через Docker Compose
 # из корня проекта
-docker compose build backend
-docker compose up -d backend
-docker compose logs -f backend
+docker compose build backend - сборка
+docker compose up -d backend - запуск в фоновом режиме
+docker compose logs -f backend - логи
+
+docker compose restart backend - перезапускает контейнер, подхватив .env
+
+docker compose up -d --build backend - пересобрать и перезапустить с нуля (на случай изменений зависимостей)
+
+docker compose exec backend printenv | grep NAUSYS - убедиться, что креды действительно доступны
 
 ## Локально (без Docker)
 cd backend

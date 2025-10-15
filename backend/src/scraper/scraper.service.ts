@@ -44,7 +44,7 @@ function dtoToJson(dto: StartScrapeDto): Prisma.InputJsonObject {
     people: dto.people ?? null,
     cabins: dto.cabins ?? null,
     heads: dto.heads ?? null,
-    source: dto.source ?? 'BOATAROUND',
+    source: dto.source ?? 'INNERDB',
     filterId: dto.filterId ?? null,
   };
 }
@@ -65,22 +65,9 @@ export class ScraperService {
     dto: StartScrapeDto,
     user?: Pick<User, 'id' | 'orgId'>,
   ): Promise<StartResponseDto> {
-    // Поддерживаем "виртуальный" source 'INNERDB' без изменения Prisma enum.
-    // Маппим INNERDB -> BOATAROUND для поля source в БД.
-    const srcRaw = (dto.source ?? 'BOATAROUND') as
-      | 'BOATAROUND'
-      | 'SEARADAR'
-      | 'INNERDB'
-      | 'NAUSYS';
-
-    const srcKey =
-      srcRaw === 'INNERDB'
-        ? 'BOATAROUND'
-        : srcRaw === 'NAUSYS'
-          ? 'BOATAROUND'
-          : srcRaw;
-
-    const sourceEnum: PrismaScrapeSource = PrismaScrapeSource[srcKey];
+    // Используем source напрямую, без "виртуальных" маппингов
+    const srcRaw = (dto.source ?? 'INNERDB') as keyof typeof PrismaScrapeSource;
+    const sourceEnum = PrismaScrapeSource[srcRaw] ?? PrismaScrapeSource.INNERDB;
 
     const job: ScrapeJob = await this.prisma.scrapeJob.create({
       data: {
@@ -467,8 +454,12 @@ export class ScraperService {
     return this.prisma.scrapeJob.findUnique({ where: { id: jobId } });
   }
 
-  /** Сырые цены по фильтрам. */
-  async getCompetitors(q: { yachtId?: string; week?: string }) {
+  /** Сырые цены по фильтрам. Опционально фильтруем по source. */
+  async getCompetitors(q: {
+    yachtId?: string;
+    week?: string;
+    source?: string;
+  }) {
     let weekFilter: Prisma.CompetitorPriceWhereInput = {};
     if (q.week) {
       const base = new Date(q.week);
@@ -478,8 +469,21 @@ export class ScraperService {
       weekFilter = { weekStart: { gte: weekStart, lt: weekEnd } };
     }
 
+    // Прямое сопоставление строкового source → Prisma enum (без «виртуальных» маппингов)
+    const sourceFilter: Prisma.CompetitorPriceWhereInput = q.source
+      ? {
+          source:
+            PrismaScrapeSource[q.source as keyof typeof PrismaScrapeSource] ??
+            PrismaScrapeSource.INNERDB,
+        }
+      : {};
+
     return this.prisma.competitorPrice.findMany({
-      where: { ...(q.yachtId ? { yachtId: q.yachtId } : {}), ...weekFilter },
+      where: {
+        ...(q.yachtId ? { yachtId: q.yachtId } : {}),
+        ...weekFilter,
+        ...sourceFilter,
+      },
       orderBy: [{ scrapedAt: 'desc' }],
       take: 50,
     });
@@ -490,21 +494,11 @@ export class ScraperService {
     const base = new Date(dto.week);
     const weekStart = getCharterWeekStartSaturdayUTC(base);
 
-    // Поддерживаем виртуальный source INNERDB так же, как в start()
-    const srcRaw = (dto.source ?? 'BOATAROUND') as
-      | 'BOATAROUND'
-      | 'SEARADAR'
-      | 'INNERDB'
-      | 'NAUSYS';
-
-    const srcKey =
-      srcRaw === 'INNERDB'
-        ? 'BOATAROUND'
-        : srcRaw === 'NAUSYS'
-          ? 'BOATAROUND'
-          : srcRaw;
-
-    const source: PrismaScrapeSource = PrismaScrapeSource[srcKey];
+    // Прямое сопоставление source → Prisma enum (как в start())
+    const source: PrismaScrapeSource =
+      PrismaScrapeSource[
+        (dto.source ?? 'INNERDB') as keyof typeof PrismaScrapeSource
+      ] ?? PrismaScrapeSource.INNERDB;
 
     const prices = await this.prisma.competitorPrice.findMany({
       where: { yachtId: dto.yachtId, weekStart, source },

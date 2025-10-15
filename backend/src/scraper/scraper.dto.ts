@@ -1,3 +1,5 @@
+// /backend/src/scraper/scraper.dto.ts
+
 import {
   IsEnum,
   IsISO8601,
@@ -113,6 +115,7 @@ export class CompetitorsQueryDto {
   @IsOptional()
   @IsISO8601({ strict: true })
   week?: string;
+  source?: string;
 }
 
 export class AggregateDto {
