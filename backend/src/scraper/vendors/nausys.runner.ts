@@ -4,7 +4,8 @@ import { PrismaClient, ScrapeSource, JobStatus } from '@prisma/client';
 import {
   getCharterBases,
   getYachtsByCompany,
-  getFreeYachts,
+  // getFreeYachts,
+  getFreeYachtsSearch,
   ddmmyyyy,
   NauSysCreds,
   NauSysCharterBase,
@@ -237,22 +238,50 @@ export async function runNausysJob(params: {
     }
 
     // 3) freeYachts — по батчам
-    const freeItems: NauSysFreeYachtItem[] = [];
-    const BATCH = 80;
-    for (let i = 0; i < uniqueYachtIds.length; i += BATCH) {
-      const slice = uniqueYachtIds.slice(i, i + BATCH);
-      const freeRes = await getFreeYachts(creds, {
-        periodFrom: PERIOD_FROM,
-        periodTo: PERIOD_TO,
-        yachtIds: slice,
-      });
+    // const freeItems: NauSysFreeYachtItem[] = [];
+    // const BATCH = 80;
+    // for (let i = 0; i < uniqueYachtIds.length; i += BATCH) {
+    //   const slice = uniqueYachtIds.slice(i, i + BATCH);
+    //   const freeRes = await getFreeYachts(creds, {
+    //     periodFrom: PERIOD_FROM,
+    //     periodTo: PERIOD_TO,
+    //     yachtIds: slice,
+    //   });
 
-      let freeArr: NauSysFreeYachtItem[] = pickArray(freeRes, isFreeItem);
-      if (freeArr.length === 0) {
-        const maybe = (freeRes as FWrap)?.freeYachts;
-        freeArr = pickArray(maybe, isFreeItem);
+    //   let freeArr: NauSysFreeYachtItem[] = pickArray(freeRes, isFreeItem);
+    //   if (freeArr.length === 0) {
+    //     const maybe = (freeRes as FWrap)?.freeYachts;
+    //     freeArr = pickArray(maybe, isFreeItem);
+    //   }
+    //   freeItems.push(...freeArr);
+    // }
+
+    // 3) freeYachtsSearch — постраничная загрузка без списка yachtIds
+    const freeItems: NauSysFreeYachtItem[] = [];
+    {
+      const RESULTS_PER_PAGE = 200;
+      const MAX_PAGES = 50; // предохранитель от бесконечных циклов
+      let page = 1;
+      while (page <= MAX_PAGES) {
+        const freeRes = await getFreeYachtsSearch(creds, {
+          periodFrom: PERIOD_FROM,
+          periodTo: PERIOD_TO,
+          countries: [], // можно позже прокинуть ISO→NauSYS id
+          resultsPerPage: RESULTS_PER_PAGE,
+          resultsPage: page,
+        });
+        // у search обычно «плоский» массив элементов
+        let freeArr: NauSysFreeYachtItem[] = pickArray(freeRes, isFreeItem);
+        // на случай, если провайдер вернёт обёртку { freeYachts: [...] }
+        if (freeArr.length === 0) {
+          const maybe = (freeRes as FWrap)?.freeYachts;
+          freeArr = pickArray(maybe, isFreeItem);
+        }
+        if (freeArr.length === 0) break; // достигнут конец выдачи
+        freeItems.push(...freeArr);
+        if (freeArr.length < RESULTS_PER_PAGE) break; // последняя страница
+        page++;
       }
-      freeItems.push(...freeArr);
     }
 
     // 4) upsert competitor_prices
