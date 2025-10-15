@@ -43,6 +43,7 @@ export class CatalogService {
     return { items };
   }
 
+  // ✅ БЕЗ any: строго типизированный where
   async findModels(args: {
     query?: string;
     builderId?: number;
@@ -50,11 +51,14 @@ export class CatalogService {
     take: number;
   }) {
     const { query, builderId, categoryId, take } = args;
-    const where: any = {};
-    if (query)
-      where.name = { contains: query, mode: Prisma.QueryMode.insensitive };
-    if (builderId) where.builderId = builderId;
-    if (categoryId) where.categoryId = categoryId;
+
+    const where: Prisma.YachtModelWhereInput = {
+      ...(query
+        ? { name: { contains: query, mode: Prisma.QueryMode.insensitive } }
+        : {}),
+      ...(builderId ? { builderId } : {}),
+      ...(categoryId ? { categoryId } : {}),
+    };
 
     const items = await this.prisma.yachtModel.findMany({
       where,
@@ -65,6 +69,7 @@ export class CatalogService {
     return { items };
   }
 
+  // ✅ БЕЗ any: RegionWhereInput и OR-фильтры типобезопасно
   async findRegions(params: {
     query?: string;
     countryCode?: string;
@@ -75,28 +80,17 @@ export class CatalogService {
 
     const or: Prisma.RegionWhereInput[] = [];
     if (query && query.trim()) {
-      // На всякий: ищем по трём колонкам
       or.push(
-        {
-          nameEn: { contains: query, mode: Prisma.QueryMode.insensitive },
-        } as any,
-        {
-          nameRu: { contains: query, mode: Prisma.QueryMode.insensitive },
-        } as any,
-        {
-          nameDe: { contains: query, mode: Prisma.QueryMode.insensitive },
-        } as any,
+        { nameEn: { contains: query, mode: Prisma.QueryMode.insensitive } },
+        { nameRu: { contains: query, mode: Prisma.QueryMode.insensitive } },
+        { nameDe: { contains: query, mode: Prisma.QueryMode.insensitive } },
       );
     }
 
     const where: Prisma.RegionWhereInput = {
       ...(or.length ? { OR: or } : {}),
-      ...(countryCode
-        ? {
-            country: { code2: countryCode.toUpperCase() },
-          }
-        : {}),
-    } as any;
+      ...(countryCode ? { country: { code2: countryCode.toUpperCase() } } : {}),
+    };
 
     const itemsRaw = await this.prisma.region.findMany({
       where,
