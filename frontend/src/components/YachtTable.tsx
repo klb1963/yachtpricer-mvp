@@ -22,14 +22,14 @@ interface Props {
 
   busyId: string | null;
   aggByYacht: Record<string, YachtAgg | undefined>;
-  rawByYacht: Record<string, { prices: CompetitorPrice[] } | undefined>;
+  rawByYacht: Record<string, { prices: CompetitorPrice[]; source?: ScrapeSource }>;
+  scanSource: ScrapeSource;
   rowsOpen: Record<string, boolean>;
 
   onScan: (yacht: Yacht) => void;
   onToggleDetails: (id: string) => void;
 
   lastWarningByYacht?: Record<string, string | string[] | null>;
-  scanSource?: ScrapeSource;  // ← добавлено
 }
 
 const YachtTable: React.FC<Props> = ({
@@ -44,7 +44,7 @@ const YachtTable: React.FC<Props> = ({
   onScan,
   onToggleDetails,
   lastWarningByYacht,
-  scanSource = 'INNERDB',  // дефол
+  scanSource,
 }) => {
   const { t } = useTranslation('yacht');
   return (
@@ -91,9 +91,10 @@ const YachtTable: React.FC<Props> = ({
 
         <tbody>
           {items.map((y) => {
-            const agg = aggByYacht[y.id];
-            const raw = rawByYacht[y.id]?.prices ?? [];
-            const open = !!rowsOpen[y.id];
+          const agg = aggByYacht[y.id]
+          const details =
+            rawByYacht[y.id]?.source === scanSource ? (rawByYacht[y.id]?.prices ?? []) : []
+           const open = !!rowsOpen[y.id]
 
             return (
               <tr key={y.id} className="border-t [&>td]:px-4 [&>td]:py-2">
@@ -109,7 +110,7 @@ const YachtTable: React.FC<Props> = ({
                   {y.manufacturer} {y.model}
                 </td>
                 <td>{y.type}</td>
-                <td>{y.length} m</td>
+                <td>{y.length} ft</td>
                 <td>{y.builtYear}</td>
                 <td>
                   {y.countryCode
@@ -155,7 +156,7 @@ const YachtTable: React.FC<Props> = ({
                       <span className="text-xs text-gray-400">—</span>
                     )}
 
-                    {raw.length > 0 && (
+                    {details.length > 0 && (
                       <button
                         type="button"
                         onClick={() => onToggleDetails(y.id)}
@@ -179,11 +180,11 @@ const YachtTable: React.FC<Props> = ({
                     </div>
                   )}
 
-                  {open && raw.length > 0 && (
+                  {open && details.length > 0 && (
                     <div className="mt-2 rounded border p-2">
-                      <div className="mb-1 text-[11px] text-gray-600">{raw.length} offers:</div>
+                      <div className="mb-1 text-[11px] text-gray-600">{details.length} offers:</div>
                       <ul className="max-h-40 space-y-1 overflow-auto pr-1">
-                        {raw.map((p) => (
+                        {details.map((p) => (
                           <li key={p.id} className="flex justify-between gap-2 text-[11px]">
                             <span className="truncate">
                               {p.competitorYacht ?? '—'} {p.year ? `(${p.year})` : ''} ·{' '}

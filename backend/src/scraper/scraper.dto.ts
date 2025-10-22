@@ -3,6 +3,7 @@
 import {
   IsEnum,
   IsISO8601,
+  IsUUID,
   IsInt,
   IsNumber,
   IsOptional,
@@ -13,6 +14,7 @@ import {
   ArrayUnique,
 } from 'class-validator';
 import { JobStatus } from '@prisma/client';
+import { ScrapeSource as PrismaScrapeSource } from '@prisma/client';
 
 export type ScrapeSourceLiteral = 'INNERDB' | 'NAUSYS';
 export const ScrapeSource = {
@@ -102,7 +104,7 @@ export class StartScrapeDto {
  * Вспомогательные DTO под query-параметры контроллера
  */
 export class ScrapeStatusQueryDto {
-  @IsString()
+  @IsUUID()
   jobId!: string; // если у вас UUID — замените на @IsUUID()
 }
 
@@ -115,7 +117,10 @@ export class CompetitorsQueryDto {
   @IsOptional()
   @IsISO8601({ strict: true })
   week?: string;
-  source?: string;
+  /** Источник данных для фильтрации результатов */
+  @IsOptional()
+  @IsEnum(PrismaScrapeSource) // 'INNERDB' | 'NAUSYS' | (в схеме может быть и 'BOATAROUND')
+  source?: PrismaScrapeSource;
 }
 
 export class AggregateDto {

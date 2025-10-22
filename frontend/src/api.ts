@@ -1,4 +1,5 @@
 // frontend/src/api.ts
+
 import axios, {
   AxiosError,
   InternalAxiosRequestConfig,
@@ -496,7 +497,8 @@ export async function resetCompetitorFilters(scope: "USER" | "ORG") {
 }
 
 // ---- Upsert (sugar over save) ----
-export async function upsertCompetitorFilters(dto: Parameters<typeof saveCompetitorFilters>[0])
+export type CompetitorFiltersDto = Parameters<typeof saveCompetitorFilters>[0];
+export async function upsertCompetitorFilters(dto: CompetitorFiltersDto)
   : Promise<{ id: string }> {
   const data = await saveCompetitorFilters(dto);
   // бек отдаёт объект с id — приводим тип явно

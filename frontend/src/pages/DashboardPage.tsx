@@ -18,9 +18,10 @@ import {
   getScrapeStatus,
   aggregateSnapshot,
   listCompetitorPrices,
+  upsertCompetitorFilters,
 } from '../api';
 
-import type { CompetitorPrice, StartResponseDto, ScrapeSource } from '../api';
+import type { CompetitorPrice, StartResponseDto, ScrapeSource, CompetitorFiltersDto, } from '../api';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -140,13 +141,13 @@ export default function DashboardPage() {
     };
   }, [params]);
 
-  // cброс цен/агрегатов при смене недели
+  // Сбрасываем результаты скана при смене недели ИЛИ источника
   useEffect(() => {
     setAggByYacht({});
     setRawByYacht({});
     setRowsOpen({});
     setLastWarningByYacht({});
-  }, [weekStart]);
+  }, [weekStart, scanSource]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const goPrev = () => setPage((p) => Math.max(1, p - 1));
@@ -171,13 +172,22 @@ export default function DashboardPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [aggByYacht, setAggByYacht] = useState<Record<string, { top1: string; avg: string; cur: string; n: number }>>({});
   const [rowsOpen, setRowsOpen] = useState<Record<string, boolean>>({});
-  const [rawByYacht, setRawByYacht] = useState<Record<string, { prices: CompetitorPrice[] }>>({});
+  const [rawByYacht, setRawByYacht] = useState<
+    Record<string, { prices: CompetitorPrice[]; source: ScrapeSource }>
+  >({})
 
   // предупреждение от бэкенда: «нет конкурентов, причины …»
   const [lastWarningByYacht, setLastWarningByYacht] = useState<Record<string, string | null>>({});
 
   async function handleScan(y: Yacht) {
     try {
+      // 0) Мгновенно очищаем детали по этой лодке для текущего источника,
+      //    чтобы старые (например, INNERDB) не «подсвечивались» под NAUSYS
+      setRawByYacht((prev) => ({
+        ...prev,
+        [y.id]: { prices: [], source: scanSource },
+      }));
+      setRowsOpen((prev) => ({ ...prev, [y.id]: false }));
         if (scanSource === 'NAUSYS' && !activeFilterId) {
         alert('Please set and save Competitor filters first.');
         setCompFiltersOpen(true);
@@ -219,7 +229,7 @@ export default function DashboardPage() {
         })
       }
 
-      const snap = await aggregateSnapshot({ yachtId: y.id, week, source: scanSource as any })
+      const snap = await aggregateSnapshot({ yachtId: y.id, week, source: scanSource })
       if (snap) {
         setAggByYacht((prev) => ({
           ...prev,
@@ -232,8 +242,8 @@ export default function DashboardPage() {
         }))
       }
 
-      const raw = await listCompetitorPrices({ yachtId: y.id, week, source: scanSource as any })
-      setRawByYacht((prev) => ({ ...prev, [y.id]: { prices: raw } }))
+      const raw = await listCompetitorPrices({ yachtId: y.id, week, source: scanSource })
+      setRawByYacht((prev) => ({ ...prev, [y.id]: { prices: raw, source: scanSource } }))
       // раскрываем строку/карточку в любом случае — даже если пусто, покажем предупреждение
       setRowsOpen((prev) => ({ ...prev, [y.id]: true }))
     } catch (e) {
@@ -245,31 +255,25 @@ export default function DashboardPage() {
   }
 
   // принимаем значения из формы конкурентных фильтров
-  const handleCompetitorFiltersSubmit = (filters: unknown, selectedSource?: ScrapeSource) => {
-    // сохраняем фильтры и передаём их на бэкенд
-    import('../api').then(async (api) => {
-      try {
-        const { id } = await api.upsertCompetitorFilters(filters as any);
-        setActiveFilterId(id);
-        console.log('✅ Competitor filters saved. Active filter id =', id);
-        if (selectedSource) {
-          setScanSource(selectedSource);
-        }
-      } catch (e) {
-        console.error('Failed to save competitor filters', e);
-        alert('Failed to save competitor filters');
-      } finally {
-        setCompFiltersOpen(false);
-      }
-    });
+  const handleCompetitorFiltersSubmit = async (filters: CompetitorFiltersDto, selectedSource?: ScrapeSource) => {
+    try {
+      const { id } = await upsertCompetitorFilters(filters);
+      setActiveFilterId(id);
+      console.log('✅ Competitor filters saved. Active filter id =', id);
+      if (selectedSource) setScanSource(selectedSource);
+    } catch (e) {
+      console.error('Failed to save competitor filters', e);
+      alert('Failed to save competitor filters');
+    } finally {
+      setCompFiltersOpen(false);
+    }
   };
 
   return (
     <div className="mx-auto max-w-7xl p-6">
       <div className="mb-4">
         <h1 className="text-3xl font-bold mb-2">Boats</h1>
-        <WeekPicker value={weekStart} onChange={setWeekStart} />
-
+       <WeekPicker value={weekStart} onChange={setWeekStart} />
         {/* Переключатель вида и Add+ */}
         <div className="mt-4 flex items-center justify-between gap-3">
           <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">

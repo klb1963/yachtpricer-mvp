@@ -89,10 +89,11 @@ export class ScraperController {
    */
   @Get('competitors-prices')
   list(@Query() query: CompetitorsQueryDto) {
+    // ВАЖНО: обязательно прокидываем source как пришёл из query.
+    // Если source отсутствует/некорректен — сервис вернёт без фильтра по источнику.
     return this.svc.getCompetitors({
       yachtId: query.yachtId,
       week: query.week,
-      // 👇 ВАЖНО: прокинуть source, чтобы можно было получить только INNERDB/NAUSYS/и т.д.
       source: query.source,
     });
   }

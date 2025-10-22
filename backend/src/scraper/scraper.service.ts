@@ -117,6 +117,16 @@ export class ScraperService {
         const periodTo = new Date(weekStart);
         periodTo.setUTCDate(periodTo.getUTCDate() + 7);
 
+        // 🔧 ВАЖНО: перед стартом NauSYS-скана очищаем прошлые результаты для этой яхты/недели/источника,
+        // чтобы не «залипали» старые офферы.
+        await this.prisma.competitorPrice.deleteMany({
+          where: {
+            yachtId: dto.yachtId,
+            weekStart,
+            source: PrismaScrapeSource.NAUSYS,
+          },
+        });
+
         await runNausysJob({
           jobId: job.id,
           targetYachtId: dto.yachtId,
@@ -469,14 +479,19 @@ export class ScraperService {
       weekFilter = { weekStart: { gte: weekStart, lt: weekEnd } };
     }
 
-    // Прямое сопоставление строкового source → Prisma enum (без «виртуальных» маппингов)
-    const sourceFilter: Prisma.CompetitorPriceWhereInput = q.source
-      ? {
-          source:
-            PrismaScrapeSource[q.source as keyof typeof PrismaScrapeSource] ??
-            PrismaScrapeSource.INNERDB,
-        }
-      : {};
+    // Нормализуем и валидируем source из query без «тихих» фоллбеков
+    let sourceFilter: Prisma.CompetitorPriceWhereInput = {};
+    if (q.source) {
+      const s = q.source.trim().toUpperCase();
+      // допустимые значения enum: INNERDB | NAUSYS | BOATAROUND
+      if (s === 'INNERDB' || s === 'NAUSYS' || s === 'BOATAROUND') {
+        sourceFilter = { source: s as PrismaScrapeSource };
+      } else {
+        this.logger.warn(
+          `[getCompetitors] unknown source="${q.source}" (normalized="${s}"), filter will be omitted`,
+        );
+      }
+    }
 
     return this.prisma.competitorPrice.findMany({
       where: {

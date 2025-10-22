@@ -120,7 +120,7 @@ export default function YachtCard({
 
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-700">
           <div className="text-gray-500">{t('fields.length')}</div>
-          <div className="font-medium">{y.length} m</div>
+          <div className="font-medium">{y.length} ft</div>
 
           <div className="text-gray-500">{t('fields.built')}</div>
           <div className="font-medium">{y.builtYear}</div>
