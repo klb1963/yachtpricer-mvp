@@ -16,7 +16,7 @@ import {
 } from '@prisma/client';
 import { FiltersService } from './filter/filters.service';
 import type { User } from '@prisma/client';
-import { runNausysJob } from './vendors/nausys.runner'; // ⬅ добавить импорт
+import { runNausysJob } from './vendors/nausys.runner';
 
 /** Нормализует дату к началу чартерной недели (суббота 00:00 UTC). */
 function getCharterWeekStartSaturdayUTC(input: Date): Date {
@@ -117,8 +117,7 @@ export class ScraperService {
         const periodTo = new Date(weekStart);
         periodTo.setUTCDate(periodTo.getUTCDate() + 7);
 
-        // 🔧 ВАЖНО: перед стартом NauSYS-скана очищаем прошлые результаты для этой яхты/недели/источника,
-        // чтобы не «залипали» старые офферы.
+        // 🔧 Очистим прошлые результаты для этой яхты/недели/источника
         await this.prisma.competitorPrice.deleteMany({
           where: {
             yachtId: dto.yachtId,
@@ -126,6 +125,26 @@ export class ScraperService {
             source: PrismaScrapeSource.NAUSYS,
           },
         });
+
+        // ── Загрузим конфиг фильтров (как и для INNERDB)
+        const target = await this.prisma.yacht.findUnique({
+          where: { id: dto.yachtId },
+        });
+        await this.filters.loadConfig(this.prisma, {
+          orgId: user?.orgId ?? target?.orgId ?? null,
+          userId: user?.id ?? null,
+          filterId: dto.filterId ?? null,
+        });
+
+        // подсобим таргетными параметрами для passes()
+        const targetLenFt = target
+          ? (this.filters.normalizeLengthToFeet(target.length) ?? null)
+          : null;
+        const targetType = (target?.type as string | null) ?? null;
+        const targetCabins = target?.cabins ?? null;
+        const targetHeads = target?.heads ?? null;
+        const targetYear = target?.builtYear ?? null;
+        const targetLocation = target?.location ?? null;
 
         await runNausysJob({
           jobId: job.id,
@@ -136,9 +155,28 @@ export class ScraperService {
           },
           periodFrom: weekStart,
           periodTo,
+          candidateTypeHint: targetType,
+          accept: (c) => {
+            const res = this.filters.passes(c, {
+              jobId: job.id,
+              dto,
+              targetLenFt,
+              targetType,
+              targetCabins,
+              targetHeads,
+              targetYear,
+              targetLocation,
+            });
+            if (!res.ok && res.reason) {
+              this.logger.debug(
+                `[${job.id}] filtered out ${c.competitorYacht}: ${res.reason}`,
+              );
+            }
+            return res.ok;
+          },
         });
 
-        // вернём актуальный sampleSize по факту
+        // после runNausysJob() строки уже отфильтрованы до вставки
         const keptAfter = await this.prisma.competitorPrice.count({
           where: {
             yachtId: dto.yachtId,
@@ -146,6 +184,14 @@ export class ScraperService {
             source: PrismaScrapeSource.NAUSYS,
           },
         });
+
+        keptCount = keptAfter;
+        await this.aggregate({
+          yachtId: dto.yachtId,
+          week: weekStart.toISOString(),
+          source: 'NAUSYS',
+        });
+
         return {
           jobId: job.id,
           status: JobStatus.DONE,

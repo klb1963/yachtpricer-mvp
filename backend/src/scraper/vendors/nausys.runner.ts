@@ -40,7 +40,6 @@ function pickArray<T>(val: unknown, guard: (u: unknown) => u is T): T[] {
 // ─────────────────────────────────────────────────────────────
 type BasesWrap = { bases?: unknown };
 type YWrap = { yachts?: unknown };
-type FWrap = { freeYachts?: unknown };
 
 // «расширенная» форма NauSysYacht без any
 type NauSysYachtLoose = NauSysYacht &
@@ -62,9 +61,88 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function makeStableLink(yachtId: number, from: string, to: string): string {
-  return `nausys://freeYacht?id=${yachtId}&from=${from}&to=${to}`;
+// function makeStableLink(yachtId: number, from: string, to: string): string {
+//   return `nausys://freeYacht?id=${yachtId}&from=${from}&to=${to}`;
+// }
+
+// Делаем ссылку уникальной для каждой нашей target-яхты:
+// nausys://freeYacht?id=...&from=...&to=...#target=<our-yacht-id>
+function makeStableLink(
+  yachtId: number,
+  from: string,
+  to: string,
+  targetId: string,
+): string {
+  return `nausys://freeYacht?id=${yachtId}&from=${from}&to=${to}#target=${encodeURIComponent(
+    targetId,
+  )}`;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Тип и безопасный парсер ответа freeYachtsSearch
+// ─────────────────────────────────────────────────────────────
+type NauSysFreeYachtsSearchResponse = Partial<{
+  status: string;
+  from: string;
+  to: string;
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+  resultsPerPage: number;
+  startIdx: number;
+  endIdx: number;
+  freeYachtsInPeriod: unknown;
+}>;
+
+function pickFreeSearchItems(resp: unknown): {
+  items: NauSysFreeYachtItem[];
+  currentPage: number;
+  totalPages: number;
+  totalCount: number | null;
+  status: string | null;
+} {
+  const r = (resp ?? {}) as NauSysFreeYachtsSearchResponse;
+  const arr = Array.isArray(r.freeYachtsInPeriod)
+    ? r.freeYachtsInPeriod
+    : // на случай других вариантов ключа у провайдера:
+      (r as unknown as { freeYachts?: unknown })?.freeYachts;
+
+  const items = pickArray(arr, isFreeItem);
+  const currentPage =
+    typeof r.currentPage === 'number' && Number.isFinite(r.currentPage)
+      ? r.currentPage
+      : 1;
+  const totalPages =
+    typeof r.totalPages === 'number' && Number.isFinite(r.totalPages)
+      ? r.totalPages
+      : 1;
+  const totalCount =
+    typeof r.totalCount === 'number' && Number.isFinite(r.totalCount)
+      ? r.totalCount
+      : null;
+  const status = typeof r.status === 'string' ? r.status : null;
+  return { items, currentPage, totalPages, totalCount, status };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Минимальный «кандидат» для фильтрации перед upsert
+// (достаточно полей, которые обычно использует FiltersService.passes)
+// ─────────────────────────────────────────────────────────────
+export type NauSysCandidate = {
+  competitorYacht: string;
+  lengthFt: number | null;
+  cabins: number | null;
+  heads: number | null;
+  year: number | null;
+  marina: string | null;
+  type: string | null; // можно прокинуть тип таргет-яхты снаружи
+  countryCode: string | null; // в NauSYS не всегда есть — оставляем null
+  categoryId: number | null; // n/a для NauSYS — null
+  builderId: number | null; // n/a для NauSYS — null
+  price: number;
+  currency: string;
+  link: string;
+};
 
 /**
  * Основная функция выполнения скрапинга NauSYS.
@@ -76,8 +154,27 @@ export async function runNausysJob(params: {
   creds: NauSysCreds;
   periodFrom: Date;
   periodTo: Date;
+  /**
+   * Необязательная функция-фильтр.
+   * Если задана и вернула false — оффер НЕ будет сохранён.
+   */
+  accept?: (c: NauSysCandidate) => boolean;
+  /**
+   * Необязательный «тип» для кандидатов (обычно тип таргет-яхты: monohull/catamaran).
+   * В свободных лодках NauSYS он не всегда присутствует.
+   */
+  candidateTypeHint?: string | null;
 }) {
-  const { jobId, targetYachtId, creds, periodFrom, periodTo } = params;
+  const {
+    jobId,
+    targetYachtId,
+    creds,
+    periodFrom,
+    periodTo,
+    accept,
+    candidateTypeHint = null,
+  } = params;
+
   const weekStart = periodFrom; // Date в БД (DateTime)
 
   const PERIOD_FROM = ddmmyyyy(periodFrom);
@@ -195,8 +292,7 @@ export async function runNausysJob(params: {
       console.log(`[NAUSYS] company ${companyId} → yachts: ${yachts.length}`);
     }
 
-    const uniqueYachtIds = Array.from(new Set(yachtIds));
-    if (uniqueYachtIds.length === 0) {
+    if (yachtIds.length === 0) {
       throw new Error('No yachts found for given companies');
     }
 
@@ -260,29 +356,40 @@ export async function runNausysJob(params: {
     const freeItems: NauSysFreeYachtItem[] = [];
     {
       const RESULTS_PER_PAGE = 200;
-      const MAX_PAGES = 50; // предохранитель от бесконечных циклов
+      const MAX_PAGES = 50; // предохранитель
       let page = 1;
+
       while (page <= MAX_PAGES) {
-        const freeRes = await getFreeYachtsSearch(creds, {
+        const resp = await getFreeYachtsSearch(creds, {
           periodFrom: PERIOD_FROM,
           periodTo: PERIOD_TO,
-          countries: [], // можно позже прокинуть ISO→NauSYS id
+          countries: [], // без фильтра по странам
           resultsPerPage: RESULTS_PER_PAGE,
           resultsPage: page,
         });
-        // у search обычно «плоский» массив элементов
-        let freeArr: NauSysFreeYachtItem[] = pickArray(freeRes, isFreeItem);
-        // на случай, если провайдер вернёт обёртку { freeYachts: [...] }
-        if (freeArr.length === 0) {
-          const maybe = (freeRes as FWrap)?.freeYachts;
-          freeArr = pickArray(maybe, isFreeItem);
-        }
-        if (freeArr.length === 0) break; // достигнут конец выдачи
-        freeItems.push(...freeArr);
-        if (freeArr.length < RESULTS_PER_PAGE) break; // последняя страница
-        page++;
+
+        const {
+          items: pageItems,
+          currentPage,
+          totalPages,
+          totalCount,
+          status,
+        } = pickFreeSearchItems(resp);
+
+        console.log(
+          `[NAUSYS] search page=${currentPage}/${totalPages} status=${
+            status ?? 'unknown'
+          } totalCount=${totalCount ?? '?'} → items=${pageItems.length}`,
+        );
+
+        if (pageItems.length === 0) break; // пустая страница — конец
+        freeItems.push(...pageItems);
+
+        if (currentPage >= totalPages) break; // достигли конца
+        page = currentPage + 1;
       }
     }
+    console.log(`[NAUSYS] total freeYachts fetched=${freeItems.length}`);
 
     // 4) upsert competitor_prices
     let upserted = 0;
@@ -291,7 +398,12 @@ export async function runNausysJob(params: {
       const priceFinal = num(fy?.price?.clientPrice);
       if (!priceFinal) continue;
 
-      const link = makeStableLink(yachtIdNum, PERIOD_FROM, PERIOD_TO);
+      const link = makeStableLink(
+        yachtIdNum,
+        PERIOD_FROM,
+        PERIOD_TO,
+        targetYachtId,
+      );
       const currency = String(fy?.price?.currency || 'EUR');
 
       const discountPct = (() => {
@@ -369,6 +481,28 @@ export async function runNausysJob(params: {
           ? String(competitorLabelRaw)
           : String(yachtIdNum)) || String(yachtIdNum);
 
+      // ── Сформируем «кандидата» для внешней фильтрации
+      const candidate: NauSysCandidate = {
+        competitorYacht,
+        lengthFt,
+        cabins,
+        heads,
+        year,
+        marina,
+        type: candidateTypeHint ?? null,
+        countryCode: null,
+        categoryId: null,
+        builderId: null,
+        price: priceFinal,
+        currency,
+        link,
+      };
+
+      // ⛔️ Если фильтр передан и не пропускает — пропускаем оффер
+      if (typeof accept === 'function' && !accept(candidate)) {
+        continue;
+      }
+
       await prisma.competitorPrice.upsert({
         where: {
           source_link_weekStart: {
@@ -380,38 +514,38 @@ export async function runNausysJob(params: {
         update: {
           yachtId: targetYachtId,
           externalId: String(yachtIdNum), // сохраняем внешний ID
-          competitorYacht,
-          price: priceFinal,
-          currency,
+          competitorYacht: candidate.competitorYacht,
+          price: candidate.price,
+          currency: candidate.currency,
           discountPct,
           raw: fy,
           scrapeJobId: jobId,
           scrapedAt: new Date(),
           // поля для фильтров
-          year: year ?? undefined,
-          cabins: cabins ?? undefined,
-          heads: heads ?? undefined,
-          lengthFt: lengthFt ?? undefined,
-          marina: marina ?? undefined,
+          year: candidate.year ?? undefined,
+          cabins: candidate.cabins ?? undefined,
+          heads: candidate.heads ?? undefined,
+          lengthFt: candidate.lengthFt ?? undefined,
+          marina: candidate.marina ?? undefined,
         },
         create: {
           source: ScrapeSource.NAUSYS,
           weekStart,
           yachtId: targetYachtId,
           externalId: String(yachtIdNum), // сохраняем внешний ID
-          competitorYacht,
-          price: priceFinal,
-          currency,
+          competitorYacht: candidate.competitorYacht,
+          price: candidate.price,
+          currency: candidate.currency,
           link,
           raw: fy,
           discountPct,
           scrapeJobId: jobId,
           // поля для фильтров
-          year: year ?? null,
-          cabins: cabins ?? null,
-          heads: heads ?? null,
-          lengthFt: lengthFt ?? null,
-          marina: marina ?? null,
+          year: candidate.year ?? null,
+          cabins: candidate.cabins ?? null,
+          heads: candidate.heads ?? null,
+          lengthFt: candidate.lengthFt ?? null,
+          marina: candidate.marina ?? null,
         },
       });
       upserted++;
