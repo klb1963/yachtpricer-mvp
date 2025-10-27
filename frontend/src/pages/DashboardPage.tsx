@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Yacht, YachtListParams, YachtListResponse } from '../api';
+import { parseISO } from 'date-fns';
 import { listYachts } from '../api';
 import YachtCard from '../components/YachtCard';
 import type { YachtType } from '../types/yacht';
@@ -50,7 +51,19 @@ export default function DashboardPage() {
   const { view, setView } = useViewMode();
   const location = useLocation();
   const navigate = useNavigate();
-  const [weekStart, setWeekStart] = useState<string>(weekIso());
+
+  // читаем неделю из URL (если валидна), иначе текущая
+  const initWeekFromUrl = () => {
+    const w = new URLSearchParams(location.search).get('week');
+    if (!w) return weekIso();
+    try {
+      const d = parseISO(w);
+      return Number.isNaN(d.getTime()) ? weekIso() : w;
+    } catch {
+      return weekIso();
+    }
+  };
+  const [weekStart, setWeekStart] = useState<string>(initWeekFromUrl());
 
   // источник скана (persisted + синхронизация с URL), используем тип из api.ts
   const initSource = (): ScrapeSource => {
@@ -70,6 +83,15 @@ export default function DashboardPage() {
     navigate({ pathname: '/dashboard', search: sp.toString() }, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanSource]);
+
+  // держим week в URL синхронно с выбором недели
+  useEffect(() => {
+    const sp = new URLSearchParams(location.search);
+    sp.set('view', view);
+    sp.set('source', scanSource);
+    sp.set('week', weekStart);
+    navigate({ pathname: '/dashboard', search: sp.toString() }, { replace: true });
+  }, [weekStart]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // фильтры/сортировка/пагинация
   const [q, setQ] = useState('');

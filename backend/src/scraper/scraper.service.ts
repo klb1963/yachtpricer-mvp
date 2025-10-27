@@ -118,13 +118,17 @@ export class ScraperService {
         periodTo.setUTCDate(periodTo.getUTCDate() + 7);
 
         // 🔧 Очистим прошлые результаты для этой яхты/недели/источника
-        await this.prisma.competitorPrice.deleteMany({
-          where: {
-            yachtId: dto.yachtId,
-            weekStart,
-            source: PrismaScrapeSource.NAUSYS,
-          },
-        });
+        // await this.prisma.competitorPrice.deleteMany({
+        //   where: {
+        //     yachtId: dto.yachtId,
+        //     weekStart,
+        //     source: PrismaScrapeSource.NAUSYS,
+        //   },
+        // });
+
+        // ⚠️ Не удаляем прежние строки заранее.
+        // Иначе при kept=0 мы теряем прошлые данные.
+        // Полагаться на upsert в раннере; он освежит существующие записи.
 
         // ── Загрузим конфиг фильтров (как и для INNERDB)
         const target = await this.prisma.yacht.findUnique({

@@ -104,6 +104,44 @@ export async function collectNausysCandidates(params: {
   );
   if (companyIds.length === 0) return [];
 
+  // ───────────────────────────────────────────────────────────────
+  // Построим мапу: locationId -> countryCode (из charter bases)
+  // ───────────────────────────────────────────────────────────────
+  const nameToIso2 = (name?: string | null): string | null => {
+    if (!name) return null;
+    const n = String(name).toLowerCase();
+    if (n.includes('croatia')) return 'HR';
+    if (n.includes('greece'))  return 'GR';
+    if (n.includes('turkey'))  return 'TR';
+    if (n.includes('italy'))   return 'IT';
+    if (n.includes('spain'))   return 'ES';
+    if (n.includes('france'))  return 'FR';
+    return null;
+  };
+  type BaseLoose = Partial<{
+    locationId: number;
+    baseLocationId: number;
+    countryCode: string;
+    country: { code?: string | null; name?: string | null } | null;
+    countryName: string | null;
+  }>;
+  const byLocationCountry = new Map<number, string>();
+  for (const bRaw of bases as unknown as BaseLoose[]) {
+    const lid =
+      typeof bRaw?.locationId === 'number'
+        ? bRaw.locationId
+        : typeof bRaw?.baseLocationId === 'number'
+          ? bRaw.baseLocationId
+          : null;
+    const cc =
+      (bRaw?.countryCode && String(bRaw.countryCode).toUpperCase()) ||
+      (bRaw?.country?.code && String(bRaw.country.code).toUpperCase()) ||
+      nameToIso2(bRaw?.country?.name ?? bRaw?.countryName);
+    if (lid != null && cc && cc.length === 2) {
+      byLocationCountry.set(lid, cc);
+    }
+  }
+
   // 2) yachts by company → собираем мету (год/каюты/длина/локация/модель)
   type YachtMeta = {
     year?: number | null;
@@ -263,7 +301,13 @@ export async function collectNausysCandidates(params: {
           ? String(meta.locationId)
           : null;
 
-    // безопасное извлечение сигнатуры имени модели без any
+    // Определяем страну кандидата по локации
+    const locForCountry =
+      (locationFromId != null ? locationFromId : meta?.locationId) ?? null;
+    const countryCode =
+      locForCountry != null ? byLocationCountry.get(locForCountry) ?? null : null;
+
+      // безопасное извлечение сигнатуры имени модели без any
     const rawModelNameA = (fy as { yachtModelName?: unknown }).yachtModelName;
     const rawModelNameB = (fy as { modelName?: unknown }).modelName;
 
@@ -286,7 +330,7 @@ export async function collectNausysCandidates(params: {
       year,
       marina,
       type: candidateTypeHint ?? null,
-      countryCode: null,
+      countryCode,
       categoryId: null,
       builderId: null,
       price: Number(priceFinal),
