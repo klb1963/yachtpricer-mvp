@@ -1,4 +1,5 @@
 // backend/src/yachts.controller.ts
+
 import {
   BadRequestException,
   Body,
@@ -30,23 +31,21 @@ const toInt = (v: unknown): number | undefined => {
   return Number.isInteger(n) ? n : undefined;
 };
 
-/** nullable helpers для связей */
 const toNullableStr = (v: unknown): string | null | undefined => {
-  if (v === undefined) return undefined; // не трогаем поле
-  if (v === null) return null; // явный сброс (disconnect)
+  if (v === undefined) return undefined;
+  if (v === null) return null;
   if (typeof v === 'string') {
     const s = v.trim();
-    return s === '' ? null : s; // '' -> null
+    return s === '' ? null : s;
   }
-  // Любые не-строки игнорируем, чтобы не получить "[object Object]"
   return undefined;
 };
 
 const toNullableInt = (v: unknown): number | null | undefined => {
-  if (v === undefined) return undefined; // не трогать
-  if (v === null || v === '') return null; // disconnect
+  if (v === undefined) return undefined;
+  if (v === null || v === '') return null;
   const n = Number(v);
-  return Number.isInteger(n) ? n : null; // connect или disconnect
+  return Number.isInteger(n) ? n : null;
 };
 
 const toNum = (v: unknown): number | undefined => {
@@ -54,7 +53,9 @@ const toNum = (v: unknown): number | undefined => {
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
 };
-const clamp = (n: number, a: number, b: number) => Math.min(Math.max(n, a), b);
+
+const clamp = (n: number, a: number, b: number) =>
+  Math.min(Math.max(n, a), b);
 
 @Controller('yachts')
 export class YachtsController {
@@ -154,7 +155,6 @@ export class YachtsController {
       }),
     ]);
 
-    // Разворачиваем страну в плоские поля для фронта
     const mapped = items.map((y) => ({
       ...y,
       countryCode: y.country?.code2 ?? null,
@@ -170,7 +170,7 @@ export class YachtsController {
     const y = await this.prisma.yacht.findUnique({
       where: { id },
       include: {
-        country: true, // ← полная сущность, без select
+        country: true,
         category: true,
         builder: true,
       },
@@ -237,7 +237,7 @@ export class YachtsController {
         const parsed: unknown = JSON.parse(v);
         return this.isJsonInputValue(parsed) ? parsed : [];
       } catch {
-        return v; // строка остаётся строкой
+        return v;
       }
     }
     return this.isJsonInputValue(v) ? v : [];
@@ -252,15 +252,21 @@ export class YachtsController {
   @Post()
   @Roles('MANAGER', 'ADMIN')
   async create(@Body() body: Record<string, unknown>) {
-    const baseData: Omit<
+    type CreateBase = Omit<
       Prisma.YachtCreateInput,
-      'currentExtraServices' | 'owner'
-    > = {
+      | 'currentExtraServices'
+      | 'owner'
+      | 'location'
+      | 'type'
+      | 'country'
+      | 'category'
+      | 'builder'
+    >;
+
+    const baseData: CreateBase = {
       name: this.reqStr(body, 'name'),
-      manufacturer: this.reqStr(body, 'manufacturer'),
+      manufacturer: undefined as any,
       model: this.reqStr(body, 'model'),
-      type: this.reqStr(body, 'type') as YachtType,
-      location: this.reqStr(body, 'location'),
       fleet: this.reqStr(body, 'fleet'),
       charterCompany: this.reqStr(body, 'charterCompany'),
       length: this.reqNum(body, 'length'),
@@ -271,19 +277,40 @@ export class YachtsController {
       ownerName: this.optStr(body, 'ownerName'),
     };
 
+    const typeVal = this.optStr(body, 'type');
+    const loc = this.optStr(body, 'location');
+
     const services = this.toJsonValueEnsure(body['currentExtraServices']);
     const ownerId = this.optStr(body, 'ownerId');
 
-    // значения связей (один раз вычисляем)
-    const countryId = toNullableStr(body['countryId']); // string | null | undefined
-    const categoryId = toNullableInt(body['categoryId']); // number | null | undefined
-    const builderId = toNullableInt(body['builderId']); // number | null | undefined
+    const countryId = toNullableStr(body['countryId']);
+    const categoryId = toNullableInt(body['categoryId']);
+    const builderId = toNullableInt(body['builderId']);
+
+    let manufacturer: string | null | undefined = this.optStr(
+      body,
+      'manufacturer',
+    );
+    if (!manufacturer && typeof builderId === 'number') {
+      const builder = await this.prisma.yachtBuilder.findUnique({
+        where: { id: builderId },
+        select: { name: true },
+      });
+      manufacturer = builder?.name ?? null;
+    }
+    if (!manufacturer) {
+      throw new BadRequestException(
+        'Either "manufacturer" or "builderId" must be provided',
+      );
+    }
 
     const data: Prisma.YachtCreateInput = {
       ...baseData,
+      manufacturer,
       currentExtraServices: services,
+      ...(typeVal ? { type: typeVal as YachtType } : {}),
+      location: loc ?? '',
       ...(ownerId ? { owner: { connect: { id: ownerId } } } : {}),
-      // 👇 новые связи (при создании null/undefined просто пропускаем)
       ...(countryId ? { country: { connect: { id: countryId } } } : {}),
       ...(typeof categoryId === 'number'
         ? { category: { connect: { id: categoryId } } }
@@ -340,8 +367,6 @@ export class YachtsController {
       if (idStr) data.owner = { connect: { id: idStr } };
     }
 
-    // ====== связи: country / category / builder ======
-    // countryId: string UUID | null | undefined
     if (Object.prototype.hasOwnProperty.call(body, 'countryId')) {
       const v = toNullableStr(body['countryId']);
       let countryUpdate: Prisma.YachtUpdateInput['country'];
@@ -353,7 +378,6 @@ export class YachtsController {
       if (countryUpdate) data.country = countryUpdate;
     }
 
-    // categoryId: number | null | undefined
     if (Object.prototype.hasOwnProperty.call(body, 'categoryId')) {
       const v = toNullableInt(body['categoryId']);
       let categoryUpdate: Prisma.YachtUpdateInput['category'];
@@ -365,7 +389,6 @@ export class YachtsController {
       if (categoryUpdate) data.category = categoryUpdate;
     }
 
-    // builderId: number | null | undefined
     if (Object.prototype.hasOwnProperty.call(body, 'builderId')) {
       const v = toNullableInt(body['builderId']);
       let builderUpdate: Prisma.YachtUpdateInput['builder'];
@@ -377,7 +400,6 @@ export class YachtsController {
       if (builderUpdate) data.builder = builderUpdate;
     }
 
-    // зачистка undefined
     (Object.keys(data) as Array<keyof Prisma.YachtUpdateInput>).forEach((k) => {
       if (data[k] === undefined) delete data[k];
     });

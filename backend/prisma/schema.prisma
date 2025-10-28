@@ -131,14 +131,14 @@ model Yacht {
   name                 String
   manufacturer         String
   model                String
-  type                 YachtType @default(monohull)
+  type                 YachtType? 
   length               Float
   builtYear            Int
   cabins               Int
   heads                Int
   basePrice            Decimal   @db.Decimal(12, 2)
   maxDiscountPct       Decimal?  @db.Decimal(5, 2)
-  location             String
+  location             String?
   fleet                String
   charterCompany       String
   currentExtraServices Json

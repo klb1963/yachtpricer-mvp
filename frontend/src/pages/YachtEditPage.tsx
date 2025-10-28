@@ -9,13 +9,14 @@ import type {
   Country,
   CatalogCategory,
   CatalogBuilder,
+  CatalogModel,
 } from '../api';
 
 import Select from 'react-select';
 import AsyncSelect from 'react-select/async';
 import {
   getYacht, updateYacht, createYacht, deleteYacht,
-  getCountries, findCategories, findBuilders
+  getCountries, findCategories, findBuilders, findModels
 } from '../api';
 
 type YachtWithRefs = Yacht & {
@@ -70,6 +71,7 @@ export default function YachtEditPage() {
   // Лейблы для уже выбранных (из API) значений category/builder
   const [categoryLabel, setCategoryLabel] = useState<string | null>(null)
   const [builderLabel, setBuilderLabel] = useState<string | null>(null)
+  const [modelLabel, setModelLabel] = useState<string | null>(null)
 
   const { t, i18n } = useTranslation('yacht')
 
@@ -175,6 +177,7 @@ export default function YachtEditPage() {
         setCategoryLabel(yy.category?.id != null ? pickLocalizedName(yy.category as any) : null)
 
         setBuilderLabel(yy.builder?.id != null ? yy.builder.name || `#${yy.builder.id}` : null)
+        setModelLabel(y.model ?? null)
 
         setForm({
           countryId: yy.countryId ?? yy.country?.id ?? '',
@@ -242,6 +245,21 @@ export default function YachtEditPage() {
     }))
   }, [])
 
+  // Models (async) — опционально можно фильтровать по выбранному builderId
+  const loadModelOptions = useCallback(
+    async (input: string) => {
+      const opts: { take?: number; builderId?: number } = { take: 20 }
+      const bid = Number(form.builderId)
+      if (Number.isFinite(bid)) opts.builderId = bid
+      const { items }: { items: CatalogModel[] } = await findModels(input ?? '', opts)
+      return items.map((m) => ({
+        value: m.name, // backend ждёт строку model
+        label: m.name,
+      }))
+    },
+    [form.builderId]
+  )
+
   // memoized current selected values for async selects
   const categoryValue = useMemo<Opt | null>(() => {
     if (!form.categoryId) return null
@@ -255,6 +273,11 @@ export default function YachtEditPage() {
     if (!builderLabel) return null
     return { value: form.builderId, label: builderLabel }
   }, [form.builderId, builderLabel])
+
+  const modelValue = useMemo<Opt | null>(() => {
+    if (!form.model) return null
+    return { value: form.model, label: modelLabel ?? form.model }
+  }, [form.model, modelLabel])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -378,6 +401,14 @@ export default function YachtEditPage() {
             value={form.charterCompany}
             onChange={onChange('charterCompany')}
           />
+
+          {/* Location (required by backend)
+          <Field
+            label={t('fields.location', 'Location')}
+            value={form.location}
+            onChange={onChange('location')}
+          /> */}
+
           <Field
             label={t('fields.owner', 'Owner name')}
             value={form.ownerName}
@@ -442,15 +473,43 @@ export default function YachtEditPage() {
               isClearable
               value={builderValue}
               onChange={(opt) => {
+
+                // При смене верфи очищаем выбранную модель
                 if (!opt) {
-                  setForm((f) => ({ ...f, builderId: '' }))
+                  setForm((f) => ({ ...f, builderId: '', model: '' }))
                   setBuilderLabel(null)
+                  setModelLabel(null)
                 } else {
-                  setForm((f) => ({ ...f, builderId: opt.value }))
+                  setForm((f) => ({ ...f, builderId: opt.value, model: '' }))
                   setBuilderLabel(opt.label)
+                  setModelLabel(null)
                 }
+
               }}
               placeholder={t('placeholders.chooseBuilder', 'Choose builder…')}
+            />
+          </label>
+          {/* Model (async) */}
+          <label className="flex flex-col">
+            <span className="text-sm text-gray-600">{t('fields.model', 'Model')}</span>
+            <AsyncSelect<Opt, false>
+              className="mt-1"
+              classNamePrefix="rs"
+              cacheOptions
+              defaultOptions
+              loadOptions={loadModelOptions}
+              isClearable
+              value={modelValue}
+              onChange={(opt) => {
+                if (!opt) {
+                  setForm((f) => ({ ...f, model: '' }))
+                  setModelLabel(null)
+                } else {
+                  setForm((f) => ({ ...f, model: opt.value }))
+                  setModelLabel(opt.label)
+                }
+              }}
+              placeholder={t('placeholders.chooseModel', 'Choose model…')}
             />
           </label>
         </fieldset>
