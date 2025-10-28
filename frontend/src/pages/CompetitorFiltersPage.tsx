@@ -1,5 +1,6 @@
 // frontend/src/pages/CompetitorFiltersPage.tsx
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import Select from "react-select";
 import AsyncSelect from "react-select/async";
 import { findRegions } from "../api";
@@ -95,13 +96,37 @@ export default function CompetitorFiltersPage({
   onClose?: () => void;
 }) {
 
+  // --- URL search params ---
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // === Scan source (persisted) ===
-  const [scanSource, setScanSource] = useState<"INNERDB" | "NAUSYS">(
-    (localStorage.getItem("competitor:scanSource") as any) || "INNERDB"
-  );
+  const [scanSource, setScanSource] = useState<"INNERDB" | "NAUSYS">("INNERDB");
+
+  // 1) При монтировании читаем ?source из URL → state/localStorage (fallback — localStorage → URL)
+  useEffect(() => {
+    const urlSource = (searchParams.get("source") || "").toUpperCase();
+    const lsSource = (localStorage.getItem("competitor:scanSource") || "INNERDB").toUpperCase();
+    const initial = (urlSource === "NAUSYS" || urlSource === "INNERDB") ? (urlSource as any) : (lsSource as any);
+    setScanSource(initial);
+    if (urlSource !== initial) {
+      const next = new URLSearchParams(searchParams);
+      next.set("source", initial);
+      setSearchParams(next, { replace: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 2) Любое изменение источника → URL + localStorage
   useEffect(() => {
     localStorage.setItem("competitor:scanSource", scanSource);
-  }, [scanSource]);
+    const cur = (searchParams.get("source") || "").toUpperCase();
+    if (cur !== scanSource) {
+      const next = new URLSearchParams(searchParams);
+      next.set("source", scanSource);
+      setSearchParams(next, { replace: true });
+    }
+  }, [scanSource, searchParams, setSearchParams]);
+
 
   // --- ranges / numeric ---
   const [lenFtMinus, setLenFtMinus] = useState(3)
