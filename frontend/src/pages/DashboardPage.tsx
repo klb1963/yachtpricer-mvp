@@ -13,6 +13,7 @@ import YachtListFilters from '@/components/YachtListFilters';
 import YachtTable from '../components/YachtTable';
 import Modal from '@/components/Modal';
 import CompetitorFiltersPage from '@/pages/CompetitorFiltersPage';
+import { HeaderWithSourceBadge } from "../components/HeaderWithSourceBadge";
 
 import {
   startScrape,
@@ -294,8 +295,11 @@ export default function DashboardPage() {
   return (
     <div className="mx-auto max-w-7xl p-6">
       <div className="mb-4">
-        <h1 className="text-3xl font-bold mb-2">Boats</h1>
-       <WeekPicker value={weekStart} onChange={setWeekStart} />
+      <h1 className="text-3xl font-bold mb-2">Boats</h1>
+      <div className="flex items-center justify-between">
+        <WeekPicker value={weekStart} onChange={setWeekStart} />
+        <HeaderWithSourceBadge />
+      </div>
         {/* Переключатель вида и Add+ */}
         <div className="mt-4 flex items-center justify-between gap-3">
           <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">
