@@ -66,4 +66,4 @@ yachtpricer-db-data.tgz
 frontend/vite.config.local.ts
 
 # TS incremental build artifacts
-*.tsbuildinfo
+*.tsbuildinfofrontend/package-lock.json

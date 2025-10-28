@@ -9,7 +9,7 @@ ENV VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
 
 COPY package*.json ./
 # если есть package-lock.json → npm ci, иначе fallback на npm install
-RUN if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+RUN npm install --no-audit --no-fund
 
 COPY . .
 RUN npm run build

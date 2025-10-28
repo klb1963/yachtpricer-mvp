@@ -24,7 +24,6 @@ jobs:
             ORIGIN=https://github.com/klb1963/yachtpricer-mvp.git
 
             mkdir -p "$REPO_DIR"
-            chown -R "$USER":"$USER" "$REPO_DIR" || true
 
             if [ ! -d "$REPO_DIR/.git" ]; then
               if [ -z "$(ls -A "$REPO_DIR")" ]; then
