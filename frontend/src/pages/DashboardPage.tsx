@@ -76,6 +76,14 @@ export default function DashboardPage() {
   };
   const [scanSource, setScanSource] = useState<ScrapeSource>(initSource());
 
+  // ← NEW: если кто-то (модалка) поменял ?source= в URL, подтягиваем это в state
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(location.search).get('source');
+    if (fromUrl === 'INNERDB' || fromUrl === 'NAUSYS') {
+      setScanSource((prev) => (prev !== fromUrl ? (fromUrl as ScrapeSource) : prev));
+    }
+  }, [location.search]);  
+
   useEffect(() => {
     localStorage.setItem('competitor:scanSource', scanSource);
     const sp = new URLSearchParams(location.search);
@@ -365,7 +373,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
           {items.map((y) => (
             <YachtCard
-              key={y.id}
+              key={`${scanSource}-${y.id}`} // (необязательно, но помогает избежать "залипания")
               y={y}
               search={location.search}
               onScan={() => handleScan(y)}
@@ -384,6 +392,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <YachtTable
+          key={`table-${scanSource}-${weekStart}`} 
           items={items}
           locationSearch={location.search}
           sort={sort}
