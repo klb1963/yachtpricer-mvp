@@ -7,7 +7,10 @@ import { useTranslation } from 'react-i18next';
 import type { ScrapeSource } from '../api'
 
 // Бэкенд может прислать imageUrl (опционально)
-type YachtWithImage = Yacht & { imageUrl?: string | null };
+type YachtWithImage = Yacht & {
+  imageUrl?: string | null;
+  category?: { nameEn?: string | null; nameRu?: string | null; nameDe?: string | null } | null;
+};
 
 // Тип агрегатов
 type Agg = { top1: string; avg: string; cur: string; n: number };
@@ -26,20 +29,18 @@ type Props = {
   scanSource?: ScrapeSource;  // ← добавлено
 };
 
-// Карта типов -> картинка из /public/images/yachts
+// Карта КАТЕГОРИЙ -> картинка из /public/images/yachts
 const IMAGE_MAP: Record<string, string> = {
   monohull: '/images/yachts/monohull.jpg',
-  'sailing yacht': '/images/yachts/monohull.jpg', // алиас
-  sailboat: '/images/yachts/monohull.jpg',        // алиас
   catamaran: '/images/yachts/catamaran.jpg',
   trimaran: '/images/yachts/trimaran.jpg',
   compromis: '/images/yachts/compromis.jpg',
 };
-
 const FALLBACK_PLACEHOLDER = '/images/yachts/monohull.jpg';
 
-function normalizeTypeKey(type?: string | null) {
-  const k = (type ?? '').toLowerCase().trim();
+function normalizeCategoryKey(raw?: string | null) {
+  const k = (raw ?? '').toLowerCase().trim();
+  // поддерживаем старые алиасы из type
   if (k === 'sailing yacht' || k === 'sailboat' || k === 'monohull') return 'monohull';
   if (k === 'catamaran') return 'catamaran';
   if (k === 'trimaran') return 'trimaran';
@@ -47,9 +48,21 @@ function normalizeTypeKey(type?: string | null) {
   return k;
 }
 
-function pickByType(type?: string | null) {
-  const key = normalizeTypeKey(type);
+function pickByCategory(category?: string | null) {
+  const key = normalizeCategoryKey(category);
   return IMAGE_MAP[key] ?? FALLBACK_PLACEHOLDER;
+}
+
+// Читаем подпись категории из relation; если нет — fallback на type
+function getCategoryLabel(y: YachtWithImage): string {
+  return (
+    y.category?.nameEn ??
+    y.category?.nameRu ??
+    y.category?.nameDe ??
+    // последний шанс — старое поле type уже в нужном виде
+    (y as any).type ??
+    ''
+  );
 }
 
 function fmtPrice(p: Yacht['basePrice']) {
@@ -84,9 +97,10 @@ export default function YachtCard({
   const isNew =
     y.createdAt ? Date.now() - new Date(y.createdAt).getTime() < 7 * 24 * 3600 * 1000 : false;
 
-  // 1) Берём из БД, 2) иначе по типу
+  // 1) Берём из БД, 2) иначе по категории
   const fromDb = (y.imageUrl ?? '').trim();
-  const src = fromDb || pickByType(y.type);
+  const categoryLabel = getCategoryLabel(y);
+  const src = fromDb || pickByCategory(categoryLabel);
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md">
@@ -97,7 +111,7 @@ export default function YachtCard({
           className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
           loading="lazy"
           onError={(e) => {
-            ;(e.currentTarget as HTMLImageElement).src = pickByType(y.type)
+            (e.currentTarget as HTMLImageElement).src = pickByCategory(categoryLabel);
           }}
         />
         {isNew && (
@@ -115,7 +129,7 @@ export default function YachtCard({
               {y.manufacturer} {y.model}
             </p>
           </div>
-          <Badge>{y.type}</Badge>
+          {categoryLabel && <Badge>{categoryLabel}</Badge>}
         </div>
 
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-700">

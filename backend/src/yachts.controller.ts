@@ -54,8 +54,7 @@ const toNum = (v: unknown): number | undefined => {
   return Number.isFinite(n) ? n : undefined;
 };
 
-const clamp = (n: number, a: number, b: number) =>
-  Math.min(Math.max(n, a), b);
+const clamp = (n: number, a: number, b: number) => Math.min(Math.max(n, a), b);
 
 @Controller('yachts')
 export class YachtsController {
@@ -151,6 +150,7 @@ export class YachtsController {
         take,
         include: {
           country: { select: { code2: true, name: true } },
+          category: { select: { nameEn: true, nameRu: true, nameDe: true } },
         },
       }),
     ]);
@@ -265,7 +265,7 @@ export class YachtsController {
 
     const baseData: CreateBase = {
       name: this.reqStr(body, 'name'),
-      manufacturer: undefined as any,
+      manufacturer: '',
       model: this.reqStr(body, 'model'),
       fleet: this.reqStr(body, 'fleet'),
       charterCompany: this.reqStr(body, 'charterCompany'),
