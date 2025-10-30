@@ -440,7 +440,7 @@ model PriceAuditLog {
   @@map("price_audit_logs")
 }
 
-// Справочник стран из NauSYS
+// Справочник countries из NauSYS
 model Country {
   id        String   @id @default(cuid())
   nausysId  Int      @unique // ID из /countries
@@ -452,7 +452,16 @@ model Country {
 
   // 👇 обратная сторона связи по ISO-2
   locations         Location[]          @relation("CountryCode2Locations")
-  regions           Region[]            @relation("RegionCountryNausys")
+
+  // старая связь регионов по nausysId (остаётся для обратной совместимости импорта)
+  regionsByNausys   Region[]            @relation("RegionCountryNausys")
+
+  // новая связь регионов по UUID страны
+  regions           Region[]
+
+  // НОВОЕ: обратная сторона для Location.countryId (UUID FK)
+  locationsById     Location[]
+
   competitorFilters CompetitorFilters[] @relation("FiltersCountries")
 
   yachts            Yacht[]
@@ -461,6 +470,38 @@ model Country {
   @@map("countries")
 }
 
+// Справочник regions из NauSYS
+model Region {
+  id       Int     @id @default(autoincrement())
+  nausysId Int     @unique
+  names    Json
+  nameEn   String? @map("name_en")
+  nameDe   String? @map("name_de")
+  nameRu   String? @map("name_ru")
+
+  // --- СТАРАЯ СВЯЗЬ (оставляем): через nausysId
+  countryNausysId Int?
+  countryByNausys Country? @relation("RegionCountryNausys", fields: [countryNausysId], references: [nausysId])
+
+  // --- НОВАЯ СВЯЗЬ: FK на Country.id (UUID)
+  // Это нужно для каскада фильтров: countryIds[] -> regions
+  countryId String?
+  country   Country? @relation(fields: [countryId], references: [id])
+
+  // НОВОЕ: обратная сторона для Location.regionId
+  locations Location[]
+
+  competitorFilters CompetitorFilters[] @relation("FiltersRegions")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([countryId])
+  @@index([countryNausysId])
+  @@map("regions")
+}
+
+// Справочник locations из NauSYS
 model Location {
   id          String         @id @default(cuid())
   source      LocationSource @default(NAUSYS)
@@ -477,12 +518,24 @@ model Location {
   competitorFilters CompetitorFilters[] @relation("FiltersLocations")
   aliases           LocationAlias[]     @relation("LocationAliases")
 
-  // 👇 связь на Country по code2 (уникальное поле — это ок)
-  country Country? @relation("CountryCode2Locations", fields: [countryCode], references: [code2])
+  // --- СТАРАЯ СВЯЗЬ (оставляем): через ISO-2 code2
+  countryByCode2 Country? @relation("CountryCode2Locations", fields: [countryCode], references: [code2])
+
+  // --- НОВОЕ: ссылка на Region по нормальному PK
+  // Это нужно для каскада фильтров: regionIds[] -> locations
+  regionId Int?
+  region   Region? @relation(fields: [regionId], references: [id])
+
+  // --- НОВОЕ: ссылка на Country по UUID
+  // Это нужно для каскада фильтров и для быстрой агрегации по стране
+  countryId String?
+  country   Country? @relation(fields: [countryId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([regionId])
+  @@index([countryId])
   @@unique([source, externalId])
   @@index([source])
   @@index([countryCode])
@@ -620,23 +673,3 @@ model YachtModel {
   @@map("yacht_models")
 }
 
-model Region {
-  id       Int     @id @default(autoincrement())
-  nausysId Int     @unique
-  names    Json
-  nameEn   String? @map("name_en")
-  nameDe   String? @map("name_de")
-  nameRu   String? @map("name_ru")
-
-  // связь на Country по уникальному полю countries.nausysId
-  countryNausysId Int?
-  country         Country? @relation("RegionCountryNausys", fields: [countryNausysId], references: [nausysId])
-
-  competitorFilters CompetitorFilters[] @relation("FiltersRegions")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([countryNausysId])
-  @@map("regions")
-}
