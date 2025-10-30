@@ -378,18 +378,20 @@ export async function listCompetitorPrices(params: { yachtId?: string; week?: st
 export type Country = { id: string; code2: string; name: string; nausysId: number; code3?: string | null };
 export type LocationItem = {
   id: string;
-  externalId: string | null;
   name: string;
-  countryCode: string | null;
-  lat: number | null;
-  lon: number | null;
-  aliases?: { alias: string }[]; // ← опционально
+  regionId: number | null;
+  regionName: string | null;
+  countryId: string | null;
+  country?: { code2: string; name: string } | null;
 };
 
+// --- COUNTRIES (UUID-based) ---
 export async function getCountries(): Promise<Country[]> {
-  const r = await apiFetch("/geo/countries");
+  // unified endpoint (was /geo/countries)
+  const r = await apiFetch("/catalog/countries");
   if (!r.ok) throw new Error("Failed to load countries");
-  return r.json();
+  const { items } = await r.json();
+  return items as Country[];
 }
 
 function toQuery(obj: Record<string, string | number | boolean | null | undefined>) {
@@ -403,13 +405,29 @@ function toQuery(obj: Record<string, string | number | boolean | null | undefine
 
 export async function getLocations(params: {
   q?: string;
-  countryCode?: string;
+  countryIds?: string[]; // ← теперь UUID
+
+  regionIds?: number[];
+  source?: string;
   take?: number;
   skip?: number;
   orderBy?: "name" | "countryCode";
 }): Promise<{ items: LocationItem[]; total: number; skip: number; take: number }> {
-  const qs = toQuery(params);
-  const r = await apiFetch(`/geo/locations?${qs}`);
+  const paramsQS = new URLSearchParams();
+  if (params.q) paramsQS.set("q", params.q);
+  if (params.take) paramsQS.set("take", String(params.take));
+  if (params.skip) paramsQS.set("skip", String(params.skip));
+  if (params.orderBy) paramsQS.set("orderBy", params.orderBy);
+  if (params.source) paramsQS.set("source", params.source);
+
+  if (params.countryIds?.length) {
+    for (const id of params.countryIds) paramsQS.append("countryIds", id);
+  }
+  if (params.regionIds?.length) {
+    for (const id of params.regionIds) paramsQS.append("regionIds", String(id));
+  }
+
+  const r = await apiFetch(`/catalog/locations?${paramsQS.toString()}`);
   if (!r.ok) throw new Error("Failed to load locations");
   return r.json();
 }
@@ -419,12 +437,13 @@ export type CatalogCategory = { id: number; nameEn?: string | null; nameRu?: str
 export type CatalogBuilder  = { id: number; name: string };
 export type CatalogModel    = { id: number; name: string; builderId?: number | null; categoryId?: number | null };
 
-export type CatalogRegion   = {
+export type CatalogRegion = {
   id: number;
   nameEn?: string | null;
   nameRu?: string | null;
   nameDe?: string | null;
-  countryCode?: string | null;
+  countryId?: string | null; // ← UUID
+  country?: { code2: string; name: string } | null;
 };
 
 export async function findCategories(query = "", take = 20) {
@@ -455,14 +474,18 @@ export async function findModels(
 
 export async function findRegions(
   query = "",
-  opts?: { countryCode?: string; take?: number; skip?: number }
+  opts?: { countryIds?: string[]; take?: number; skip?: number }
 ) {
   const params = new URLSearchParams();
   if (query) params.set("query", query);
-  if (opts?.countryCode) params.set("countryCode", opts.countryCode);
   if (opts?.take != null) params.set("take", String(opts.take));
   if (opts?.skip != null) params.set("skip", String(opts.skip));
-  const r = await apiFetch(`/catalog/regions?${params.toString()}`); // <-- ВАЖНО: /catalog/regions
+
+  if (opts?.countryIds?.length) {
+    for (const id of opts.countryIds) params.append("countryIds", id);
+  }
+
+  const r = await apiFetch(`/catalog/regions?${params.toString()}`);
   if (!r.ok) throw new Error("regions HTTP " + r.status);
   return (await r.json()) as { items: CatalogRegion[] };
 }
@@ -471,7 +494,7 @@ export async function findRegions(
 export async function saveCompetitorFilters(dto: {
   scope: "USER" | "ORG";
   locationIds?: string[];
-  countryCodes?: string[];    // ← шлём ISO-2: [“GR”,“HR”]
+  countryIds?: string[];       // ← теперь UUID: [ "cmg674pw..." ]
   categoryIds?: number[];
   builderIds?: number[];
   modelIds?: number[];

@@ -1,14 +1,16 @@
 // frontend/src/pages/CompetitorFiltersPage.tsx
+
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import Select from "react-select";
 import AsyncSelect from "react-select/async";
-import { findRegions } from "../api";
+
 import RangePair from "../components/RangePair";
 import NumberField from "../components/NumberField";
 import ModalFooter from "../components/ModalFooter";
 import {
   getCountries,
+  findRegions,
   getLocations,
   saveCompetitorFilters,
   getCompetitorFilters,
@@ -21,6 +23,8 @@ import {
   type CatalogCategory,
   type CatalogBuilder,
   type CatalogModel,
+  type CatalogRegion,
+  type CompetitorFiltersDto,
 } from "../api";
 
 // --- i18n-ready labels ---
@@ -54,37 +58,50 @@ const SHOW_PEOPLE = false;
 
 type Scope = "USER" | "ORG";
 
-type SaveDto = {
-  scope: Scope;
-  locationIds?: string[];
-  countryCodes?: string[];
+// тип DTO полностью синхронизирован с API
+type SaveDto = CompetitorFiltersDto;
 
-  // числа, как ожидает API
-  categoryIds?: number[];
-  builderIds?: number[];
-  modelIds?: number[];
-  regionIds?: number[];
-
-  lenFtMinus: number;
-  lenFtPlus: number;
-  yearMinus: number;
-  yearPlus: number;
-  peopleMinus: number;
-  peoplePlus: number;
-  cabinsMinus: number;
-  cabinsPlus: number;
-  headsMin: number;
+// option shapes for react-select
+type CountryOpt = { value: string; label: string }; // value = country.id (UUID)
+type RegionOpt  = { value: number; label: string; countryId?: string };
+type LocationOpt = {
+  value: string;     // location.id (UUID)
+  label: string;     // "HR › Split region › Marina Kaštela"
+  countryId?: string | null;
+  regionId?: number | null;
 };
-
-type CountryOpt = { value: string; label: string };
-type LocationOpt = { value: string; label: string; countryCode?: string | null };
 type IdLabel = { value: number; label: string };
-type Option = { value: string; label: string };
 
-const toLocOption = (l: { id: string; name: string; countryCode?: string | null }): Option => ({
-  value: l.id,
-  label: l.countryCode ? `${l.name} (${l.countryCode})` : l.name,
-});
+function makeRegionLabel(r: {
+  id: number;
+  nameEn?: string | null;
+  nameRu?: string | null;
+  nameDe?: string | null;
+  country?: { code2: string; name: string } | null;
+}): string {
+  const primary =
+    r.nameEn ||
+    r.nameRu ||
+    r.nameDe ||
+    `#${r.id}`;
+  if (r.country?.code2) {
+    return `${r.country.code2} › ${primary}`;
+  }
+  return primary;
+}
+
+function makeLocationLabel(l: {
+  name: string;
+  country?: { code2: string; name: string } | null;
+  regionName?: string | null;
+}): string {
+  // prefer "HR › Split region › Marina Kaštela"
+  const parts: string[] = [];
+  if (l.country?.code2) parts.push(l.country.code2);
+  if (l.regionName) parts.push(l.regionName);
+  parts.push(l.name);
+  return parts.join(" › ");
+}
 
 export default function CompetitorFiltersPage({
   scope = "USER",
@@ -139,23 +156,35 @@ export default function CompetitorFiltersPage({
   const [cabinsPlus, setCabinsPlus] = useState(1)
   const [headsMin, setHeadsMin] = useState(1)
 
-  // countries / locations
-  const [countries, setCountries] = useState<CountryOpt[]>([])
-  const [selectedCountries, setSelectedCountries] = useState<CountryOpt[]>([])
-  const [locations, setLocations] = useState<LocationOpt[]>([])
-  const [selectedLocations, setSelectedLocations] = useState<LocationOpt[]>([])
-  const [locLoading, setLocLoading] = useState(false)
+  // --- GEO CASCADE STATE ---
+  // Countries
+  const [countries, setCountries] = useState<CountryOpt[]>([]);
+  const [selectedCountries, setSelectedCountries] = useState<CountryOpt[]>([]);
 
-  const [locQuery, setLocQuery] = useState('')
-  // все выбранные страны → ISO-2 (верхним регистром)
-  const countryCodes = useMemo(
-    () => selectedCountries.map(c => c.value.toUpperCase()), [selectedCountries])
+  // Regions
+  const [regionsOptions, setRegionsOptions] = useState<RegionOpt[]>([]);
+  const [regionsSel, setRegionsSel] = useState<RegionOpt[]>([]);
+  const [regionsLoading, setRegionsLoading] = useState(false);
+
+  // Locations (marinas/bases)
+  const [locationsOptions, setLocationsOptions] = useState<LocationOpt[]>([]);
+  const [selectedLocations, setSelectedLocations] = useState<LocationOpt[]>([]);
+  const [locLoading, setLocLoading] = useState(false);
+
+  // derived arrays we will send to backend
+  const countryIds = useMemo(
+    () => selectedCountries.map((c) => c.value),
+    [selectedCountries]
+  );
+  const regionIds = useMemo(
+    () => regionsSel.map((r) => r.value),
+    [regionsSel]
+  );
 
   // NEW: categories / builders / models (selected)
   const [catsSel, setCatsSel] = useState<IdLabel[]>([])
   const [buildersSel, setBuildersSel] = useState<IdLabel[]>([])
   const [modelsSel, setModelsSel] = useState<IdLabel[]>([])
-  const [regionsSel, setRegionsSel] = useState<IdLabel[]>([])
 
   // Кнопка Reset неактивна, если «и так пусто»
   const nothingSelected = useMemo(
@@ -169,74 +198,138 @@ export default function CompetitorFiltersPage({
     [selectedCountries, selectedLocations, catsSel, buildersSel, modelsSel, regionsSel]
   )
 
-  // load countries (once)
+  // 1) load countries (once)
   useEffect(() => {
-    let active = true
-    getCountries()
-      .then((list: Country[]) => {
-        if (!active) return
-        const opts = list
+    let active = true;
+    (async () => {
+      try {
+        const list: Country[] = await getCountries();
+        if (!active) return;
+        // Country: { id, code2, name }
+        const opts: CountryOpt[] = list
           .slice()
           .sort((a, b) => a.name.localeCompare(b.name))
-          .map((c) => ({ value: c.code2, label: c.name }))
-        setCountries(opts)
-      })
-      .catch((e) => console.error('Failed to load countries:', e))
+          .map((c) => ({
+            value: c.id,
+            label: `${c.name} (${c.code2})`,
+          }));
+        setCountries(opts);
+      } catch (e) {
+        console.error("Failed to load countries:", e);
+      }
+    })();
     return () => {
-      active = false
-    }
-  }, [])
+      active = false;
+    };
+  }, []);
 
-  // when countries or search change → reload locations (union по всем странам)
+  // 2) whenever countryIds[] changes → reload regions (cascade)
   useEffect(() => {
-    let aborted = false
-    ;(async () => {
+    let cancelled = false;
+    (async () => {
+      if (!countryIds.length) {
+        setRegionsOptions([]);
+        setRegionsSel([]);
+        return;
+      }
+      setRegionsLoading(true);
+      try {
+        // backend expects comma-separated countryIds in query
+        const { items } = await findRegions("", {
+          countryIds,
+          take: 200,
+        });
+
+        if (cancelled) return;
+
+        // convert to RegionOpt
+        const regionOpts: RegionOpt[] = (items as CatalogRegion[]).map((r) => ({
+          value: r.id,
+          label: makeRegionLabel({
+            id: r.id,
+            nameEn: r.nameEn,
+            nameRu: r.nameRu,
+            nameDe: r.nameDe,
+            country: (r as any).country ?? null,
+          }),
+          countryId: (r as any).countryId ?? undefined,
+        }));
+
+        setRegionsOptions(regionOpts);
+
+        // clean selected regions that are not in new options
+        setRegionsSel((prev) =>
+          prev.filter((sel) => regionOpts.some((opt) => opt.value === sel.value))
+        );
+      } catch (e) {
+        console.error("Failed to load regions:", e);
+        if (!cancelled) {
+          setRegionsOptions([]);
+          setRegionsSel([]);
+        }
+      } finally {
+        if (!cancelled) setRegionsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [countryIds]);
+
+  // 3) whenever countryIds[] OR regionIds[] changes → reload locations (cascade)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!countryIds.length && !regionIds.length) {
+        setLocationsOptions([]);
+        setSelectedLocations([]);
+        return;
+      }
+
       setLocLoading(true)
       try {
+        const { items } = await getLocations({
+          countryIds: countryIds.length ? countryIds : undefined,
+          regionIds: regionIds.length ? regionIds : undefined,
+          source: 'NAUSYS',
+          take: 1000,
+        })
 
-        // если стран нет — грузим без фильтра страны (поиск по всему справочнику)
-        const codes = countryCodes.length ? countryCodes : [undefined]
-        const pages = await Promise.all(
-          codes.map(code =>
-            getLocations({
-              q: locQuery || undefined,
-              countryCode: code,       // undefined → параметр не уйдёт
-              take: 500,
-              // orderBy: 'name',
-            })
-          )
+        if (cancelled) return
+
+        const locOpts: LocationOpt[] = items.map((l) => ({
+          value: l.id,
+          label: makeLocationLabel({
+            name: l.name,
+            regionName: l.regionName ?? null,
+            country: l.country ?? null,
+          }),
+          countryId: l.countryId ?? null,
+          regionId: l.regionId ?? null,
+        }))
+
+        setLocationsOptions(locOpts)
+
+        // clean selected locations that are not in options anymore
+        setSelectedLocations((prev) =>
+          prev.filter((sel) => locOpts.some((opt) => opt.value === sel.value))
         )
-        if (aborted) return
-
-        const items = pages.flatMap(p => p.items ?? [])
-        const dedup = new Map<string, LocationOpt>()
-        for (const l of items) {
-          const opt: LocationOpt = {
-            value: l.id,
-            label: l.countryCode ? `${l.name} (${l.countryCode})` : l.name,
-            countryCode: l.countryCode ?? null,
-          }
-          if (!dedup.has(opt.value)) dedup.set(opt.value, opt)
-        }
-        const list = Array.from(dedup.values()).sort((a, b) => a.label.localeCompare(b.label))
-        setLocations(list)
-        // вычистим выбранные, которых больше нет в options
-        setSelectedLocations(prev => prev.filter(p => dedup.has(p.value)))
-
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (e) {
-        if (!aborted) {
-          setLocations([])
+        console.error('Failed to load locations:', e)
+        if (!cancelled) {
+          setLocationsOptions([])
           setSelectedLocations([])
         }
       } finally {
-        if (!aborted) setLocLoading(false)
+        if (!cancelled) setLocLoading(false)
       }
-    })()
+    })();
+
     return () => {
-      aborted = true
-    }
-  }, [countryCodes, locQuery])
+      cancelled = true;
+    };
+  }, [countryIds, regionIds]);
 
   // ===== Async loaders for catalog dropdowns =====
   const loadCategories = useCallback(async (inputValue: string): Promise<IdLabel[]> => {
@@ -267,32 +360,28 @@ export default function CompetitorFiltersPage({
     [buildersSel, catsSel]
   )
 
-  // NEW: async loader for regions
-  const loadRegions = useCallback(async (inputValue: string): Promise<IdLabel[]> => {
-    const { items } = await findRegions(inputValue ?? '', { take: 20 })
-    return items.map((r) => ({
-      value: r.id,
-      label:
-        r.nameEn ||
-        r.nameRu ||
-        r.nameDe ||
-        (r.countryCode ? `#${r.id} (${r.countryCode})` : `#${r.id}`),
-    }))
-  }, [])
+  // ⚠ regions now come from cascade state (regionsOptions).
+  // AsyncSelect's loadOptions can just resolve cached regionsOptions filtered by input.
+  const loadRegionsAsync = useCallback(
+    async (inputValue: string): Promise<RegionOpt[]> => {
+      const needle = (inputValue || "").toLowerCase();
+      return regionsOptions.filter((opt) =>
+        opt.label.toLowerCase().includes(needle)
+      );
+    },
+    [regionsOptions]
+  );
 
   // build DTO
   const dto: SaveDto = useMemo(
     () => ({
       scope,
-      countryCodes: selectedCountries.map((c) => c.value),
+      countryIds,
+      regionIds,
       locationIds: selectedLocations.map((l) => l.value),
-
-      // передаем ЧИСЛА, как требует API
       categoryIds: catsSel.map((x) => x.value),
       builderIds: buildersSel.map((x) => x.value),
       modelIds: modelsSel.map((x) => x.value),
-      regionIds: regionsSel.map((x) => x.value),
-
       lenFtMinus,
       lenFtPlus,
       yearMinus,
@@ -364,17 +453,12 @@ export default function CompetitorFiltersPage({
         setCabinsPlus(preset.cabinsPlus ?? 1)
         setHeadsMin(preset.headsMin ?? 1)
 
-        // locations from preset
-        const locOpts: Option[] = (preset.locations ?? []).map(toLocOption)
-        setSelectedLocations(locOpts)
-
-        // countries from preset (новый M2M)
-        const countryOpts: CountryOpt[] = (preset.countries ?? []).map((c) => ({
-          // если селект работает по ISO-2:
-          value: c.code2,
+        // countries from preset (M2M countries[])
+        const presetCountries: CountryOpt[] = (preset.countries ?? []).map((c) => ({
+          value: c.id,
           label: `${c.name} (${c.code2})`,
-        }))
-        setSelectedCountries(countryOpts)
+        }));
+        setSelectedCountries(presetCountries);
 
         // NEW: hydrate cats/builders/models if present
         if (Array.isArray(preset.categories)) {
@@ -391,18 +475,51 @@ export default function CompetitorFiltersPage({
         if (Array.isArray(preset.models)) {
           setModelsSel(preset.models.map((m) => ({ value: m.id, label: m.name })))
         }
-        // NEW: hydrate regions
+
+        // regions from preset
         if (Array.isArray(preset.regions)) {
-          setRegionsSel(
-            preset.regions.map((r) => ({
-              value: r.id,
-              label:
-                r.nameEn ||
-                r.nameRu ||
-                r.nameDe ||
-                (r.countryCode ? `#${r.id} (${r.countryCode})` : `#${r.id}`),
-            }))
-          )
+          const presetRegions: RegionOpt[] = preset.regions.map((r) => ({
+            value: r.id,
+            label: makeRegionLabel({
+              id: r.id,
+              nameEn: r.nameEn,
+              nameRu: r.nameRu,
+              nameDe: r.nameDe,
+              country: (r as any).country ?? null,
+            }),
+            countryId: (r as any).countryId ?? undefined,
+          }));
+          setRegionsSel(presetRegions);
+          // важно: добавить их в options тоже, чтобы AsyncSelect показал value
+          setRegionsOptions((old) => {
+            const merged = [...old];
+            presetRegions.forEach((pr) => {
+              if (!merged.some((m) => m.value === pr.value)) {
+                merged.push(pr);
+              }
+            });
+            return merged;
+          });
+        }
+
+        // locations from preset
+        if (Array.isArray(preset.locations)) {
+          const presetLocs: LocationOpt[] = preset.locations.map((l) => ({
+            value: l.id,
+            label: l.countryCode
+              ? `${l.name} (${l.countryCode})`
+              : l.name,
+          }));
+          setSelectedLocations(presetLocs);
+          setLocationsOptions((old) => {
+            const merged = [...old];
+            presetLocs.forEach((pl) => {
+              if (!merged.some((m) => m.value === pl.value)) {
+                merged.push(pl);
+              }
+            });
+            return merged;
+          });
         }
       } catch (e) {
         console.warn('[CompetitorFilters] failed to load preset:', e)
@@ -498,39 +615,35 @@ export default function CompetitorFiltersPage({
           />
         </label>
 
-        {/* Regions (multi, async) */}
+        {/* Regions (multi, async, but fed from cascade cache) */}
         <label className="flex flex-col gap-1">
           <span>{t.regions}</span>
-          <AsyncSelect<IdLabel, true>
-            cacheOptions
-            defaultOptions
-            isMulti
-            loadOptions={loadRegions}
-            value={regionsSel}
-            onChange={(vals) => setRegionsSel(vals as IdLabel[])}
-            placeholder={t.chooseRegions}
-            classNamePrefix="rs"
-          />
+          <AsyncSelect<RegionOpt, true>
+              isMulti
+              cacheOptions
+              defaultOptions={regionsOptions}
+              loadOptions={loadRegionsAsync}
+              value={regionsSel}
+              onChange={(vals) => setRegionsSel(vals as RegionOpt[])}
+              isDisabled={countryIds.length === 0 || regionsLoading}
+              placeholder={regionsLoading ? t.loading : t.chooseRegions}
+              classNamePrefix="rs"
+            />
         </label>
 
         {/* Locations (multi) */}
         <label className="flex flex-col gap-1">
           <span>{t.locations}</span>
           <Select<LocationOpt, true>
-            isMulti
-            isDisabled={selectedCountries.length === 0 || locLoading}
-            options={locations}
-            value={selectedLocations}
-            onChange={(vals) => setSelectedLocations(vals as LocationOpt[])}
-            onInputChange={(input) => {
-              setLocQuery(input)
-              return input
-            }}
-            placeholder={locLoading ? t.loading : t.chooseLocations}
-            classNamePrefix="rs"
-          />
+              isMulti
+              isDisabled={(countryIds.length === 0 && regionIds.length === 0) || locLoading}
+              options={locationsOptions}
+              value={selectedLocations}
+              onChange={(vals) => setSelectedLocations(vals as LocationOpt[])}
+              placeholder={locLoading ? t.loading : t.chooseLocations}
+              classNamePrefix="rs"
+            />
         </label>
-
         {/* Categories (multi, async) */}
         <label className="flex flex-col gap-1">
           <span>{t.categories}</span>
