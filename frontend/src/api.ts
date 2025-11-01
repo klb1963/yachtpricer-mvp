@@ -529,8 +529,11 @@ export async function upsertCompetitorFilters(dto: CompetitorFiltersDto)
 }
 
 // ---- Test scan (dry-run) ----
-export async function testFiltersCount<T extends object>(payload: T): Promise<{ count: number }> {
-  const r = await apiFetch("/scrape/test", {
+export async function testFiltersCount<T extends object>(
+  payload: T
+): Promise<{ count: number }> {
+  // бек ждёт POST /filters/competitors/test
+  const r = await apiFetch("/filters/competitors/test", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -571,4 +574,108 @@ export async function getCompetitorFilters(): Promise<ServerCompetitorFilters | 
     console.warn("[api.getCompetitorFilters] failed:", e);
     return null;
   }
+}
+
+// ============================
+// Filter Presets API
+// ============================
+//
+// Таблица CompetitorFilterPreset в бэкенде:
+// id, orgId, userId, scope, name,
+// countryIds[], regionIds[], locationIds[],
+// categoryIds[], builderIds[], modelIds[],
+// lenFtMinus/Plus, yearMinus/Plus, peopleMinus/Plus,
+// cabinsMinus/Plus, headsMin, timestamps
+//
+// На фронтенде нам нужно:
+//  - получить список пресетов юзера (listPresets)
+//  - создать новый (createPreset)
+//  - обновить существующий (updatePreset)
+//  - удалить (deletePreset)
+//  - получить конкретный (getPreset)
+//
+
+export type FilterPreset = {
+  id: string;
+  orgId: string;
+  userId: string | null;
+  scope: "USER" | "ORG";
+  name: string;
+
+  countryIds: string[];
+  regionIds: number[];
+  locationIds: string[];
+
+  categoryIds: number[];
+  builderIds: number[];
+  modelIds: number[];
+
+  lenFtMinus: number;
+  lenFtPlus: number;
+  yearMinus: number;
+  yearPlus: number;
+  peopleMinus: number;
+  peoplePlus: number;
+  cabinsMinus: number;
+  cabinsPlus: number;
+  headsMin: number;
+
+  createdAt: string;
+  updatedAt: string;
+};
+
+// тело на создание/обновление — то, что разрешает сервис
+export type FilterPresetInput = {
+  name?: string;
+  scope?: "USER" | "ORG";
+  countryIds?: string[];
+  regionIds?: number[];
+  locationIds?: string[];
+  categoryIds?: number[];
+  builderIds?: number[];
+  modelIds?: number[];
+  lenFtMinus?: number;
+  lenFtPlus?: number;
+  yearMinus?: number;
+  yearPlus?: number;
+  peopleMinus?: number;
+  peoplePlus?: number;
+  cabinsMinus?: number;
+  cabinsPlus?: number;
+  headsMin?: number;
+};
+
+// GET /filters/presets → список пресетов текущего юзера в его org
+export async function listFilterPresets(): Promise<FilterPreset[]> {
+  const { data } = await api.get<FilterPreset[]>("/filters/presets");
+  return data;
+}
+
+// GET /filters/presets/:id → один пресет (валидация orgId на бэке)
+export async function getFilterPreset(id: string): Promise<FilterPreset | null> {
+  const { data } = await api.get<FilterPreset | null>(`/filters/presets/${id}`);
+  return data ?? null;
+}
+
+// POST /filters/presets → создать (name обязателен по смыслу UI)
+export async function createFilterPreset(input: FilterPresetInput): Promise<FilterPreset> {
+  const { data } = await api.post<FilterPreset>("/filters/presets", input);
+  return data;
+}
+
+// PATCH /filters/presets/:id → частично обновить
+export async function updateFilterPreset(
+  id: string,
+  input: FilterPresetInput
+): Promise<FilterPreset> {
+  const { data } = await api.patch<FilterPreset>(`/filters/presets/${id}`, input);
+  return data;
+}
+
+// DELETE /filters/presets/:id → удалить
+export async function deleteFilterPreset(
+  id: string
+): Promise<{ count: number }> {
+  const { data } = await api.delete<{ count: number }>(`/filters/presets/${id}`);
+  return data;
 }
