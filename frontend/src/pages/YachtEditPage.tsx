@@ -61,9 +61,9 @@ const range = (from: number, to: number) =>
 
 const CURRENT_YEAR = new Date().getFullYear();
 const LENGTH_OPTIONS = range(5, 100);      // feet
-const BUILT_YEAR_OPTIONS = range(1990, CURRENT_YEAR);
-const CABINS_OPTIONS = range(2, 6);
-const HEADS_OPTIONS = range(1, 4);
+const BUILT_YEAR_OPTIONS = range(1990, CURRENT_YEAR + 2);
+const CABINS_OPTIONS = range(2, 12);
+const HEADS_OPTIONS = range(1, 12);
 
 export default function YachtEditPage() {
   type Opt = { value: string; label: string }
