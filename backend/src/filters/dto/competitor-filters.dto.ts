@@ -1,4 +1,5 @@
 // backend/src/filters/dto/competitor-filters.dto.ts
+
 import { AtLeastOne } from '../../validators/at-least-one.validator';
 import { IsArray, IsOptional, IsNumber, Min, Max } from 'class-validator';
 import { Transform } from 'class-transformer';

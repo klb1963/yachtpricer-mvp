@@ -25,6 +25,11 @@ docker compose run --rm --entrypoint "" \
 📂 Результат:
 появляется backend/prisma/migrations/<timestamp>_<name>/migration.sql
 
+Перезапуск бекэнда:
+docker compose down && docker compose build backend && docker compose up -d backend
+или
+docker compose up -d --build backend
+
 	3.	Внутри backend/ (VS Code терминал):
 
 cd /workspace/backend

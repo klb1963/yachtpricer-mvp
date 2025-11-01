@@ -1,4 +1,5 @@
 // backend/src/filters/competitor-filters.controller.ts
+
 import {
   BadRequestException,
   Body,

@@ -108,6 +108,8 @@ model Organization {
   // 👇 обратная сторона связи к CompetitorFilters
   competitorFilters CompetitorFilters[]
 
+  presets CompetitorFilterPreset[]  @relation("OrgPresets")
+
   createdAt DateTime @default(now())
 }
 
@@ -373,6 +375,8 @@ model User {
   managerLinks      ManagerYacht[]
   ownerLinks        OwnerYacht[]
   auditLogs         PriceAuditLog[]     @relation("AuditActor")
+
+  presets CompetitorFilterPreset[]  @relation("UserPresets")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -673,3 +677,42 @@ model YachtModel {
   @@map("yacht_models")
 }
 
+model CompetitorFilterPreset {
+  id        String        @id @default(cuid())
+
+  // --- связи ---
+  orgId     String
+  userId    String?
+
+  org       Organization  @relation("OrgPresets", fields: [orgId], references: [id])
+  user      User?         @relation("UserPresets", fields: [userId], references: [id])
+
+  // --- общие поля ---
+  scope     FilterScope   // enum уже определён в схеме
+  name      String
+
+  // --- Геофильтры ---
+  countryIds   String[]   // UUID стран (countries.id)
+  regionIds    Int[]      // PK регионов (regions.id)
+  locationIds  String[]   // UUID марин (locations.id)
+
+  // --- Категории лодок ---
+  categoryIds  Int[]      // YachtCategory.id[]
+  builderIds   Int[]      // YachtBuilder.id[]
+  modelIds     Int[]      // YachtModel.id[]
+
+  // --- Числовые допуски ---
+  lenFtMinus   Int
+  lenFtPlus    Int
+  yearMinus    Int
+  yearPlus     Int
+  peopleMinus  Int
+  peoplePlus   Int
+  cabinsMinus  Int
+  cabinsPlus   Int
+  headsMin     Int
+
+  // --- timestamps ---
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

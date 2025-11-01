@@ -1,8 +1,21 @@
 // backend/src/filters/competitor-filters.service.ts
+
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, $Enums } from '@prisma/client';
-import { CompetitorFiltersBody } from './dto/competitor-filters.dto'; // ⬅️ новый DTO
+import { CompetitorFiltersBody } from './dto/competitor-filters.dto'; // валидированный DTO из контроллера
+
+type Defaults = {
+  lenFtMinus: number;
+  lenFtPlus: number;
+  yearMinus: number;
+  yearPlus: number;
+  peopleMinus: number;
+  peoplePlus: number;
+  cabinsMinus: number;
+  cabinsPlus: number;
+  headsMin: number;
+};
 
 @Injectable()
 export class CompetitorFiltersService {
@@ -19,11 +32,6 @@ export class CompetitorFiltersService {
     return ids
       .map((v) => (typeof v === 'string' ? Number(v) : v))
       .filter((n): n is number => Number.isFinite(n) && Number.isInteger(n));
-  }
-
-  // нормализация массивов: [] → undefined
-  private emptyToUndef<T>(a?: T[]): T[] | undefined {
-    return a && a.length ? a : undefined;
   }
 
   async getForCurrent(
@@ -138,7 +146,7 @@ export class CompetitorFiltersService {
     }
 
     // дефолты «отклонений/диапазонов»
-    const defaults = {
+    const defaults: Defaults = {
       lenFtMinus: 3,
       lenFtPlus: 3,
       yearMinus: 2,
@@ -317,7 +325,7 @@ export class CompetitorFiltersService {
    */
   async testCount(
     orgId: string,
-    userId: string | undefined,
+    _userId: string | undefined,
     dto: CompetitorFiltersBody,
   ): Promise<number> {
     // нормализуем ISO-2
