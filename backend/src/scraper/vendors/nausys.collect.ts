@@ -1,4 +1,5 @@
 // backend/src/scraper/vendors/nausys.collect.ts
+
 import { PrismaClient } from '@prisma/client';
 import {
   getCharterBases,
@@ -111,11 +112,11 @@ export async function collectNausysCandidates(params: {
     if (!name) return null;
     const n = String(name).toLowerCase();
     if (n.includes('croatia')) return 'HR';
-    if (n.includes('greece'))  return 'GR';
-    if (n.includes('turkey'))  return 'TR';
-    if (n.includes('italy'))   return 'IT';
-    if (n.includes('spain'))   return 'ES';
-    if (n.includes('france'))  return 'FR';
+    if (n.includes('greece')) return 'GR';
+    if (n.includes('turkey')) return 'TR';
+    if (n.includes('italy')) return 'IT';
+    if (n.includes('spain')) return 'ES';
+    if (n.includes('france')) return 'FR';
     return null;
   };
   type BaseLoose = Partial<{
@@ -305,9 +306,11 @@ export async function collectNausysCandidates(params: {
     const locForCountry =
       (locationFromId != null ? locationFromId : meta?.locationId) ?? null;
     const countryCode =
-      locForCountry != null ? byLocationCountry.get(locForCountry) ?? null : null;
+      locForCountry != null
+        ? (byLocationCountry.get(locForCountry) ?? null)
+        : null;
 
-      // безопасное извлечение сигнатуры имени модели без any
+    // безопасное извлечение сигнатуры имени модели без any
     const rawModelNameA = (fy as { yachtModelName?: unknown }).yachtModelName;
     const rawModelNameB = (fy as { modelName?: unknown }).modelName;
 

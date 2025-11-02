@@ -1,63 +1,91 @@
 // backend/src/filters/dto/competitor-filters.dto.ts
 
-import { AtLeastOne } from '../../validators/at-least-one.validator';
-import { IsArray, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import {
+  IsArray,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsNumber,
+  Min,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
+import { FilterScope } from '@prisma/client';
 
-// утил: приводим к массиву строк, фильтруем пустые (пустой -> undefined)
-const toStringArray = (v: unknown): string[] | undefined => {
+// Приводим вход к массиву строк. Возвращаем [] если явно пришёл пустой массив,
+// но если поля не было вообще — оставляем undefined (значит "не трогать это поле").
+function toStringArrayKeepEmpty(v: unknown): string[] | undefined {
+  if (v === undefined) return undefined;
   const arr = Array.isArray(v) ? v : v == null || v === '' ? [] : [v];
-  const clean = arr
+  return arr
     .map((x) => (typeof x === 'string' ? x.trim() : String(x)))
     .filter((x) => x.length > 0);
-  return clean.length ? clean : undefined;
-};
+}
 
-// ✅ утил: версия для M2M — сохраняем даже пустой массив []
-const toStringArrayKeepEmpty = (v: unknown): string[] | undefined => {
-  if (v === undefined) return undefined; // ключ не прислали — оставляем undefined
+// То же самое, но приводим элементы к числу (для Int[] связей).
+function toIntArrayKeepEmpty(v: unknown): number[] | undefined {
+  if (v === undefined) return undefined;
   const arr = Array.isArray(v) ? v : v == null || v === '' ? [] : [v];
-  const clean = arr
-    .map((x) => (typeof x === 'string' ? x.trim() : String(x)))
-    .filter((x) => x.length > 0);
-  return clean; // может быть [] — и это нормально (очистка)
-};
+  const nums = arr.map((x) => (typeof x === 'number' ? x : Number(x)));
+  return nums.filter((n) => Number.isInteger(n));
+}
 
-// утил: мягко приводим к числу или убираем
-const toNumberOrUndef = (v: unknown): number | undefined => {
+// Мягко приводим к числу или оставляем undefined.
+function toNumberOrUndef(v: unknown): number | undefined {
   if (v === '' || v === null || v === undefined) return undefined;
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
-};
+}
 
-export class CompetitorFiltersDto {
-  // --- IDs для M2M (если присланы — синхронизируем связи) ---
+// Это DTO, которое реально шлёт фронт через saveCompetitorFilters()
+// и которое мы используем в PATCH /filters/competitors и POST /filters/competitors/test
+export class CompetitorFiltersBody {
+  // scope: "USER" | "ORG"
+  @IsOptional()
+  @IsString()
+  scope?: FilterScope;
+
+  // Гео
+  // UUID стран (Country.id[])
   @IsOptional()
   @IsArray()
+  @IsString({ each: true })
   @Transform(({ value }) => toStringArrayKeepEmpty(value))
-  locationIds?: string[]; // string PK
+  countryIds?: string[];
+
+  // Region.id[]
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  @Transform(({ value }) => toIntArrayKeepEmpty(value))
+  regionIds?: number[];
+
+  // Location.id[] (UUID)
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @Transform(({ value }) => toStringArrayKeepEmpty(value))
+  locationIds?: string[];
+
+  // Категории / билдеры / модели яхт
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  @Transform(({ value }) => toIntArrayKeepEmpty(value))
+  categoryIds?: number[];
 
   @IsOptional()
   @IsArray()
-  @Transform(({ value }) => toStringArrayKeepEmpty(value))
-  categoryIds?: Array<string | number>; // int PK (может прийти строкой)
+  @IsInt({ each: true })
+  @Transform(({ value }) => toIntArrayKeepEmpty(value))
+  builderIds?: number[];
 
   @IsOptional()
   @IsArray()
-  @Transform(({ value }) => toStringArrayKeepEmpty(value))
-  builderIds?: Array<string | number>; // int PK
+  @IsInt({ each: true })
+  @Transform(({ value }) => toIntArrayKeepEmpty(value))
+  modelIds?: number[];
 
-  @IsOptional()
-  @IsArray()
-  @Transform(({ value }) => toStringArrayKeepEmpty(value))
-  modelIds?: Array<string | number>; // int PK
-
-  @IsOptional()
-  @IsArray()
-  @Transform(({ value }) => toStringArrayKeepEmpty(value))
-  regionIds?: Array<string | number>; // int PK
-
-  // --- ОТКЛОНЕНИЯ / SETTINGS ---
+  // Диапазоны / допуски
   @IsOptional()
   @Transform(({ value }) => toNumberOrUndef(value))
   @IsNumber()
@@ -111,106 +139,4 @@ export class CompetitorFiltersDto {
   @IsNumber()
   @Min(0)
   headsMin?: number;
-
-  @IsOptional()
-  scope?: 'USER' | 'ORG';
-
-  // --- ТЕРРИТОРИЯ ---
-  @IsOptional()
-  @IsArray()
-  @Transform(({ value }) =>
-    toStringArrayKeepEmpty(value)?.map((s) => s.toUpperCase()),
-  )
-  countryCodes?: string[]; // ISO-2, теперь [] поддерживается для очистки
-
-  // --- «человеческие» списки для поиска (если используешь) ---
-  @IsOptional()
-  @IsArray()
-  @Transform(({ value }) => toStringArray(value))
-  regions?: string[];
-
-  @IsOptional()
-  @IsArray()
-  @Transform(({ value }) => toStringArray(value))
-  locations?: string[];
-
-  // --- ТИП/МОДЕЛЬ ---
-  @IsOptional()
-  @IsArray()
-  @Transform(({ value }) => toStringArray(value))
-  categories?: string[];
-
-  @IsOptional()
-  @IsArray()
-  @Transform(({ value }) => toStringArray(value))
-  builders?: string[];
-
-  @IsOptional()
-  @IsArray()
-  @Transform(({ value }) => toStringArray(value))
-  models?: string[];
-
-  // --- ЧИСЛОВЫЕ ДИАПАЗОНЫ ---
-  @IsOptional()
-  @Transform(({ value }) => toNumberOrUndef(value))
-  @IsNumber()
-  @Min(0)
-  lengthMin?: number;
-
-  @IsOptional()
-  @Transform(({ value }) => toNumberOrUndef(value))
-  @IsNumber()
-  @Min(0)
-  lengthMax?: number;
-
-  @IsOptional()
-  @Transform(({ value }) => toNumberOrUndef(value))
-  @IsNumber()
-  @Min(0)
-  cabinsMin?: number;
-
-  @IsOptional()
-  @Transform(({ value }) => toNumberOrUndef(value))
-  @IsNumber()
-  @Min(0)
-  cabinsMax?: number;
-
-  @IsOptional()
-  @Transform(({ value }) => toNumberOrUndef(value))
-  @IsNumber()
-  @Min(1900)
-  @Max(new Date().getFullYear() + 1)
-  yearMin?: number;
-
-  @IsOptional()
-  @Transform(({ value }) => toNumberOrUndef(value))
-  @IsNumber()
-  @Min(1900)
-  @Max(new Date().getFullYear() + 1)
-  yearMax?: number;
-
-  @IsOptional()
-  @Transform(({ value }) => toNumberOrUndef(value))
-  @IsNumber()
-  @Min(0)
-  priceMin?: number;
-
-  @IsOptional()
-  @Transform(({ value }) => toNumberOrUndef(value))
-  @IsNumber()
-  @Min(0)
-  priceMax?: number;
-}
-
-// --- ВАЛИДАЦИЯ «хотя бы одно поле заполнено» ---
-export class CompetitorFiltersBody extends CompetitorFiltersDto {
-  @AtLeastOne([
-    'countryCodes',
-    'regions',
-    'locations',
-    'categories',
-    'builders',
-    'models',
-  ])
-  private readonly __atLeastOneMarker__!: unknown;
 }

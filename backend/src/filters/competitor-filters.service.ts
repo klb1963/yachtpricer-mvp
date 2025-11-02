@@ -26,7 +26,7 @@ export class CompetitorFiltersService {
     return typeof v === 'number' && Number.isFinite(v) ? v : def;
   }
 
-  // из DTO (string[] | number[]) → number[] для connect
+  // helper: dto.regionIds / dto.categoryIds / ... → number[]
   private toIntIds(ids?: Array<string | number>): number[] {
     if (!Array.isArray(ids)) return [];
     return ids
@@ -207,30 +207,15 @@ export class CompetitorFiltersService {
 
     // ===== СИНХРОНИЗАЦИЯ M2M-СВЯЗЕЙ (только если поле прислано в DTO) =====
 
-    // Countries — поддерживаем и countries (ids), и countryCodes (ISO-2)
-    if (dto.countryCodes !== undefined) {
-      // нормализуем коды
-      const codes = (dto.countryCodes ?? [])
-        .map((c) => String(c).trim().toUpperCase())
-        .filter(Boolean);
-
-      // ищем соответствующие id
-      const found = codes.length
-        ? await this.prisma.country.findMany({
-            where: { code2: { in: codes } },
-            select: { id: true },
-          })
-        : [];
-
-      // уникальные ID для connect
-      const ids = Array.from(new Set(found.map((x) => x.id)));
-
+    // Countries: dto.countryIds (UUID[] стран)
+    if (dto.countryIds !== undefined) {
+      const ids = dto.countryIds ?? [];
       await this.prisma.competitorFilters.update({
         where: { id: saved.id },
         data: {
           countries: {
-            set: [], // очистить все
-            ...(ids.length ? { connect: ids.map((id) => ({ id })) } : {}), // при пустом ids просто очистим связи
+            set: [],
+            ...(ids.length ? { connect: ids.map((id) => ({ id })) } : {}),
           },
         },
       });
@@ -321,23 +306,27 @@ export class CompetitorFiltersService {
 
   /**
    * Подсчёт количества яхт под заданные фильтры.
-   * MVP: учитываем только countryCodes (ISO-2) через relation Yacht.location.countryCode.
+   * MVP сейчас: считаем только по странам countryIds[]
+   * (эти UUID — это Country.id, и Yacht.countryId указывает на ту же Country.id)
    */
   async testCount(
     orgId: string,
     _userId: string | undefined,
     dto: CompetitorFiltersBody,
   ): Promise<number> {
-    // нормализуем ISO-2
-    const countryCodes = (dto.countryCodes ?? [])
-      .map((c) => String(c).trim().toUpperCase())
-      .filter(Boolean);
+    const countryIds = Array.isArray(dto.countryIds)
+      ? dto.countryIds.filter((id): id is string => !!id && id.length > 0)
+      : [];
 
-    // Prisma where: org + (опционально) фильтр по стране через relation location
     const where: Prisma.YachtWhereInput =
-      countryCodes.length > 0
-        ? { orgId, country: { is: { code2: { in: countryCodes } } } } // ✅ фильтр по связи country
-        : { orgId };
+      countryIds.length > 0
+        ? {
+            orgId,
+            countryId: { in: countryIds },
+          }
+        : {
+            orgId,
+          };
 
     return this.prisma.yacht.count({ where });
   }
