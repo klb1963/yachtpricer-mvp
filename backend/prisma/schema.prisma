@@ -286,6 +286,11 @@ model CompetitorPrice {
   discountPct Decimal? @db.Decimal(12, 2) // реальная скидка на итог против “прайса”
   feesTotal   Decimal? @db.Decimal(12, 2) // доп. сборы (чистка/турист.налог и т.п.), если считаем
 
+  // гео-конкурента
+  countryCode String?  // ISO-2 ("HR", "GR", ...)
+  countryId   String?  // FK -> Country.id (наш UUID)
+  country     Country? @relation(fields: [countryId], references: [id])
+
   // часто удобно дедуплицировать по ссылке + неделя + источник:
   @@unique([source, link, weekStart])
   @@index([weekStart, source])
@@ -469,6 +474,9 @@ model Country {
   competitorFilters CompetitorFilters[] @relation("FiltersCountries")
 
   yachts            Yacht[]
+
+  // связь с CompetitorPrice.countryId
+  competitorPrices  CompetitorPrice[]
 
   @@index([name])
   @@map("countries")
