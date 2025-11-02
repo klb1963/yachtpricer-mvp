@@ -11,7 +11,7 @@ import {
   NauSysYacht,
   NauSysFreeYachtItem,
 } from './nausys.client';
-import type { NauSysCandidate } from './nausys.runner';
+import { NauSysCandidate } from './nausys.types';
 
 const prisma = new PrismaClient();
 
@@ -34,6 +34,14 @@ function pickArray<T>(val: unknown, guard: (u: unknown) => u is T): T[] {
 
 type BasesWrap = { bases?: unknown };
 type YWrap = { yachts?: unknown };
+
+// Расширенный кандидат, который вернём наружу:
+// добавляем страну конкурента (и raw из NauSYS).
+export type ExtendedCandidate = NauSysCandidate & {
+  countryId: string | null;
+  countryCode: string | null;
+  raw: NauSysFreeYachtItem;
+};
 
 type NauSysYachtLoose = NauSysYacht &
   Partial<{
@@ -81,7 +89,7 @@ export async function collectNausysCandidates(params: {
   periodTo: Date;
   /** hint для типа у кандидатов, обычно тип target яхты */
   candidateTypeHint?: string | null;
-}): Promise<Array<NauSysCandidate & { raw: NauSysFreeYachtItem }>> {
+}): Promise<ExtendedCandidate[]> {
   const { creds, periodFrom, periodTo, candidateTypeHint = null } = params;
 
   const PERIOD_FROM = ddmmyyyy(periodFrom);
@@ -106,42 +114,21 @@ export async function collectNausysCandidates(params: {
   if (companyIds.length === 0) return [];
 
   // ───────────────────────────────────────────────────────────────
-  // Построим мапу: locationId -> countryCode (из charter bases)
+  // Сбор метаданных по яхтам (ниже) даст нам locationId для каждой лодки.
+  // После этого мы построим МАПУ:
+  //    NauSYS locationId (number) -> { countryId(UUID), countryCode(ISO-2) }
+  //
+  // Эта мапа будет основана НЕ на угадывании текста, а на наших таблицах
+  // Location / Region / Country в БД.
   // ───────────────────────────────────────────────────────────────
-  const nameToIso2 = (name?: string | null): string | null => {
-    if (!name) return null;
-    const n = String(name).toLowerCase();
-    if (n.includes('croatia')) return 'HR';
-    if (n.includes('greece')) return 'GR';
-    if (n.includes('turkey')) return 'TR';
-    if (n.includes('italy')) return 'IT';
-    if (n.includes('spain')) return 'ES';
-    if (n.includes('france')) return 'FR';
-    return null;
-  };
-  type BaseLoose = Partial<{
-    locationId: number;
-    baseLocationId: number;
-    countryCode: string;
-    country: { code?: string | null; name?: string | null } | null;
-    countryName: string | null;
-  }>;
-  const byLocationCountry = new Map<number, string>();
-  for (const bRaw of bases as unknown as BaseLoose[]) {
-    const lid =
-      typeof bRaw?.locationId === 'number'
-        ? bRaw.locationId
-        : typeof bRaw?.baseLocationId === 'number'
-          ? bRaw.baseLocationId
-          : null;
-    const cc =
-      (bRaw?.countryCode && String(bRaw.countryCode).toUpperCase()) ||
-      (bRaw?.country?.code && String(bRaw.country.code).toUpperCase()) ||
-      nameToIso2(bRaw?.country?.name ?? bRaw?.countryName);
-    if (lid != null && cc && cc.length === 2) {
-      byLocationCountry.set(lid, cc);
-    }
-  }
+  //
+  // Шаг 1 (ниже в коде): соберём byYachtMeta с locationId для каждой яхты.
+  // Шаг 2 (после того как заполним byYachtMeta): вытащим все уникальные locationId
+  // и спросим Prisma о них.
+  //
+  // В итоге получим:
+  //   const byLocationCountryInfo = Map<number, { countryId: string; countryCode: string }>
+  // и будем пользоваться ей при формировании кандидатов.
 
   // 2) yachts by company → собираем мету (год/каюты/длина/локация/модель)
   type YachtMeta = {
@@ -200,6 +187,122 @@ export async function collectNausysCandidates(params: {
     }
   }
 
+  // ───────────────────────────────────────────────────────────────
+  // Сформируем список всех locationId, которые встретились в метаданных лодок.
+  // Это NauSYS IDs (числа), мы будем искать им соответствие в нашей таблице Location.
+  // ───────────────────────────────────────────────────────────────
+  const allLocationIds = Array.from(
+    new Set(
+      [...byYachtMeta.values()]
+        .map((m) => (typeof m.locationId === 'number' ? m.locationId : null))
+        .filter((v): v is number => v !== null),
+    ),
+  );
+
+  // Если локаций нет вообще — то карта стран будет пустой.
+  const byLocationCountryInfo = new Map<
+    number,
+    { countryId: string | null; countryCode: string | null }
+  >();
+
+  if (allLocationIds.length > 0) {
+    // Жёстко описываем ожидаемую форму строки Location из Prisma.
+    type LocRow = {
+      externalId: string | null; // у нас в Prisma это string | null
+      countryId: string | null; // UUID нашей Country или null
+      country: {
+        id: string;
+        code2: string | null;
+      } | null;
+      region: {
+        countryId: string | null;
+        country: {
+          id: string;
+          code2: string | null;
+        } | null;
+      } | null;
+    };
+
+    const dbLocations = (await prisma.location.findMany({
+      where: {
+        source: 'NAUSYS',
+        // ВАЖНО: externalId в схеме Location — строка,
+        // а allLocationIds это number[].
+        // Значит, сначала делаем массив строк.
+        externalId: { in: allLocationIds.map(String) },
+      },
+      select: {
+        externalId: true, // string | null
+        countryId: true, // string | null
+        country: {
+          select: {
+            id: true, // string
+            code2: true, // string | null
+          },
+        },
+        region: {
+          select: {
+            countryId: true, // string | null
+            country: {
+              select: {
+                id: true, // string
+                code2: true, // string | null
+              },
+            },
+          },
+        },
+      },
+    })) as unknown as LocRow[];
+
+    // безопасный апперкас для ISO-2
+    const toUpper2 = (v: unknown): string | null => {
+      return typeof v === 'string' && v.length > 0 ? v.toUpperCase() : null;
+    };
+
+    for (const loc of dbLocations) {
+      // 1. вытащить NauSYS locationId => number
+      let extIdNum: number | null = null;
+      const extVal: unknown = loc.externalId;
+      if (typeof extVal === 'number' && Number.isFinite(extVal)) {
+        extIdNum = extVal;
+      } else if (typeof extVal === 'string') {
+        const parsed = Number(extVal);
+        if (Number.isFinite(parsed)) {
+          extIdNum = parsed;
+        }
+      }
+      if (extIdNum === null) {
+        continue;
+      }
+
+      // 2. Прямая страна с Location
+      const directCountryId: string | null =
+        loc.countryId ?? (loc.country ? loc.country.id : null);
+      const directCountryCode: string | null = toUpper2(
+        loc.country ? loc.country.code2 : null,
+      );
+
+      // 3. fallback через Region
+      const regionCountryId: string | null =
+        (loc.region ? loc.region.countryId : null) ??
+        (loc.region && loc.region.country ? loc.region.country.id : null);
+      const regionCountryCode: string | null = toUpper2(
+        loc.region && loc.region.country ? loc.region.country.code2 : null,
+      );
+
+      // 4. финальные значения
+      const finalCountryId: string | null =
+        directCountryId ?? regionCountryId ?? null;
+      const finalCountryCode: string | null =
+        directCountryCode ?? regionCountryCode ?? null;
+
+      byLocationCountryInfo.set(extIdNum, {
+        countryId: finalCountryId,
+        countryCode: finalCountryCode,
+      });
+    }
+  }
+
   // 2b) если не хватает длины → подтянем из локальной YachtModel (loa — метры)
   const needModelIds = Array.from(
     new Set(
@@ -249,7 +352,7 @@ export async function collectNausysCandidates(params: {
   }
 
   // 4) превратим в кандидатов (без записи)
-  const candidates: Array<NauSysCandidate & { raw: NauSysFreeYachtItem }> = [];
+  const candidates: ExtendedCandidate[] = [];
   for (const fy of free) {
     const yachtIdNum = Number(fy?.yachtId);
     const priceFinal = num(fy?.price?.clientPrice);
@@ -302,13 +405,21 @@ export async function collectNausysCandidates(params: {
           ? String(meta.locationId)
           : null;
 
-    // Определяем страну кандидата по локации
-    const locForCountry =
+    // Шаг страны:
+    // берем NauSYS locationId (locationFromId || meta.locationId),
+    // и смотрим в byLocationCountryInfo → { countryId, countryCode }
+    const locForCountryId =
       (locationFromId != null ? locationFromId : meta?.locationId) ?? null;
-    const countryCode =
-      locForCountry != null
-        ? (byLocationCountry.get(locForCountry) ?? null)
-        : null;
+
+    let countryId: string | null = null;
+    let countryCode: string | null = null;
+    if (locForCountryId != null) {
+      const cInfo = byLocationCountryInfo.get(locForCountryId);
+      if (cInfo) {
+        countryId = cInfo.countryId ?? null;
+        countryCode = cInfo.countryCode ?? null;
+      }
+    }
 
     // безопасное извлечение сигнатуры имени модели без any
     const rawModelNameA = (fy as { yachtModelName?: unknown }).yachtModelName;
@@ -333,12 +444,17 @@ export async function collectNausysCandidates(params: {
       year,
       marina,
       type: candidateTypeHint ?? null,
-      countryCode,
       categoryId: null,
       builderId: null,
       price: Number(priceFinal),
       currency: String(fy?.price?.currency || 'EUR'),
       link: `nausys://freeYacht?id=${yachtIdNum}&from=${PERIOD_FROM}&to=${PERIOD_TO}`,
+
+      // новые поля, которые требуют тип ExtendedCandidate
+      countryId: countryId ?? null,
+      countryCode: countryCode ?? null,
+
+      // raw обязателен тоже
       raw: fy,
     });
   }
