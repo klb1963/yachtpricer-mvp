@@ -1,9 +1,18 @@
+// frontend/eslint.config.js
+
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 import { globalIgnores } from 'eslint/config'
+
+// для ESM-конфига получаем "локальный" __dirname = /workspace/frontend
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 export default tseslint.config([
   globalIgnores(['dist']),
@@ -18,6 +27,11 @@ export default tseslint.config([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+      parserOptions: {
+        // говорим typescript-eslint, что корень tsconfig — именно frontend
+        tsconfigRootDir: __dirname,
+        project: ['./tsconfig.json'],
+      },
     },
   },
 ])
