@@ -24,13 +24,14 @@ export function HeaderWithSourceBadge() {
   // }, [source, searchParams, setSearchParams]);
 
   return (
-    <div className="flex items-center justify-between">
-      {/* слева место под WeekPicker — его рендерится в родителе */}
+    <div className="flex items-center justify-between mt-2 mb-2">
+      {/* слева — место под WeekPicker */}
       <div />
-      {/* справа — бейдж; если параметр невалиден/отсутствует, бейдж скрываем */}
+
+      {/* справа — бейдж */}
       {source && (
         <span
-          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ml-3 ${
             source === "NAUSYS"
               ? "bg-green-200 text-green-800"
               : "bg-gray-200 text-gray-700"

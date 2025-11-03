@@ -25,8 +25,8 @@ export default function WeekPicker({
   value,
   onChange,
   className,
-  prevLabel = '◀ Prev week',
-  nextLabel = 'Next week ▶',
+  prevLabel = '◀',
+  nextLabel = '▶',
 }: Props) {
   return (
     <div className={`flex items-center gap-2 ${className ?? ''}`}>

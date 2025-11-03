@@ -415,7 +415,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={goPrev} disabled={page <= 1} className="rounded border px-3 py-1 disabled:opacity-50">
-            ← Prev
+            ←
           </button>
           <select
             className="rounded border px-2 py-1"
@@ -436,7 +436,7 @@ export default function DashboardPage() {
             disabled={page >= totalPages}
             className="rounded border px-3 py-1 disabled:opacity-50"
           >
-            Next →
+            →
           </button>
         </div>
       </div>

@@ -28,9 +28,8 @@ export default tseslint.config([
       ecmaVersion: 2020,
       globals: globals.browser,
       parserOptions: {
-        // говорим typescript-eslint, что корень tsconfig — именно frontend
+        project: './tsconfig.app.json',
         tsconfigRootDir: __dirname,
-        project: ['./tsconfig.json'],
       },
     },
   },
