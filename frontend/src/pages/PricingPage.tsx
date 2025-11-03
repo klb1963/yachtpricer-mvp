@@ -344,39 +344,13 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="container mx-auto px-6 py-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+       <div className="container mx-auto px-6 py-8">
+      {/* Заголовок + блок управления неделей и видом */}
+      <div className="mb-6 flex flex-col gap-3">
         <h1 className="text-3xl font-bold">{t('title')}</h1>
 
+        {/* Блок выбора недели */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Переключатель вида */}
-          <div className="flex items-center gap-2">
-            <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">
-              <button
-                type="button"
-                onClick={() => setViewMode('table')}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                  viewMode === 'table'
-                    ? 'bg-gray-900 text-white'
-                    : '!text-gray-800 hover:bg-gray-100'
-                }`}
-              >
-                {t('table')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('cards')}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                  viewMode === 'cards'
-                    ? 'bg-gray-900 text-white'
-                    : '!text-gray-800 hover:bg-gray-100'
-                }`}
-              >
-                {t('cards')}
-              </button>
-            </div>
-          </div>
-
           <button
             className="px-3 py-2 rounded border"
             onClick={() => setWeek(toYMD(prevSaturday(weekDate)))}
@@ -400,6 +374,34 @@ export default function PricingPage() {
           >
             {t('nextWeek')} ▶
           </button>
+        </div>
+
+        {/* Переключатель вида — теперь под выбором недели */}
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                viewMode === 'table'
+                  ? 'bg-gray-900 text-white'
+                  : '!text-gray-800 hover:bg-gray-100'
+              }`}
+            >
+              {t('table')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                viewMode === 'cards'
+                  ? 'bg-gray-900 text-white'
+                  : '!text-gray-800 hover:bg-gray-100'
+              }`}
+            >
+              {t('cards')}
+            </button>
+          </div>
         </div>
       </div>
 
