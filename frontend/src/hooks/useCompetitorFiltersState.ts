@@ -41,6 +41,14 @@ export type LocationOpt = {
 };
 export type IdLabel = { value: number; label: string };
 
+type CatalogRegionWithCountry = CatalogRegion & {
+  country?: {
+    code2?: string | null;
+    name?: string | null;
+  } | null;
+  countryId?: string | null;
+};
+
 // ============ helpers для подписей ============
 function makeRegionLabel(r: {
   id: number;
@@ -212,16 +220,16 @@ export default function useCompetitorFiltersState({
 
         if (cancelled) return;
 
-        const regionOpts: RegionOpt[] = (items as CatalogRegion[]).map((r) => ({
-          value: r.id,
-          label: makeRegionLabel({
+        const regionOpts: RegionOpt[] = (items as CatalogRegionWithCountry[]).map((r) => ({
+        value: r.id,
+        label: makeRegionLabel({
             id: r.id,
             nameEn: r.nameEn,
             nameRu: r.nameRu,
             nameDe: r.nameDe,
-            country: (r as any).country ?? null,
-          }),
-          countryId: (r as any).countryId ?? undefined,
+            country: r.country ?? null,
+        }),
+        countryId: r.countryId ?? undefined,
         }));
 
         setRegionsOptions(regionOpts);
@@ -466,17 +474,17 @@ export default function useCompetitorFiltersState({
 
         // regions
         if (Array.isArray(preset.regions)) {
-          const presetRegions: RegionOpt[] = preset.regions.map((r) => ({
-            value: r.id,
-            label: makeRegionLabel({
-              id: r.id,
-              nameEn: r.nameEn,
-              nameRu: r.nameRu,
-              nameDe: r.nameDe,
-              country: (r as any).country ?? null,
-            }),
-            countryId: (r as any).countryId ?? undefined,
-          }));
+            const presetRegions: RegionOpt[] = (preset.regions as CatalogRegionWithCountry[]).map((r) => ({
+                value: r.id,
+                label: makeRegionLabel({
+                id: r.id,
+                nameEn: r.nameEn,
+                nameRu: r.nameRu,
+                nameDe: r.nameDe,
+                country: r.country ?? null,
+                }),
+                countryId: r.countryId ?? undefined,
+            }));
           setRegionsSel(presetRegions);
           setRegionsOptions((old) => {
             const merged = [...old];
