@@ -356,7 +356,7 @@ export default function PricingPage() {
             onClick={() => setWeek(toYMD(prevSaturday(weekDate)))}
             disabled={loading}
           >
-            ◀ {t('prevWeek')}
+            ◀ 
           </button>
 
           <input
@@ -372,7 +372,7 @@ export default function PricingPage() {
             onClick={() => setWeek(toYMD(nextSaturday(weekDate)))}
             disabled={loading}
           >
-            {t('nextWeek')} ▶
+            ▶
           </button>
         </div>
 
