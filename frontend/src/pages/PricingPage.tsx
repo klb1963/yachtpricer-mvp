@@ -1,6 +1,7 @@
 // frontend/src/pages/PricingPage.tsx
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { changeStatus, fetchRows, upsertDecision, pairFromRow } from '../api/pricing';
 import type { PricingRow, DecisionStatus } from '../api/pricing';
 import { toYMD, nextSaturday, prevSaturday, toSaturdayUTC } from '../utils/week';
@@ -51,10 +52,24 @@ export default function PricingPage() {
   // i18n
   const { t } = useTranslation('pricing');
 
+  // query-параметры, чтобы читать/писать ?week=...
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // ────────────────────────────────────────────────────────────
   // 1) Неделя всегда в формате YYYY-MM-DD (plain date)
+  //    Инициализируемся из ?week=, если он валиден
   // ────────────────────────────────────────────────────────────
-  const [week, setWeek] = useState(() => toYMD(toSaturdayUTC(new Date())));
+  const [week, setWeek] = useState(() => {
+    const fromUrl = searchParams.get('week');
+    if (fromUrl) {
+      const parsed = new Date(`${fromUrl}T00:00:00Z`);
+      if (!Number.isNaN(parsed.getTime())) {
+        return toYMD(toSaturdayUTC(parsed));
+      }
+    }
+    return toYMD(toSaturdayUTC(new Date()));
+  });
+
   const [rows, setRows] = useState<PricingRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -72,6 +87,15 @@ export default function PricingPage() {
   const weekDate = useMemo(() => new Date(`${week}T00:00:00Z`), [week]);
   const weekLabel = useMemo(() => toYMD(weekDate), [weekDate]);
   const weekISO = useMemo(() => `${week}T00:00:00.000Z`, [week]);
+
+  // 1b) Любое изменение недели локально — записываем в URL, сохраняя остальные query
+  useEffect(() => {
+    const current = searchParams.get('week') || '';
+    if (current === week) return;
+    const next = new URLSearchParams(searchParams);
+    next.set('week', week);
+    setSearchParams(next, { replace: true });
+  }, [week, searchParams, setSearchParams]);
 
   // ─ загрузка ─
   useEffect(() => {

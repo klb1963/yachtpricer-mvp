@@ -1,3 +1,5 @@
+// frontend/src/components/WeekPicker.tsx
+
 import React from 'react';
 
 type Props = {

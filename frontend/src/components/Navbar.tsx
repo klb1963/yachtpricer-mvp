@@ -1,6 +1,6 @@
 // frontend/src/components/Navbar.tsx
 import { UserButton } from "@clerk/clerk-react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { useWhoami } from "@/hooks/useWhoami"; // ← алиас @
 
 // Небольшая утилита для классов (если у тебя уже есть cn — можно использовать её)
@@ -10,6 +10,8 @@ function cx(...classes: Array<string | false | undefined>) {
 
 export default function Navbar() {
   const { whoami, loading } = useWhoami();
+  const location = useLocation();
+  const search = location.search || "";
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     cx(
@@ -51,7 +53,7 @@ export default function Navbar() {
             { to: '/pricing', label: 'Pricing' },
             { to: '/organization', label: 'Organization' },
           ].map(({ to, label }) => (
-            <NavLink key={to} to={to} className={navLinkClass}>
+            <NavLink key={to} to={`${to}${search}`} className={navLinkClass}>
               {label}
             </NavLink>
           ))}
@@ -63,7 +65,7 @@ export default function Navbar() {
               …
             </span>
           ) : whoami?.role === 'ADMIN' ? (
-            <NavLink to="/admin/users" className={navLinkClass}>
+            <NavLink to={`/admin/users${search}`} className={navLinkClass}>
               Users
             </NavLink>
           ) : null}
