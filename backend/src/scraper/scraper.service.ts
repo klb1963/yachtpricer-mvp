@@ -117,23 +117,44 @@ export class ScraperService {
         const periodTo = new Date(weekStart);
         periodTo.setUTCDate(periodTo.getUTCDate() + 7);
 
-        // 🔧 Очистим прошлые результаты для этой яхты/недели/источника
-        // await this.prisma.competitorPrice.deleteMany({
-        //   where: {
-        //     yachtId: dto.yachtId,
-        //     weekStart,
-        //     source: PrismaScrapeSource.NAUSYS,
-        //   },
-        // });
-
-        // ⚠️ Не удаляем прежние строки заранее.
-        // Иначе при kept=0 мы теряем прошлые данные.
-        // Полагаться на upsert в раннере; он освежит существующие записи.
-
         // ── Загрузим конфиг фильтров (как и для INNERDB)
         const target = await this.prisma.yacht.findUnique({
           where: { id: dto.yachtId },
         });
+
+        // Рассчитаем "референсную" цену лодки-образца:
+        // берем минимально допустимую цену = basePrice * (1 - maxDiscountPct / 100)
+        let samplePrice: number | null = null;
+        if (target && target.basePrice != null) {
+          // basePrice может быть Decimal/number/string → аккуратно в number
+          let basePriceNum: number;
+          const bp: unknown = target.basePrice;
+          if (bp instanceof Prisma.Decimal) {
+            basePriceNum = bp.toNumber();
+          } else {
+            basePriceNum = Number(bp);
+          }
+
+          if (Number.isFinite(basePriceNum) && basePriceNum > 0) {
+            const rawMaxDisc =
+              (target as { maxDiscountPct?: number | null }).maxDiscountPct ??
+              0;
+            const maxDisc =
+              typeof rawMaxDisc === 'number' && Number.isFinite(rawMaxDisc)
+                ? rawMaxDisc
+                : 0;
+
+            const factor = 1 - maxDisc / 100;
+            samplePrice = basePriceNum * (factor > 0 ? factor : 1);
+          }
+        }
+
+        this.logger.log(
+          `[${job.id}] NAUSYS samplePrice=${samplePrice ?? 'n/a'} for week=${weekStart.toISOString()}`,
+        );
+
+        const MIN_PRICE_FACTOR = 0.5; // конкуренты дешевле 40% от расчётной цены — отбрасываются
+
         await this.filters.loadConfig(this.prisma, {
           orgId: user?.orgId ?? target?.orgId ?? null,
           userId: user?.id ?? null,
@@ -160,7 +181,9 @@ export class ScraperService {
           periodFrom: weekStart,
           periodTo,
           candidateTypeHint: targetType,
+
           accept: (c) => {
+            // 1) Базовые фильтры passes()
             const res = this.filters.passes(c, {
               jobId: job.id,
               dto,
@@ -171,12 +194,37 @@ export class ScraperService {
               targetYear,
               targetLocation,
             });
-            if (!res.ok && res.reason) {
-              this.logger.debug(
-                `[${job.id}] filtered out ${c.competitorYacht}: ${res.reason}`,
-              );
+            if (!res.ok) {
+              if (res.reason) {
+                this.logger.debug(
+                  `[${job.id}] filtered out ${c.competitorYacht}: ${res.reason}`,
+                );
+              }
+              return false;
             }
-            return res.ok;
+
+            // 2) Если нет цены образца — не фильтруем
+            if (
+              samplePrice == null ||
+              !Number.isFinite(samplePrice) ||
+              samplePrice <= 0
+            ) {
+              return true;
+            }
+
+            // 3) Отсекаем аномально дешёвых конкурентов
+            const candPrice = c.price;
+            if (typeof candPrice === 'number' && Number.isFinite(candPrice)) {
+              const minAllowed = samplePrice * MIN_PRICE_FACTOR;
+              if (candPrice < minAllowed) {
+                this.logger.debug(
+                  `[${job.id}] filtered out ${c.competitorYacht}: too cheap vs sample (cand=${candPrice}, sample=${samplePrice}, threshold=${minAllowed})`,
+                );
+                return false;
+              }
+            }
+
+            return true;
           },
         });
 
