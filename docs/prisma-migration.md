@@ -56,7 +56,6 @@ git status
 git add prisma/schema.prisma prisma/migrations
 git commit -m "Add competitor_price FK dimensions to CompetitorPrice"
 
-
 ⸻
 
 5. Перезапуск бэкенда

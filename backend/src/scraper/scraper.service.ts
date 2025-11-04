@@ -344,11 +344,17 @@ export class ScraperService {
       });
 
       // мапим к «кандидатам»
+
       const rawCandidates = others.map((y) => {
         // безопасно достаём ISO-2 код страны (если связь есть)
         const yCountryCode =
           (y as { country?: { code2?: string | null } | null }).country
             ?.code2 ?? null;
+
+        // FK страны (UUID) прямо с яхты
+        const yCountryId =
+          (y as { countryId?: string | null }).countryId ?? null;
+
         const builtYear =
           (y as { builtYear?: number | null }).builtYear ?? null;
 
@@ -371,11 +377,18 @@ export class ScraperService {
           year: builtYear,
           marina: y.location ?? null,
           type: (y as { type?: string | null }).type ?? null,
-          // ISO-2 код страны кандидата (если есть связь)
-          countryCode: yCountryCode,
-          // добавляем ID категории/производителя для фильтров
+
+          // гео и размерность
+          countryCode: yCountryCode, // ISO-2 код страны кандидата
+          countryId: yCountryId, // наш UUID страны
+          regionId: (y as { regionId?: number | null }).regionId ?? null,
+          locationId: (y as { locationId?: string | null }).locationId ?? null,
+
+          // справочники
           categoryId: (y as { categoryId?: number | null }).categoryId ?? null,
           builderId: (y as { builderId?: number | null }).builderId ?? null,
+          modelId: (y as { modelId?: number | null }).modelId ?? null,
+
           price: new Prisma.Decimal(basePriceNum),
           currency: 'EUR',
           link: `internal://yacht/${y.id}`,
@@ -457,11 +470,22 @@ export class ScraperService {
             currency: c.currency,
             link: c.link,
             scrapedAt: new Date(),
+
             lengthFt: c.lengthFt,
             cabins: c.cabins,
             heads: c.heads,
             year: c.year,
             marina: c.marina,
+
+            // новые измерения/справочники
+            countryCode: c.countryCode ?? null,
+            countryId: c.countryId ?? null,
+            regionId: c.regionId ?? null,
+            locationId: c.locationId ?? null,
+            categoryId: c.categoryId ?? null,
+            builderId: c.builderId ?? null,
+            modelId: c.modelId ?? null,
+
             scrapeJobId: job.id,
           },
           update: {
@@ -474,6 +498,16 @@ export class ScraperService {
             heads: c.heads,
             year: c.year,
             marina: c.marina,
+
+            // новые измерения/справочники
+            countryCode: c.countryCode ?? null,
+            countryId: c.countryId ?? null,
+            regionId: c.regionId ?? null,
+            locationId: c.locationId ?? null,
+            categoryId: c.categoryId ?? null,
+            builderId: c.builderId ?? null,
+            modelId: c.modelId ?? null,
+
             scrapeJobId: job.id,
           },
         });

@@ -217,6 +217,14 @@ export async function runNausysJob(params: {
           // 👇 ВАЖНО: страна конкурента
           countryId: cand.countryId ?? undefined,
           countryCode: cand.countryCode ?? undefined,
+
+          // 👇 НОВОЕ: измерения для нормальной работы фильтров
+          // (ожидаем, что ExtendedCandidate уже содержит наши FK-ID)
+          categoryId: cand.categoryId ?? undefined,
+          builderId: cand.builderId ?? undefined,
+          modelId: cand.modelId ?? undefined,
+          regionId: cand.regionId ?? undefined,
+          locationId: cand.locationId ?? undefined,
         },
         create: {
           source: ScrapeSource.NAUSYS,
@@ -245,6 +253,13 @@ export async function runNausysJob(params: {
           // 👇 пишем и UUID страны, и ISO-2
           countryId: cand.countryId ?? null,
           countryCode: cand.countryCode ?? null,
+
+          // 👇 НОВОЕ: FK по измерениям
+          categoryId: cand.categoryId ?? null,
+          builderId: cand.builderId ?? null,
+          modelId: cand.modelId ?? null,
+          regionId: cand.regionId ?? null,
+          locationId: cand.locationId ?? null,
         },
       });
 

@@ -36,11 +36,15 @@ type BasesWrap = { bases?: unknown };
 type YWrap = { yachts?: unknown };
 
 // Расширенный кандидат, который вернём наружу:
-// добавляем страну конкурента (и raw из NauSYS).
+// добавляем страну конкурента (и raw из NauSYS) + новые FK.
 export type ExtendedCandidate = NauSysCandidate & {
   countryId: string | null;
   countryCode: string | null;
   raw: NauSysFreeYachtItem;
+  // новые измерения для CompetitorPrice
+  modelId: number | null; // PK YachtModel.id
+  regionId: number | null; // PK Region.id
+  locationId: string | null; // PK Location.id (cuid)
 };
 
 type NauSysYachtLoose = NauSysYacht &
@@ -137,7 +141,11 @@ export async function collectNausysCandidates(params: {
     heads?: number | null;
     lengthM?: number | null;
     locationId?: number | null;
-    modelId?: number | null;
+    modelNausysId?: number | null; // NauSYS modelId (yachtModelId)
+    // PK из справочников
+    modelId?: number | null; // YachtModel.id
+    categoryId?: number | null; // YachtCategory.id
+    builderId?: number | null; // YachtBuilder.id
   };
   const byYachtMeta = new Map<number, YachtMeta>();
 
@@ -181,7 +189,8 @@ export async function collectNausysCandidates(params: {
           (typeof y?.locationId === 'number' ? y.locationId : null) ??
           (typeof y?.baseLocationId === 'number' ? y.baseLocationId : null) ??
           null,
-        modelId: typeof y?.yachtModelId === 'number' ? y.yachtModelId : null,
+        modelNausysId:
+          typeof y?.yachtModelId === 'number' ? y.yachtModelId : null,
       };
       byYachtMeta.set(id, meta);
     }
@@ -202,19 +211,27 @@ export async function collectNausysCandidates(params: {
   // Если локаций нет вообще — то карта стран будет пустой.
   const byLocationCountryInfo = new Map<
     number,
-    { countryId: string | null; countryCode: string | null }
+    {
+      countryId: string | null;
+      countryCode: string | null;
+      locationId: string | null; // PK Location.id
+      regionId: number | null; // PK Region.id
+    }
   >();
 
   if (allLocationIds.length > 0) {
     // Жёстко описываем ожидаемую форму строки Location из Prisma.
     type LocRow = {
-      externalId: string | null; // у нас в Prisma это string | null
+      externalId: string | null; // NauSYS locationId (как строка)
+      id: string; // PK Location.id (cuid)
+      regionId: number | null; // FK на Region.id
       countryId: string | null; // UUID нашей Country или null
       country: {
         id: string;
         code2: string | null;
       } | null;
       region: {
+        id: number;
         countryId: string | null;
         country: {
           id: string;
@@ -233,6 +250,8 @@ export async function collectNausysCandidates(params: {
       },
       select: {
         externalId: true, // string | null
+        id: true,
+        regionId: true,
         countryId: true, // string | null
         country: {
           select: {
@@ -290,7 +309,12 @@ export async function collectNausysCandidates(params: {
         loc.region && loc.region.country ? loc.region.country.code2 : null,
       );
 
-      // 4. финальные значения
+      // 4. locationId / regionId – наши PK для CompetitorPrice
+      const finalLocationId: string | null = loc.id ?? null;
+      const finalRegionId: number | null =
+        (loc.region ? loc.region.id : null) ?? loc.regionId ?? null;
+
+      // 5. финальные значения
       const finalCountryId: string | null =
         directCountryId ?? regionCountryId ?? null;
       const finalCountryCode: string | null =
@@ -299,6 +323,8 @@ export async function collectNausysCandidates(params: {
       byLocationCountryInfo.set(extIdNum, {
         countryId: finalCountryId,
         countryCode: finalCountryCode,
+        locationId: finalLocationId,
+        regionId: finalRegionId,
       });
     }
   }
@@ -307,28 +333,55 @@ export async function collectNausysCandidates(params: {
   const needModelIds = Array.from(
     new Set(
       [...byYachtMeta.values()]
-        .filter((m) => m.lengthM == null && typeof m.modelId === 'number')
-        .map((m) => m.modelId!),
+        .filter((m) => m.lengthM == null && typeof m.modelNausysId === 'number')
+        .map((m) => m.modelNausysId!),
     ),
   );
   if (needModelIds.length > 0) {
     const models = await prisma.yachtModel.findMany({
       where: { nausysId: { in: needModelIds } },
-      select: { nausysId: true, loa: true },
+      select: {
+        id: true,
+        nausysId: true,
+        loa: true,
+        categoryId: true,
+        builderId: true,
+      },
     });
-    const mapLen = new Map<number, number>();
+    const modelMap = new Map<
+      number,
+      {
+        lengthM: number | null;
+        modelId: number;
+        categoryId: number | null;
+        builderId: number | null;
+      }
+    >();
     for (const m of models) {
       const mid = Number(m.nausysId);
-      const lenM = Number(m.loa);
-      if (Number.isFinite(mid) && Number.isFinite(lenM) && lenM > 0) {
-        mapLen.set(mid, lenM);
-      }
+      const lenM = m.loa != null ? Number(m.loa) : NaN;
+      if (!Number.isFinite(mid)) continue;
+
+      modelMap.set(mid, {
+        lengthM: Number.isFinite(lenM) && lenM > 0 ? lenM : null,
+        modelId: m.id,
+        categoryId: m.categoryId ?? null,
+        builderId: m.builderId ?? null,
+      });
     }
     for (const [, meta] of byYachtMeta) {
-      if (meta.lengthM == null && typeof meta.modelId === 'number') {
-        const lm = mapLen.get(meta.modelId);
-        if (lm != null) meta.lengthM = lm;
+      if (typeof meta.modelNausysId !== 'number') continue;
+      const info = modelMap.get(meta.modelNausysId);
+      if (!info) continue;
+
+      // длина
+      if (meta.lengthM == null && info.lengthM != null) {
+        meta.lengthM = info.lengthM;
       }
+      // наши PK
+      meta.modelId = info.modelId;
+      meta.categoryId = info.categoryId;
+      meta.builderId = info.builderId;
     }
   }
 
@@ -413,11 +466,15 @@ export async function collectNausysCandidates(params: {
 
     let countryId: string | null = null;
     let countryCode: string | null = null;
+    let locationIdPk: string | null = null;
+    let regionIdPk: number | null = null;
     if (locForCountryId != null) {
       const cInfo = byLocationCountryInfo.get(locForCountryId);
       if (cInfo) {
         countryId = cInfo.countryId ?? null;
         countryCode = cInfo.countryCode ?? null;
+        locationIdPk = cInfo.locationId ?? null;
+        regionIdPk = cInfo.regionId ?? null;
       }
     }
 
@@ -444,8 +501,13 @@ export async function collectNausysCandidates(params: {
       year,
       marina,
       type: candidateTypeHint ?? null,
-      categoryId: null,
-      builderId: null,
+      // FK из YachtModel / YachtCategory / YachtBuilder
+      categoryId: meta?.categoryId ?? null,
+      builderId: meta?.builderId ?? null,
+      modelId: meta?.modelId ?? null,
+      // FK из Location / Region
+      regionId: regionIdPk,
+      locationId: locationIdPk,
       price: Number(priceFinal),
       currency: String(fy?.price?.currency || 'EUR'),
       link: `nausys://freeYacht?id=${yachtIdNum}&from=${PERIOD_FROM}&to=${PERIOD_TO}`,
