@@ -273,7 +273,6 @@ model CompetitorPrice {
   scrapedAt       DateTime @default(now())
   raw             Json?
 
-  // 👇 новые полезные поля для Boataround
   scrapeJob   ScrapeJob? @relation(fields: [scrapeJobId], references: [id])
   scrapeJobId String?
 
@@ -290,6 +289,22 @@ model CompetitorPrice {
   countryCode String?  // ISO-2 ("HR", "GR", ...)
   countryId   String?  // FK -> Country.id (наш UUID)
   country     Country? @relation(fields: [countryId], references: [id])
+
+  // измерения, по которым фильтруем конкурентов
+  categoryId Int?
+  category   YachtCategory? @relation(fields: [categoryId], references: [id])
+
+  regionId   Int?
+  region     Region?        @relation(fields: [regionId], references: [id])
+
+  locationId String?
+  location   Location?      @relation(fields: [locationId], references: [id])
+
+  builderId  Int?
+  builder    YachtBuilder?  @relation(fields: [builderId], references: [id])
+
+  modelId    Int?
+  model      YachtModel?    @relation(fields: [modelId], references: [id])
 
   // часто удобно дедуплицировать по ссылке + неделя + источник:
   @@unique([source, link, weekStart])
@@ -505,6 +520,9 @@ model Region {
 
   competitorFilters CompetitorFilters[] @relation("FiltersRegions")
 
+  // 👇 НОВОЕ: обратная сторона для CompetitorPrice.regionId
+  competitorPrices CompetitorPrice[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -542,6 +560,9 @@ model Location {
   // Это нужно для каскада фильтров и для быстрой агрегации по стране
   countryId String?
   country   Country? @relation(fields: [countryId], references: [id])
+
+  // 👇 НОВОЕ
+  competitorPrices CompetitorPrice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -626,6 +647,7 @@ model YachtCategory {
   competitorFilters CompetitorFilters[] @relation("FiltersCategories")
 
   yachts Yacht[]
+  competitorPrices  CompetitorPrice[]  // 👈 НОВОЕ ПОЛЕ
 
   @@map("yacht_categories")
 }
@@ -647,6 +669,9 @@ model YachtBuilder {
   competitorFilters CompetitorFilters[] @relation("FiltersBuilders")
 
   yachts Yacht[]
+
+  // 👇 НОВОЕ
+  competitorPrices CompetitorPrice[]
 
   @@index([name])
   @@map("yacht_builders")
@@ -675,6 +700,9 @@ model YachtModel {
   virtualLength Int?
 
   competitorFilters CompetitorFilters[] @relation("FiltersModels")
+
+  // 👇 НОВОЕ
+  competitorPrices CompetitorPrice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

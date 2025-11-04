@@ -6,16 +6,14 @@
     # ---------- deps (все зависимости, включая dev) ----------
     FROM base AS deps
     WORKDIR /app
-    # ВАЖНО: копируем отдельными строками, чтобы кэш корректно инвалидировался
+    # Копируем только манифест пакета backend
     COPY package.json ./
-    COPY package-lock.json ./
-    RUN npm ci
 
     # Диагностика: проверим, что зависимость заявлена в package.json
     RUN node -e "const p=require('./package.json'); if(!p.dependencies || !p.dependencies['@clerk/backend']){console.error('NO @clerk/backend in package.json'); process.exit(1)}"
 
-    # Ставим зависимости строго по lock-файлу
-    RUN npm ci
+    # Устанавливаем зависимости без локального package-lock.json
+    RUN npm install
 
     # Диагностика: убеждаемся, что пакет реально установлен
     RUN node -e "require.resolve('@clerk/backend/package.json'); console.log('clerk/backend OK')"

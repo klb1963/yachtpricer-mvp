@@ -153,7 +153,7 @@ export class ScraperService {
           `[${job.id}] NAUSYS samplePrice=${samplePrice ?? 'n/a'} for week=${weekStart.toISOString()}`,
         );
 
-        const MIN_PRICE_FACTOR = 0.5; // конкуренты дешевле 40% от расчётной цены — отбрасываются
+        const MIN_PRICE_FACTOR = 0.5; // конкуренты дешевле 50% от расчётной цены — отбрасываются
 
         await this.filters.loadConfig(this.prisma, {
           orgId: user?.orgId ?? target?.orgId ?? null,
