@@ -23,6 +23,11 @@ import {
   type CatalogModel,
   type CatalogRegion,
   type CompetitorFiltersDto,
+  type FilterPreset,
+  type FilterPresetInput,
+  listFilterPresets,
+  createFilterPreset,
+  deleteFilterPreset,
 } from "../api";
 
 export type Scope = "USER" | "ORG";
@@ -156,6 +161,11 @@ export default function useCompetitorFiltersState({
   const [catsSel, setCatsSel] = useState<IdLabel[]>([]);
   const [buildersSel, setBuildersSel] = useState<IdLabel[]>([]);
   const [modelsSel, setModelsSel] = useState<IdLabel[]>([]);
+
+  // --- presets ---
+  const [presets, setPresets] = useState<FilterPreset[]>([]);
+  const [presetsLoading, setPresetsLoading] = useState(false);
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
 
   // derived IDs
   const countryIds = useMemo(
@@ -419,6 +429,27 @@ export default function useCompetitorFiltersState({
     }
   }, [dto]);
 
+  // ===== Presets list (load) =====
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setPresetsLoading(true);
+      try {
+        const items = await listFilterPresets();
+        if (cancelled) return;
+        setPresets(items);
+      } catch (e) {
+        console.error("[CompetitorFilters] failed to load presets:", e);
+        if (!cancelled) setPresets([]);
+      } finally {
+        if (!cancelled) setPresetsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [scope]);
+
   // ===== Load preset on mount (scope) =====
   useEffect(() => {
     let cancelled = false;
@@ -523,6 +554,99 @@ export default function useCompetitorFiltersState({
     };
   }, [scope]);
 
+  // ===== Apply preset to state =====
+  const applyPresetToState = useCallback(
+    (preset: FilterPreset) => {
+      // numeric
+      setLenFtMinus(preset.lenFtMinus ?? 3);
+      setLenFtPlus(preset.lenFtPlus ?? 3);
+      setYearMinus(preset.yearMinus ?? 2);
+      setYearPlus(preset.yearPlus ?? 2);
+      setPeopleMinus(preset.peopleMinus ?? 1);
+      setPeoplePlus(preset.peoplePlus ?? 1);
+      setCabinsMinus(preset.cabinsMinus ?? 1);
+      setCabinsPlus(preset.cabinsPlus ?? 1);
+      setHeadsMin(preset.headsMin ?? 1);
+
+      // countries: мапим по уже загруженным options
+      if (preset.countryIds?.length) {
+        setSelectedCountries(
+          countries.filter((c) => preset.countryIds!.includes(c.value))
+        );
+      } else {
+        setSelectedCountries([]);
+      }
+
+      // regions: создаём простые опции по id
+      if (preset.regionIds?.length) {
+        const regionOpts: RegionOpt[] = preset.regionIds.map((id) => ({
+          value: id,
+          label: `Region #${id}`,
+        }));
+        setRegionsOptions((old) => {
+          const merged = [...old];
+          regionOpts.forEach((r) => {
+            if (!merged.some((m) => m.value === r.value)) merged.push(r);
+          });
+          return merged;
+        });
+        setRegionsSel(regionOpts);
+      } else {
+        setRegionsSel([]);
+      }
+
+      // locations: тоже простые опции по id
+      if (preset.locationIds?.length) {
+        const locOpts: LocationOpt[] = preset.locationIds.map((id) => ({
+          value: id,
+          label: `Location #${id}`,
+        }));
+        setLocationsOptions((old) => {
+          const merged = [...old];
+          locOpts.forEach((l) => {
+            if (!merged.some((m) => m.value === l.value)) merged.push(l);
+          });
+          return merged;
+        });
+        setSelectedLocations(locOpts);
+      } else {
+        setSelectedLocations([]);
+      }
+
+      // categories / builders / models: ставим заглушки по id
+      setCatsSel(
+        (preset.categoryIds ?? []).map((id) => ({
+          value: id,
+          label: `#${id}`,
+        }))
+      );
+      setBuildersSel(
+        (preset.builderIds ?? []).map((id) => ({
+          value: id,
+          label: `#${id}`,
+        }))
+      );
+      setModelsSel(
+        (preset.modelIds ?? []).map((id) => ({
+          value: id,
+          label: `#${id}`,
+        }))
+      );
+    },
+    [countries]
+  );
+
+  const selectPresetById = useCallback(
+    (id: string | null) => {
+      setActivePresetId(id);
+      if (!id) return;
+      const preset = presets.find((p) => p.id === id);
+      if (!preset) return;
+      applyPresetToState(preset);
+    },
+    [presets, applyPresetToState]
+  );
+
   // ===== Reset =====
   const handleResetFilters = useCallback(async () => {
     try {
@@ -552,6 +676,74 @@ export default function useCompetitorFiltersState({
       alert("Failed to reset filters.");
     }
   }, [scope]);
+
+  // ===== Save current filters as preset =====
+  const saveCurrentAsPreset = useCallback(async () => {
+    const nameRaw = window.prompt("Preset name:");
+    const name = nameRaw?.trim();
+    if (!name) return;
+
+    try {
+      const input: FilterPresetInput = {
+        name,
+        scope,
+        countryIds,
+        regionIds,
+        locationIds: selectedLocations.map((l) => l.value),
+        categoryIds: catsSel.map((x) => x.value),
+        builderIds: buildersSel.map((x) => x.value),
+        modelIds: modelsSel.map((x) => x.value),
+        lenFtMinus,
+        lenFtPlus,
+        yearMinus,
+        yearPlus,
+        peopleMinus,
+        peoplePlus,
+        cabinsMinus,
+        cabinsPlus,
+        headsMin,
+      };
+
+      const created = await createFilterPreset(input);
+      setPresets((prev) => [created, ...prev]);
+      setActivePresetId(created.id);
+      alert("Preset saved.");
+    } catch (e) {
+      console.error("[CompetitorFilters] failed to save preset:", e);
+      alert("Failed to save preset.");
+    }
+  }, [
+    scope,
+    countryIds,
+    regionIds,
+    selectedLocations,
+    catsSel,
+    buildersSel,
+    modelsSel,
+    lenFtMinus,
+    lenFtPlus,
+    yearMinus,
+    yearPlus,
+    peopleMinus,
+    peoplePlus,
+    cabinsMinus,
+    cabinsPlus,
+    headsMin,
+  ]);
+
+  // ===== Delete preset =====
+  const deletePresetById = useCallback(async (id: string) => {
+    const ok = window.confirm("Delete this preset?");
+    if (!ok) return;
+    try {
+      await deleteFilterPreset(id);
+      setPresets((prev) => prev.filter((p) => p.id !== id));
+      setActivePresetId((cur) => (cur === id ? null : cur));
+    } catch (e) {
+      console.error("[CompetitorFilters] failed to delete preset:", e);
+      alert("Failed to delete preset.");
+    }
+  }, []);
 
   return {
     // meta
@@ -618,5 +810,13 @@ export default function useCompetitorFiltersState({
 
     // ui helpers
     nothingSelected,
+
+    // === пресеты ===
+    presets,
+    presetsLoading,
+    activePresetId,
+    selectPresetById,
+    saveCurrentAsPreset,
+    deletePresetById,
   };
 }

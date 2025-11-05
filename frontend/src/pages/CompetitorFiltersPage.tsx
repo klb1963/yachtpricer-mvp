@@ -4,6 +4,7 @@ import AsyncSelect from "react-select/async";
 import RangePair from "../components/RangePair";
 import NumberField from "../components/NumberField";
 import ModalFooter from "../components/ModalFooter";
+import FilterPresetsBar from "../components/FilterPresetsBar";
 
 import useCompetitorFiltersState, {
   type Scope,
@@ -104,10 +105,17 @@ export default function CompetitorFiltersPage({
     loadModels,
     loadRegionsAsync,
 
+    // === новое для пресетов ===
+    presets,
+    presetsLoading,
+    activePresetId,
+    selectPresetById,
+    saveCurrentAsPreset,
+    deletePresetById,
+
     handleApplySave,
     // handleTestFilters, // временно не используется
     handleResetFilters,
-
     nothingSelected,
   } = useCompetitorFiltersState({
     scope: scope ?? "USER",
@@ -130,34 +138,46 @@ export default function CompetitorFiltersPage({
       }}
     >
       {/* Header */}
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <h2 className="text-xl font-bold">{t.title}</h2>
-        <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm select-none">
-          <button
-            type="button"
-            onClick={() => setScanSource("INNERDB")}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-              scanSource === "INNERDB"
-                ? "bg-gray-900 text-white"
-                : "!text-gray-800 hover:bg-gray-100"
-            }`}
-            title="Use internal DB (demo)"
-          >
-            INNERDB
-          </button>
-          <button
-            type="button"
-            onClick={() => setScanSource("NAUSYS")}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-              scanSource === "NAUSYS"
-                ? "bg-gray-900 text-white"
-                : "!text-gray-800 hover:bg-gray-100"
-            }`}
-            title="Use NauSYS API results"
-          >
-            NAUSYS
-          </button>
+      <div className="mb-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-xl font-bold">{t.title}</h2>
+          <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm select-none">
+            <button
+              type="button"
+              onClick={() => setScanSource("INNERDB")}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                scanSource === "INNERDB"
+                  ? "bg-gray-900 text-white"
+                  : "!text-gray-800 hover:bg-gray-100"
+              }`}
+              title="Use internal DB (demo)"
+            >
+              INNERDB
+            </button>
+            <button
+              type="button"
+              onClick={() => setScanSource("NAUSYS")}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                scanSource === "NAUSYS"
+                  ? "bg-gray-900 text-white"
+                  : "!text-gray-800 hover:bg-gray-100"
+              }`}
+              title="Use NauSYS API results"
+            >
+              NAUSYS
+            </button>
+          </div>
         </div>
+
+        {/* Presets bar */}
+        <FilterPresetsBar
+          presets={presets}
+          activePresetId={activePresetId}
+          loading={presetsLoading}
+          onSelectPreset={selectPresetById}
+          onSaveCurrentAsPreset={saveCurrentAsPreset}
+          onDeletePreset={deletePresetById}
+        />
       </div>
 
       {/* Scrollable content */}
