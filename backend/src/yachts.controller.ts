@@ -54,6 +54,16 @@ const toNum = (v: unknown): number | undefined => {
   return Number.isFinite(n) ? n : undefined;
 };
 
+// number | null | undefined:
+//   undefined → поле не трогаем//   null      → явно сбрасываем в null
+//   number    → сохраняем число
+const toNullableNum = (v: unknown): number | null | undefined => {
+  if (v === undefined) return undefined;
+  if (v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
 const clamp = (n: number, a: number, b: number) => Math.min(Math.max(n, a), b);
 
 @Controller('yachts')
@@ -286,6 +296,7 @@ export class YachtsController {
     const countryId = toNullableStr(body['countryId']);
     const categoryId = toNullableInt(body['categoryId']);
     const builderId = toNullableInt(body['builderId']);
+    const maxDiscountPct = toNullableNum(body['maxDiscountPct']);
 
     let manufacturer: string | null | undefined = this.optStr(
       body,
@@ -318,6 +329,7 @@ export class YachtsController {
       ...(typeof builderId === 'number'
         ? { builder: { connect: { id: builderId } } }
         : {}),
+      ...(maxDiscountPct !== undefined ? { maxDiscountPct } : {}),
     };
 
     return this.prisma.yacht.create({ data });
@@ -356,6 +368,12 @@ export class YachtsController {
       basePrice: asStr('basePrice'),
       ownerName: asStr('ownerName'),
     };
+
+    // maxDiscountPct: number | null | undefined
+    const maxDiscountPct = toNullableNum(body['maxDiscountPct']);
+    if (maxDiscountPct !== undefined) {
+      data.maxDiscountPct = maxDiscountPct;
+    }
 
     if (Object.prototype.hasOwnProperty.call(body, 'currentExtraServices')) {
       const val = this.toJsonValueOptional(body['currentExtraServices']);

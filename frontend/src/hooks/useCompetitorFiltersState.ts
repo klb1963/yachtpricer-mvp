@@ -162,6 +162,9 @@ export default function useCompetitorFiltersState({
   const [buildersSel, setBuildersSel] = useState<IdLabel[]>([]);
   const [modelsSel, setModelsSel] = useState<IdLabel[]>([]);
 
+  // все категории (для красивых лейблов при загрузке пресета)
+  const [allCategories, setAllCategories] = useState<CatalogCategory[]>([]);
+
   // --- presets ---
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [presetsLoading, setPresetsLoading] = useState(false);
@@ -209,6 +212,23 @@ export default function useCompetitorFiltersState({
     })();
     return () => {
       active = false;
+    };
+  }, []);
+
+  // ===== 1a) All categories (once) =====
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { items } = await findCategories("", 100);
+        if (cancelled) return;
+        setAllCategories(items as CatalogCategory[]);
+      } catch (e) {
+        console.error("Failed to preload categories:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -477,7 +497,8 @@ export default function useCompetitorFiltersState({
         );
         setSelectedCountries(presetCountries);
 
-        // cats / builders / models
+      // cats / builders / models
+      // categories: берём нормальные имена из allCategories
         if (Array.isArray(preset.categories)) {
           setCatsSel(
             preset.categories.map((c) => ({
@@ -613,27 +634,33 @@ export default function useCompetitorFiltersState({
         setSelectedLocations([]);
       }
 
-      // categories / builders / models: ставим заглушки по id
+      // categories: берём имена из allCategories (или #id, если не нашли)
+      const catIds: number[] = preset.categoryIds ?? [];
       setCatsSel(
-        (preset.categoryIds ?? []).map((id) => ({
-          value: id,
-          label: `#${id}`,
-        }))
+        catIds.map((id: number) => {
+          const cat = allCategories.find((c) => c.id === id);
+          return {
+            value: id,
+            label: cat?.nameEn || cat?.nameRu || `#${id}`,
+          };
+        })
       );
+
+      // builders / models: пока оставим заглушки по id
       setBuildersSel(
-        (preset.builderIds ?? []).map((id) => ({
+        (preset.builderIds ?? []).map((id: number) => ({
           value: id,
           label: `#${id}`,
         }))
       );
       setModelsSel(
-        (preset.modelIds ?? []).map((id) => ({
+        (preset.modelIds ?? []).map((id: number) => ({
           value: id,
           label: `#${id}`,
         }))
       );
     },
-    [countries]
+    [countries, allCategories]
   );
 
   const selectPresetById = useCallback(
