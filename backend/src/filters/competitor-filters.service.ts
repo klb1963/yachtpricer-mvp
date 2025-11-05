@@ -306,27 +306,66 @@ export class CompetitorFiltersService {
 
   /**
    * Подсчёт количества яхт под заданные фильтры.
-   * MVP сейчас: считаем только по странам countryIds[]
-   * (эти UUID — это Country.id, и Yacht.countryId указывает на ту же Country.id)
+   * Здесь считаем так же, как будет фильтровать реальный Scan:
+   * - orgId обязательно
+   * - гео: locationIds > regionIds > countryIds
+   * - категории/билдеры/модели
+   * - headsMin (если задан)
    */
   async testCount(
     orgId: string,
     _userId: string | undefined,
     dto: CompetitorFiltersBody,
   ): Promise<number> {
-    const countryIds = Array.isArray(dto.countryIds)
-      ? dto.countryIds.filter((id): id is string => !!id && id.length > 0)
-      : [];
+    const countryIds =
+      dto.countryIds?.filter((id): id is string => !!id && id.length > 0) ?? [];
 
-    const where: Prisma.YachtWhereInput =
-      countryIds.length > 0
-        ? {
-            orgId,
-            countryId: { in: countryIds },
-          }
-        : {
-            orgId,
-          };
+    const regionIds = Array.isArray(dto.regionIds) ? dto.regionIds : [];
+    const locationIds =
+      dto.locationIds?.filter((id): id is string => !!id && id.length > 0) ??
+      [];
+
+    const categoryIds = Array.isArray(dto.categoryIds) ? dto.categoryIds : [];
+    const builderIds = Array.isArray(dto.builderIds) ? dto.builderIds : [];
+    const modelIds = Array.isArray(dto.modelIds) ? dto.modelIds : [];
+
+    const hasHeadsMin = typeof dto.headsMin === 'number';
+
+    // ✅ теперь снова фильтруем по orgId
+    const where: Prisma.YachtWhereInput = {
+      orgId,
+    };
+
+    // --- Гео: locationIds → regionIds → countryIds ---
+    if (locationIds.length) {
+      where.locationId = { in: locationIds };
+    } else if (regionIds.length) {
+      where.locationRef = {
+        is: {
+          regionId: { in: regionIds },
+        },
+      };
+    } else if (countryIds.length) {
+      where.countryId = { in: countryIds };
+    }
+
+    // --- Категория / билдер / модель ---
+    if (categoryIds.length) {
+      where.categoryId = { in: categoryIds };
+    }
+
+    if (builderIds.length) {
+      where.builderId = { in: builderIds };
+    }
+
+    if (modelIds.length) {
+      where.yachtModelId = { in: modelIds };
+    }
+
+    // --- Heads min ---
+    if (hasHeadsMin) {
+      where.heads = { gte: dto.headsMin };
+    }
 
     return this.prisma.yacht.count({ where });
   }

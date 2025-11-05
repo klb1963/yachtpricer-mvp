@@ -140,11 +140,16 @@ model Yacht {
   heads                Int
   basePrice            Decimal   @db.Decimal(12, 2)
   maxDiscountPct       Decimal?  @db.Decimal(5, 2)
+
   location             String?
   fleet                String
   charterCompany       String
   currentExtraServices Json
   imageUrl String?
+
+  // --- ссылка на Location по UUID ---
+  locationId  String?
+  locationRef Location? @relation( "YachtLocation", fields: [locationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   // --- связи со справочниками ---
   countryId  String?
@@ -155,6 +160,9 @@ model Yacht {
 
   builderId  Int?
   builder    YachtBuilder?  @relation(fields: [builderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  yachtModelId Int?
+  yachtModel   YachtModel?  @relation(fields: [yachtModelId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   orgId String?
   org   Organization? @relation(fields: [orgId], references: [id])
@@ -564,6 +572,9 @@ model Location {
   // 👇 НОВОЕ
   competitorPrices CompetitorPrice[]
 
+  // 👇 НОВОЕ: обратная связь к яхтам
+  yachts Yacht[] @relation("YachtLocation")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -703,6 +714,7 @@ model YachtModel {
 
   // 👇 НОВОЕ
   competitorPrices CompetitorPrice[]
+  yachts Yacht[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
