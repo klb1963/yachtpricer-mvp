@@ -33,24 +33,16 @@ export default function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4 sm:p-8"
       role="dialog"
       aria-modal="true"
       aria-label={title ?? 'Dialog'}
     >
-      {/* backdrop */}
-      <button
-        type="button"
-        aria-label="Close dialog"
-        className="absolute inset-0 bg-black/40"
-        onClick={onClose}
-      />
-      {/* card */}
       <div
         ref={cardRef}
-        className="relative z-10 w-[min(900px,95vw)] max-h-[90vh] rounded-xl bg-white shadow-xl flex flex-col"
+        className="relative z-10 w-full max-w-[900px] rounded-xl bg-white shadow-xl flex flex-col max-h-[calc(100dvh-4rem)] sm:max-h-[90vh]"
       >
-        <div className="mb-3 flex items-center justify-between">
+        <div className="sticky top-0 flex items-center justify-between border-b px-5 py-3 bg-white">
           {title ? <h3 className="text-lg font-semibold">{title}</h3> : <div />}
           <button
             type="button"
@@ -61,7 +53,7 @@ export default function Modal({
             ✕
           </button>
         </div>
-        {/* тело модалки скроллится, футер оставим внутри children (см. ниже) */}
+
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
       </div>
     </div>
