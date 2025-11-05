@@ -105,7 +105,7 @@ export default function CompetitorFiltersPage({
     loadRegionsAsync,
 
     handleApplySave,
-    handleTestFilters,
+    // handleTestFilters, // временно не используется
     handleResetFilters,
 
     nothingSelected,
@@ -310,6 +310,7 @@ export default function CompetitorFiltersPage({
           submitting={false}
           leftContent={
             <div className="flex gap-2">
+              {/* Кнопку Test filters временно отключили, чтобы не путать пользователей
               <button
                 type="button"
                 onClick={handleTestFilters}
@@ -317,6 +318,7 @@ export default function CompetitorFiltersPage({
               >
                 {t.testFilters}
               </button>
+              */}
 
               <button
                 type="button"
