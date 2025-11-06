@@ -1,10 +1,12 @@
 // backend/src/pricing/pricing.repo.ts
+
 import { Injectable } from '@nestjs/common';
 import {
   Prisma,
   DecisionStatus,
   PricingDecision,
   CompetitorSnapshot,
+  ScrapeSource,
   PriceAuditLog,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -54,10 +56,20 @@ export class PricingRepo {
     });
   }
 
-  /** Снимки конкурентов для недели. */
-  async listSnapshots(weekStart: Date): Promise<CompetitorSnapshot[]> {
+  /**
+   * Снимки конкурентов для недели.
+   * Если source передан — фильтруем по конкретному источнику (INNERDB / NAUSYS / BOATAROUND).
+   * Если нет — ведём себя как раньше и возвращаем все снапшоты за неделю.
+   */
+  async listSnapshots(
+    weekStart: Date,
+    source?: ScrapeSource,
+  ): Promise<CompetitorSnapshot[]> {
     return this.prisma.competitorSnapshot.findMany({
-      where: { weekStart },
+      where: {
+        weekStart,
+        ...(source ? { source } : {}),
+      },
       orderBy: { collectedAt: 'desc' },
     });
   }

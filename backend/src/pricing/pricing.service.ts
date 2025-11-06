@@ -16,7 +16,13 @@ import {
   mapDecision,
   buildMaps,
 } from './pricing-mappers';
-import { Prisma, DecisionStatus, User, AuditAction } from '@prisma/client';
+import {
+  Prisma,
+  DecisionStatus,
+  User,
+  AuditAction,
+  ScrapeSource,
+} from '@prisma/client';
 import { PricingRepo, type YachtForRows } from './pricing.repo';
 import { toNum } from '../common/decimal';
 import type { PricingRowDto } from './pricing-row.dto';
@@ -53,6 +59,10 @@ export class PricingService {
   async rows(q: PricingRowsQueryDto, user: User): Promise<PricingRowDto[]> {
     const ws = weekStartUTC(new Date(q.week));
 
+    // Нормализуем источник (если передан), иначе оставляем undefined —
+    // репозиторий сам решит, что считать дефолтом.
+    const source: ScrapeSource | undefined = q.source ?? undefined;
+
     // 1) Яхты
     const yachts: YachtForRows[] = await this.repo.listYachts();
     if (yachts.length === 0) return [];
@@ -61,7 +71,8 @@ export class PricingService {
 
     // 2) Данные недели (снимки конкурентов, решения, слоты)
     const [snaps, decisions, weekSlots] = await Promise.all([
-      this.repo.listSnapshots(ws),
+      // 👇 теперь тянем снапшоты по конкретному source (INNERDB / NAUSYS / BOATAROUND)
+      this.repo.listSnapshots(ws, source),
       this.repo.listDecisions(ws),
       this.repo.listWeekSlots(ws, yachtIds),
     ]);

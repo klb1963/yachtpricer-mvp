@@ -1,6 +1,7 @@
 // frontend/src/api/pricing.ts
 
 import { api } from '../api';
+import type { ScrapeSource } from '../api';
 
 // — типы, которые ждёт страница —
 export type DecisionStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
@@ -170,9 +171,12 @@ export function pairFromRow(r: PricingRow): { discountPct: number | null; finalP
 }
 
 // — API —
-export async function fetchRows(weekISO: string): Promise<PricingRow[]> {
+export async function fetchRows(
+  weekISO: string,
+  source?: ScrapeSource,
+): Promise<PricingRow[]> {
   const { data } = await api.get<RawPricingRow[]>('/pricing/rows', {
-    params: { week: weekISO },
+    params: { week: weekISO, source },
   });
   return Array.isArray(data) ? data.map(normalizeRow) : [];
 }
@@ -180,6 +184,7 @@ export async function fetchRows(weekISO: string): Promise<PricingRow[]> {
 export async function upsertDecision(params: {
   yachtId: string;
   week: string;
+  source?: ScrapeSource;
   discountPct?: number | null;
   finalPrice?: number | null;
 }): Promise<PricingRow> {
@@ -191,6 +196,7 @@ export async function changeStatus(params: {
   yachtId: string;
   week: string;
   status: DecisionStatus;
+  source?: ScrapeSource;
   comment?: string;
   discountPct?: number | null;
   finalPrice?: number | null;
