@@ -291,9 +291,9 @@ export class PricingService {
       ensureWithinMaxDiscount(maxLimit, effectiveDiscount);
     }
 
-    // 4) Транзакция: (а) при SUBMIT — обновить пару; (б) обновить статус; (в) аудит
+    // 4) Транзакция: (а) при SUBMIT — обновить пару; (б) статус + аудит; (в) при APPROVED — актуал/история
     const updated = await this.repo.tx(async (tx) => {
-      // (а) применяем discount/final если заданы
+      // (а) при SUBMIT — применяем discount/final, если заданы
       if (
         toStatus === DecisionStatus.SUBMITTED &&
         (newDiscountPct !== undefined || newFinalPrice !== undefined)
@@ -344,16 +344,74 @@ export class PricingService {
         });
       }
 
+      // (г) при APPROVED фиксируем цену в WeekSlot и пишем PriceHistory
+      if (toStatus === DecisionStatus.APPROVED) {
+        // страхуемся: к моменту APPROVED пара должна быть заполнена
+        if (decision.finalPrice == null || decision.discountPct == null) {
+          throw new ForbiddenException(
+            'finalPrice and discountPct must be set before Approve',
+          );
+        }
+
+        const finalPrice = decision.finalPrice;
+        const discountPct = decision.discountPct;
+        const weekStart = decision.weekStart; // Date
+        const yachtId = decision.yachtId;
+        const now = new Date();
+        const note = dto.comment?.trim() || null;
+
+        // 1) Ищем WeekSlot по (yachtId, weekStart)
+        const weekSlot = await tx.weekSlot.findUnique({
+          where: {
+            yachtId_startDate: {
+              yachtId,
+              startDate: weekStart,
+            },
+          },
+        });
+
+        if (!weekSlot) {
+          // Пока слота нет — просто логируем и пропускаем обновление фактической цены/истории.
+          // Позже можно добавить авто-создание WeekSlot.
+          console.warn(
+            '[pricing.changeStatus] WeekSlot not found, skip actuals/history',
+            { yachtId, weekStart },
+          );
+        } else {
+          // 2) Обновляем фактическую цену/скидку на слот
+          await tx.weekSlot.update({
+            where: { id: weekSlot.id },
+            data: {
+              currentPrice: finalPrice,
+              currentDiscount: discountPct,
+              priceFetchedAt: now,
+              // priceSource можно добавить позже, когда зафиксируешь enum/логику
+            },
+          });
+
+          // 3) Пишем запись в историю цен
+          await tx.priceHistory.create({
+            data: {
+              weekSlotId: weekSlot.id,
+              price: finalPrice,
+              discount: discountPct,
+              // source: 'INTERNAL', // когда заведёшь PriceSource.INTERNAL
+              authorId: user.id,
+              note,
+              date: now,
+            },
+          });
+        }
+      }
+
       return decision;
     });
 
-    // 5) Ответ + мета
-    const response: DecisionWithMeta = {
+    // 5) Ответ + мета (каст к DecisionWithMeta, чтобы не ругался на optional yacht)
+    return {
       ...updated,
       lastComment: dto.comment?.trim() || null,
       lastActionAt: new Date(),
-    };
-
-    return response;
+    } as DecisionWithMeta;
   }
 }

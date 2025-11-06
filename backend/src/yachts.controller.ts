@@ -24,6 +24,22 @@ interface YachtWithCountry
   countryName: string | null;
 }
 
+interface PriceHistoryItemDto {
+  date: string; // PriceHistory.date
+  weekStart: string; // WeekSlot.startDate
+  price: number;
+  discountPct: number;
+  source: string | null;
+  note: string | null;
+}
+
+interface YachtDetailsDto extends YachtWithCountry {
+  currentPrice: number | null;
+  currentDiscountPct: number | null;
+  currentPriceUpdatedAt: string | null;
+  priceHistory: PriceHistoryItemDto[];
+}
+
 /** Хелперы парсинга */
 const toInt = (v: unknown): number | undefined => {
   if (v === undefined || v === null || v === '') return undefined;
@@ -179,7 +195,7 @@ export class YachtsController {
 
   // -------- by id --------
   @Get(':id')
-  async byId(@Param('id') id: string): Promise<YachtWithCountry> {
+  async byId(@Param('id') id: string): Promise<YachtDetailsDto> {
     const y = await this.prisma.yacht.findUnique({
       where: { id },
       include: {
@@ -190,10 +206,55 @@ export class YachtsController {
     });
     if (!y) throw new NotFoundException('Yacht not found');
 
+    // --- История за последний год (можно потом параметризовать) ---
+    const now = new Date();
+    const yearAgo = new Date(now);
+    yearAgo.setFullYear(now.getFullYear() - 1);
+
+    const history = await this.prisma.priceHistory.findMany({
+      where: {
+        weekSlot: {
+          yachtId: id,
+        },
+        date: {
+          gte: yearAgo,
+        },
+      },
+      orderBy: {
+        date: 'asc', // для таблицы сверху-вниз во времени
+      },
+      include: {
+        weekSlot: true,
+      },
+    });
+
+    const last = history.length > 0 ? history[history.length - 1] : null;
+
+    const currentPrice =
+      last?.price != null ? Number(last.price as unknown as number) : null;
+    const currentDiscountPct =
+      last?.discount != null
+        ? Number(last.discount as unknown as number)
+        : null;
+    const currentPriceUpdatedAt = last ? last.date.toISOString() : null;
+
+    const priceHistory: PriceHistoryItemDto[] = history.map((h) => ({
+      date: h.date.toISOString(),
+      weekStart: h.weekSlot.startDate.toISOString(),
+      price: Number(h.price as unknown as number),
+      discountPct: Number(h.discount as unknown as number),
+      source: (h.source as unknown as string) ?? null,
+      note: h.note ?? null,
+    }));
+
     return {
       ...y,
       countryCode: y.country?.code2 ?? null,
       countryName: y.country?.name ?? null,
+      currentPrice,
+      currentDiscountPct,
+      currentPriceUpdatedAt,
+      priceHistory,
     };
   }
 
