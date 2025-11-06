@@ -1,6 +1,7 @@
 // frontend/src/components/FilterPresetsBar.tsx
 
 import Select from "react-select";
+import { useTranslation } from "react-i18next";
 import type { FilterPreset } from "../api";
 
 type Option = { value: string; label: string };
@@ -9,19 +10,9 @@ export type FilterPresetsBarProps = {
   presets: FilterPreset[];
   activePresetId: string | null;
   loading?: boolean;
-  // вызывается при выборе пресета в выпадашке
   onSelectPreset: (id: string | null) => void;
-  // сохранить текущие фильтры как новый пресет
   onSaveCurrentAsPreset: () => void;
-  // удалить выбранный пресет
   onDeletePreset: (id: string) => void;
-};
-
-const t = {
-  presets: "Presets",
-  noPresets: "— no presets yet —",
-  saveAs: "Save current as preset",
-  delete: "Delete preset",
 };
 
 export default function FilterPresetsBar({
@@ -32,19 +23,20 @@ export default function FilterPresetsBar({
   onSaveCurrentAsPreset,
   onDeletePreset,
 }: FilterPresetsBarProps) {
+  const { t } = useTranslation("competitors");
+
   const options: Option[] = presets.map((p) => ({
     value: p.id,
     label: p.name,
   }));
 
-  const selected =
-    options.find((opt) => opt.value === activePresetId) ?? null;
+  const selected = options.find((opt) => opt.value === activePresetId) ?? null;
 
   return (
     <div className="flex items-center gap-3">
       <div className="flex flex-col gap-1 flex-1">
         <span className="text-sm font-medium text-gray-700">
-          {t.presets}
+          {t("presets.label", "Presets")}
         </span>
         <Select<Option, false>
           isClearable
@@ -53,7 +45,11 @@ export default function FilterPresetsBar({
           value={selected}
           onChange={(opt) => onSelectPreset(opt?.value ?? null)}
           placeholder={
-            loading ? "Loading…" : options.length ? t.presets : t.noPresets
+            loading
+              ? t("loading", "Loading…")
+              : options.length
+              ? t("presets.placeholder", "Select preset")
+              : t("presets.noPresets", "— no presets yet —")
           }
           classNamePrefix="rs"
         />
@@ -65,7 +61,7 @@ export default function FilterPresetsBar({
           onClick={onSaveCurrentAsPreset}
           className="px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50"
         >
-          {t.saveAs}
+          {t("presets.saveAs", "Save current as preset")}
         </button>
 
         <button
@@ -78,10 +74,9 @@ export default function FilterPresetsBar({
               : "border-gray-200 text-gray-300 cursor-not-allowed bg-white"
           }`}
         >
-          {t.delete}
+          {t("presets.delete", "Delete preset")}
         </button>
       </div>
     </div>
   );
 }
-

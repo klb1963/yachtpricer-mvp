@@ -1,5 +1,8 @@
+// frontend/src/pages/CompetitorFiltersPage.tsx
+
 import Select from "react-select";
 import AsyncSelect from "react-select/async";
+import { useTranslation } from "react-i18next";
 
 import RangePair from "../components/RangePair";
 import NumberField from "../components/NumberField";
@@ -15,32 +18,6 @@ import useCompetitorFiltersState, {
   type IdLabel,
 } from "../hooks/useCompetitorFiltersState";
 
-// --- i18n-ready labels ---
-const t = {
-  title: "Competitor filters",
-  countries: "Countries",
-  locations: "Locations",
-  regions: "Regions",
-  categories: "Categories",
-  builders: "Builders",
-  models: "Models",
-  headsMin: "Heads (min)",
-  length: "Length ± (ft)",
-  year: "Year ±",
-  people: "People ±",
-  cabins: "Cabins ±",
-  applySave: "Apply & Save",
-  loading: "Loading…",
-  chooseCountries: "— choose countries —",
-  chooseRegions: "— choose regions —",
-  chooseLocations: "— choose locations —",
-  chooseCategories: "— choose categories —",
-  chooseBuilders: "— choose builders —",
-  chooseModels: "— choose models —",
-  testFilters: "Test filters",
-  resetFilters: "Reset filters",
-};
-
 // Feature flag: скрыть People фильтр в UI (оставляем в DTO/стейте)
 const SHOW_PEOPLE = false;
 
@@ -53,6 +30,8 @@ export default function CompetitorFiltersPage({
   onSubmit?: (dto: SaveDto, scanSource?: "INNERDB" | "NAUSYS") => void;
   onClose?: () => void;
 }) {
+  const { t } = useTranslation("competitors");
+
   const {
     scanSource,
     setScanSource,
@@ -105,7 +84,7 @@ export default function CompetitorFiltersPage({
     loadModels,
     loadRegionsAsync,
 
-    // === новое для пресетов ===
+    // === пресеты ===
     presets,
     presetsLoading,
     activePresetId,
@@ -140,7 +119,11 @@ export default function CompetitorFiltersPage({
       {/* Header */}
       <div className="mb-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-xl font-bold">{t.title}</h2>
+          <h2 className="text-xl font-bold">
+            {t("title", "Competitor filters")}
+          </h2>
+
+          {/* Source toggle */}
           <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm select-none">
             <button
               type="button"
@@ -150,9 +133,12 @@ export default function CompetitorFiltersPage({
                   ? "bg-gray-900 text-white"
                   : "!text-gray-800 hover:bg-gray-100"
               }`}
-              title="Use internal DB (demo)"
+              title={t(
+                "source.innerdbHint",
+                "Use internal DB (demo)"
+              )}
             >
-              INNERDB
+              {t("source.innerdbLabel", "INNERDB")}
             </button>
             <button
               type="button"
@@ -162,9 +148,12 @@ export default function CompetitorFiltersPage({
                   ? "bg-gray-900 text-white"
                   : "!text-gray-800 hover:bg-gray-100"
               }`}
-              title="Use NauSYS API results"
+              title={t(
+                "source.nausysHint",
+                "Use NauSYS API results"
+              )}
             >
-              NAUSYS
+              {t("source.nausysLabel", "NAUSYS")}
             </button>
           </div>
         </div>
@@ -184,20 +173,23 @@ export default function CompetitorFiltersPage({
       <div className="flex-1 overflow-y-auto pr-1 space-y-4">
         {/* Countries */}
         <label className="flex flex-col gap-1">
-          <span>{t.countries}</span>
+          <span>{t("fields.countries", "Countries")}</span>
           <Select<CountryOpt, true>
             isMulti
             options={countries}
             value={selectedCountries}
             onChange={(vals) => setSelectedCountries(vals as CountryOpt[])}
-            placeholder={t.chooseCountries}
+            placeholder={t(
+              "placeholders.countries",
+              "— choose countries —"
+            )}
             classNamePrefix="rs"
           />
         </label>
 
         {/* Regions */}
         <label className="flex flex-col gap-1">
-          <span>{t.regions}</span>
+          <span>{t("fields.regions", "Regions")}</span>
           <AsyncSelect<RegionOpt, true>
             isMulti
             cacheOptions
@@ -206,30 +198,45 @@ export default function CompetitorFiltersPage({
             value={regionsSel}
             onChange={(vals) => setRegionsSel(vals as RegionOpt[])}
             isDisabled={countryIds.length === 0 || regionsLoading}
-            placeholder={regionsLoading ? t.loading : t.chooseRegions}
+            placeholder={
+              regionsLoading
+                ? t("loading", "Loading…")
+                : t(
+                    "placeholders.regions",
+                    "— choose regions —"
+                  )
+            }
             classNamePrefix="rs"
           />
         </label>
 
         {/* Locations */}
         <label className="flex flex-col gap-1">
-          <span>{t.locations}</span>
+          <span>{t("fields.locations", "Locations")}</span>
           <Select<LocationOpt, true>
             isMulti
             isDisabled={
-              (countryIds.length === 0 && regionIds.length === 0) || locLoading
+              (countryIds.length === 0 && regionIds.length === 0) ||
+              locLoading
             }
             options={locationsOptions}
             value={selectedLocations}
             onChange={(vals) => setSelectedLocations(vals as LocationOpt[])}
-            placeholder={locLoading ? t.loading : t.chooseLocations}
+            placeholder={
+              locLoading
+                ? t("loading", "Loading…")
+                : t(
+                    "placeholders.locations",
+                    "— choose locations —"
+                  )
+            }
             classNamePrefix="rs"
           />
         </label>
 
         {/* Categories */}
         <label className="flex flex-col gap-1">
-          <span>{t.categories}</span>
+          <span>{t("fields.categories", "Categories")}</span>
           <AsyncSelect<IdLabel, true>
             cacheOptions
             defaultOptions
@@ -237,14 +244,17 @@ export default function CompetitorFiltersPage({
             loadOptions={loadCategories}
             value={catsSel}
             onChange={(vals) => setCatsSel(vals as IdLabel[])}
-            placeholder={t.chooseCategories}
+            placeholder={t(
+              "placeholders.categories",
+              "— choose categories —"
+            )}
             classNamePrefix="rs"
           />
         </label>
 
         {/* Builders */}
         <label className="flex flex-col gap-1">
-          <span>{t.builders}</span>
+          <span>{t("fields.builders", "Builders")}</span>
           <AsyncSelect<IdLabel, true>
             cacheOptions
             defaultOptions
@@ -252,14 +262,17 @@ export default function CompetitorFiltersPage({
             loadOptions={loadBuilders}
             value={buildersSel}
             onChange={(vals) => setBuildersSel(vals as IdLabel[])}
-            placeholder={t.chooseBuilders}
+            placeholder={t(
+              "placeholders.builders",
+              "— choose builders —"
+            )}
             classNamePrefix="rs"
           />
         </label>
 
         {/* Models */}
         <label className="flex flex-col gap-1">
-          <span>{t.models}</span>
+          <span>{t("fields.models", "Models")}</span>
           <AsyncSelect<IdLabel, true>
             cacheOptions
             defaultOptions
@@ -267,7 +280,10 @@ export default function CompetitorFiltersPage({
             loadOptions={loadModels}
             value={modelsSel}
             onChange={(vals) => setModelsSel(vals as IdLabel[])}
-            placeholder={t.chooseModels}
+            placeholder={t(
+              "placeholders.models",
+              "— choose models —"
+            )}
             classNamePrefix="rs"
           />
         </label>
@@ -275,7 +291,7 @@ export default function CompetitorFiltersPage({
         {/* Ranges */}
         <div className="grid gap-3">
           <RangePair
-            label={t.length}
+            label={t("ranges.length", "Length ± (ft)")}
             minus={lenFtMinus}
             plus={lenFtPlus}
             setMinus={setLenFtMinus}
@@ -284,7 +300,7 @@ export default function CompetitorFiltersPage({
             max={5}
           />
           <RangePair
-            label={t.year}
+            label={t("ranges.year", "Year ±")}
             minus={yearMinus}
             plus={yearPlus}
             setMinus={setYearMinus}
@@ -294,7 +310,7 @@ export default function CompetitorFiltersPage({
           />
           {SHOW_PEOPLE && (
             <RangePair
-              label={t.people}
+              label={t("ranges.people", "People ±")}
               minus={peopleMinus}
               plus={peoplePlus}
               setMinus={setPeopleMinus}
@@ -304,7 +320,7 @@ export default function CompetitorFiltersPage({
             />
           )}
           <RangePair
-            label={t.cabins}
+            label={t("ranges.cabins", "Cabins ±")}
             minus={cabinsMinus}
             plus={cabinsPlus}
             setMinus={setCabinsMinus}
@@ -313,7 +329,7 @@ export default function CompetitorFiltersPage({
             max={3}
           />
           <NumberField
-            label={t.headsMin}
+            label={t("fields.headsMin", "Heads (min)")}
             value={headsMin}
             onChange={setHeadsMin}
             min={0}
@@ -326,17 +342,19 @@ export default function CompetitorFiltersPage({
       <div className="sticky bottom-0 -mx-5 -mb-5 border-t bg-white px-5 py-4">
         <ModalFooter
           onCancel={onClose!}
-          submitLabel={t.applySave}
+          submitLabel={t("footer.applySave", "Apply & Save")}
+          cancelLabel={t('footer.cancel', 'Cancel')}
           submitting={false}
           leftContent={
             <div className="flex gap-2">
+
               {/* Кнопку Test filters временно отключили, чтобы не путать пользователей
               <button
                 type="button"
                 onClick={handleTestFilters}
                 className="h-10 px-4 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
               >
-                {t.testFilters}
+                {t("footer.testFilters", "Test filters")}
               </button>
               */}
 
@@ -350,7 +368,7 @@ export default function CompetitorFiltersPage({
                     : "border-red-300 bg-white text-red-700 hover:bg-red-50"
                 }`}
               >
-                {t.resetFilters}
+                {t("footer.resetFilters", "Reset filters")}
               </button>
             </div>
           }

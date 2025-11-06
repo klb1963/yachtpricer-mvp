@@ -1,0 +1,53 @@
+{
+  "title": "Фильтры конкурентов",
+
+  "source": {
+    "innerdbLabel": "INNERDB",
+    "innerdbHint": "Использовать внутреннюю БД (демо)",
+    "nausysLabel": "NAUSYS",
+    "nausysHint": "Использовать результаты NauSYS API"
+  },
+
+  "fields": {
+    "countries": "Страны",
+    "regions": "Регионы",
+    "locations": "Локации",
+    "categories": "Категории",
+    "builders": "Производители",
+    "models": "Модели",
+    "headsMin": "Санузлы (мин)"
+  },
+
+  "placeholders": {
+    "countries": "— выберите страны —",
+    "regions": "— выберите регионы —",
+    "locations": "— выберите локации —",
+    "categories": "— выберите категории —",
+    "builders": "— выберите производителей —",
+    "models": "— выберите модели —"
+  },
+
+  "ranges": {
+    "length": "Длина ± (футы)",
+    "year": "Год постройки ±",
+    "people": "Человек ±",
+    "cabins": "Каюты ±"
+  },
+
+  "footer": {
+    "applySave": "Применить и сохранить",
+    "testFilters": "Проверить фильтры",
+    "cancel": "Отмена",
+    "resetFilters": "Сбросить фильтры"
+  },
+
+  "loading": "Загрузка…",
+
+  "presets": {
+    "label": "Пресеты",
+    "placeholder": "Выберите пресет",
+    "noPresets": "— пока нет пресетов —",
+    "saveAs": "Сохранить текущий фильтр как пресет",
+    "delete": "Удалить пресет"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "title": "Competitor filters",
+
+  "source": {
+    "innerdbLabel": "INNERDB",
+    "innerdbHint": "Use internal DB (demo)",
+    "nausysLabel": "NAUSYS",
+    "nausysHint": "Use NauSYS API results"
+  },
+
+  "fields": {
+    "countries": "Countries",
+    "regions": "Regions",
+    "locations": "Locations",
+    "categories": "Categories",
+    "builders": "Builders",
+    "models": "Models",
+    "headsMin": "Heads (min)"
+  },
+
+  "placeholders": {
+    "countries": "— choose countries —",
+    "regions": "— choose regions —",
+    "locations": "— choose locations —",
+    "categories": "— choose categories —",
+    "builders": "— choose builders —",
+    "models": "— choose models —"
+  },
+
+  "ranges": {
+    "length": "Length ± (ft)",
+    "year": "Year ±",
+    "people": "People ±",
+    "cabins": "Cabins ±"
+  },
+
+  "footer": {
+    "applySave": "Apply & Save",
+    "testFilters": "Test filters",
+    "cancel": "Cancel",
+    "resetFilters": "Reset filters"
+  },
+
+  "loading": "Loading…",
+
+  "presets": {
+    "label": "Presets",
+    "placeholder": "Select preset",
+    "noPresets": "— no presets yet —",
+    "saveAs": "Save current as preset",
+    "delete": "Delete preset"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "title": "Filteri konkurenata",
+
+  "source": {
+    "innerdbLabel": "INNERDB",
+    "innerdbHint": "Koristi internu bazu (demo)",
+    "nausysLabel": "NAUSYS",
+    "nausysHint": "Koristi NauSYS API rezultate"
+  },
+
+  "fields": {
+    "countries": "Države",
+    "regions": "Regije",
+    "locations": "Lokacije",
+    "categories": "Kategorije",
+    "builders": "Proizvođači",
+    "models": "Modeli",
+    "headsMin": "WC (min)"
+  },
+
+  "placeholders": {
+    "countries": "— odaberi države —",
+    "regions": "— odaberi regije —",
+    "locations": "— odaberi lokacije —",
+    "categories": "— odaberi kategorije —",
+    "builders": "— odaberi proizvođače —",
+    "models": "— odaberi modele —"
+  },
+
+  "ranges": {
+    "length": "Duljina ± (ft)",
+    "year": "Godina ±",
+    "people": "Osobe ±",
+    "cabins": "Kabine ±"
+  },
+
+  "footer": {
+    "applySave": "Primijeni i spremi",
+    "testFilters": "Testiraj filtre",
+    "cancel": "Odustani",
+    "resetFilters": "Poništi filtre"
+  },
+
+  "loading": "Učitavanje…",
+
+  "presets": {
+    "label": "Predlošci",
+    "placeholder": "Odaberi predložak",
+    "noPresets": "— još nema predložaka —",
+    "saveAs": "Spremi trenutne filtere kao predložak",
+    "delete": "Izbriši predložak"
+  }
+}
