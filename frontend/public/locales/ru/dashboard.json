@@ -28,5 +28,9 @@
     "sortPriceDesc": "Цена ↓",
     "sortYearAsc": "Год ↑",
     "sortYearDesc": "Год ↓"
-  }
+  },
+    "sourceBadge": {
+    "label": "Источник",
+    "tooltip": "Текущий источник данных сканирования"
+    } 
 }

@@ -28,5 +28,9 @@
     "sortPriceDesc": "Cijena ↓",
     "sortYearAsc": "Godina ↑",
     "sortYearDesc": "Godina ↓"
-  }
+  },
+    "sourceBadge": {
+    "label": "Izvor",
+    "tooltip": "Trenutni izvor podataka za skeniranje"
+    } 
 }

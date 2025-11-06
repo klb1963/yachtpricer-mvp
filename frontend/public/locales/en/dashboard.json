@@ -28,5 +28,9 @@
     "sortPriceDesc": "Price ↓",
     "sortYearAsc": "Year ↑",
     "sortYearDesc": "Year ↓"
-  }
+  },
+    "sourceBadge": {
+    "label": "Source",
+    "tooltip": "Current scan data source"
+    }
 }

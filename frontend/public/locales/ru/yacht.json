@@ -13,9 +13,9 @@
     "deleting": "Удаление…",
     "deleteTitle": "Удалить эту яхту",
     "deleteConfirm": "Удалить «{{name}}»? Это действие невозможно отменить.",
-    "view": "Просмотр",
-    "scan": "Scan",
-    "scanning": "Scanning…",
+    "view": "Открыть",
+    "scan": "Поиск",
+    "scanning": "Поиск…",
     "details": "Подробнее",
     "hide": "Спрятать"
   },

@@ -1,31 +1,19 @@
 // frontend/src/components/HeaderWithSourceBadge.tsx
-
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 export function HeaderWithSourceBadge() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const { t } = useTranslation("dashboard");
 
   // читаем текущий source из URL
   const raw = (searchParams.get("source") || "").toUpperCase();
   const isValid = raw === "NAUSYS" || raw === "INNERDB";
   const source = isValid ? (raw as "NAUSYS" | "INNERDB") : null;
 
-  // опционально: если параметра нет — подставить дефолт из localStorage (и записать в URL)
-  // убери этот useEffect, если не хочешь автоподстановку
-  // useEffect(() => {
-  //   if (!source) {
-  //     const ls = (localStorage.getItem("competitor:scanSource") || "INNERDB").toUpperCase();
-  //     if (ls === "NAUSYS" || ls === "INNERDB") {
-  //       const next = new URLSearchParams(searchParams);
-  //       next.set("source", ls);
-  //       setSearchParams(next, { replace: true });
-  //     }
-  //   }
-  // }, [source, searchParams, setSearchParams]);
-
   return (
     <div className="flex items-center justify-between mt-2 mb-2">
-      {/* слева — место под WeekPicker */}
+      {/* слева — место под WeekPicker (сейчас пусто, но не ломаем верстку) */}
       <div />
 
       {/* справа — бейдж */}
@@ -36,9 +24,9 @@ export function HeaderWithSourceBadge() {
               ? "bg-green-200 text-green-800"
               : "bg-gray-200 text-gray-700"
           }`}
-          title="Current scan data source"
+          title={t("sourceBadge.tooltip", "Current scan data source")}
         >
-          Source: {source}
+          {t("sourceBadge.label", "Source")}: {source}
         </span>
       )}
     </div>
