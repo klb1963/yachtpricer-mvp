@@ -22,7 +22,7 @@
     "maxYear": "Макс. год (≤ {{year}})",
     "apply": "Применить",
     "reset": "Сбросить",
-    "competitorFilters": "Фильтры конкурентов",
+    "competitorFilters": "Отбор конкурентов",
     "sortNewest": "Сначала новые",
     "sortPriceAsc": "Цена ↑",
     "sortPriceDesc": "Цена ↓",
