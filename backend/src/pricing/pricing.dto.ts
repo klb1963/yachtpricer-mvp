@@ -9,12 +9,19 @@ import {
   Min,
   MaxLength,
 } from 'class-validator';
-import { DecisionStatus } from '@prisma/client';
+import { DecisionStatus, ScrapeSource } from '@prisma/client';
 
 export class PricingRowsQueryDto {
   /** Любая дата внутри нужной недели (ISO). */
   @IsISO8601()
   week!: string;
+  /**
+   * Источник конкурентных цен (INNERDB / NAUSYS / BOATAROUND).
+   * Опционален: если не указан, будет использован дефолт на уровне сервиса/репозитория.
+   */
+  @IsOptional()
+  @IsEnum(ScrapeSource)
+  source?: ScrapeSource;
 }
 
 export class UpsertDecisionDto {
@@ -24,7 +31,6 @@ export class UpsertDecisionDto {
   @IsISO8601()
   week!: string;
 
-  // скидка может быть отрицательной (поднятие цены) или положительной
   @IsOptional()
   @IsNumber()
   discountPct?: number;

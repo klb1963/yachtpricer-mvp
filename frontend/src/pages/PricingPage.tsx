@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { changeStatus, fetchRows, upsertDecision, pairFromRow } from '../api/pricing';
 import type { PricingRow, DecisionStatus } from '../api/pricing';
+import type { ScrapeSource } from '../api';
 import { toYMD, nextSaturday, prevSaturday, toSaturdayUTC } from '../utils/week';
 import ConfirmActionModal from '@/components/ConfirmActionModal';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
+import { HeaderWithSourceBadge } from '../components/HeaderWithSourceBadge';
 
 // ─ helpers ─
 function asMoney(n: number | null | undefined) {
@@ -55,6 +57,17 @@ export default function PricingPage() {
   // query-параметры, чтобы читать/писать ?week=...
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // ─────────────────────────────────────────────
+  // source (INNERDB / NAUSYS), синхронно с URL
+  // ─────────────────────────────────────────────
+  const [scanSource, setScanSource] = useState<ScrapeSource>(() => {
+    const raw = (searchParams.get('source') || '').toUpperCase();
+    if (raw === 'INNERDB' || raw === 'NAUSYS') return raw as ScrapeSource;
+    const ls = (localStorage.getItem('competitor:scanSource') || 'INNERDB').toUpperCase();
+    if (ls === 'INNERDB' || ls === 'NAUSYS') return ls as ScrapeSource;
+    return 'INNERDB';
+  });
+
   // ────────────────────────────────────────────────────────────
   // 1) Неделя всегда в формате YYYY-MM-DD (plain date)
   //    Инициализируемся из ?week=, если он валиден
@@ -88,6 +101,14 @@ export default function PricingPage() {
   const weekLabel = useMemo(() => toYMD(weekDate), [weekDate]);
   const weekISO = useMemo(() => `${week}T00:00:00.000Z`, [week]);
 
+  // 1a) если кто-то снаружи поменял ?source= — подтягиваем в state
+  useEffect(() => {
+    const raw = (searchParams.get('source') || '').toUpperCase();
+    if (raw === 'INNERDB' || raw === 'NAUSYS') {
+      setScanSource(prev => (prev === raw ? prev : (raw as ScrapeSource)));
+    }
+  }, [searchParams]);
+
   // 1b) Любое изменение недели локально — записываем в URL, сохраняя остальные query
   useEffect(() => {
     const current = searchParams.get('week') || '';
@@ -97,6 +118,16 @@ export default function PricingPage() {
     setSearchParams(next, { replace: true });
   }, [week, searchParams, setSearchParams]);
 
+  // 1c) Любое изменение source локально — пишем в URL и localStorage
+  useEffect(() => {
+    localStorage.setItem('competitor:scanSource', scanSource);
+    const current = (searchParams.get('source') || '').toUpperCase();
+    if (current === scanSource) return;
+    const next = new URLSearchParams(searchParams);
+    next.set('source', scanSource);
+    setSearchParams(next, { replace: true });
+  }, [scanSource, searchParams, setSearchParams]); 
+
   // ─ загрузка ─
   useEffect(() => {
     let alive = true;
@@ -104,7 +135,7 @@ export default function PricingPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await fetchRows(weekISO);
+        const data = await fetchRows(weekISO, scanSource);
         if (alive) setRows(data);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to load pricing rows';
@@ -119,7 +150,7 @@ export default function PricingPage() {
     return () => {
       alive = false;
     };
-  }, [weekISO]);
+  }, [weekISO, scanSource]);
 
   // ─ локальный драфт ─
   const onDraftDiscountChange = useCallback((yachtId: string, valueStr: string) => {
@@ -368,10 +399,14 @@ export default function PricingPage() {
   }
 
   return (
-       <div className="container mx-auto px-6 py-8">
-      {/* Заголовок + блок управления неделей и видом */}
+    <div className="container mx-auto px-6 py-8">
+      {/* Заголовок + блок управления неделей, источником и видом */}
       <div className="mb-6 flex flex-col gap-3">
-        <h1 className="text-3xl font-bold">{t('title')}</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">{t('title')}</h1>
+          {/* бейдж Source: ... такой же, как на Dashboard */}
+          <HeaderWithSourceBadge />
+        </div>
 
         {/* Блок выбора недели */}
         <div className="flex flex-wrap items-center gap-2">
