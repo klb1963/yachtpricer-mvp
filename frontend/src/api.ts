@@ -43,6 +43,7 @@ export type YachtListParams = {
   maxYear?: number;
   minPrice?: number;
   maxPrice?: number;
+  categoryId?: number;
   sort?: "priceAsc" | "priceDesc" | "yearAsc" | "yearDesc" | "createdDesc";
   page?: number;
   pageSize?: number;
@@ -392,15 +393,6 @@ export async function getCountries(): Promise<Country[]> {
   if (!r.ok) throw new Error("Failed to load countries");
   const { items } = await r.json();
   return items as Country[];
-}
-
-function toQuery(obj: Record<string, string | number | boolean | null | undefined>) {
-  const sp = new URLSearchParams();
-  for (const [k, v] of Object.entries(obj)) {
-    if (v === undefined || v === null || v === "") continue;
-    sp.append(k, String(v));
-  }
-  return sp.toString();
 }
 
 export async function getLocations(params: {

@@ -6,7 +6,6 @@ import type { Yacht, YachtListParams, YachtListResponse } from '../api';
 import { parseISO } from 'date-fns';
 import { listYachts } from '../api';
 import YachtCard from '../components/YachtCard';
-import type { YachtType } from '../types/yacht';
 import { weekIso } from '../utils/date';
 import WeekPicker from '../components/WeekPicker';
 import YachtListFilters from '@/components/YachtListFilters';
@@ -14,6 +13,7 @@ import YachtTable from '../components/YachtTable';
 import Modal from '@/components/Modal';
 import CompetitorFiltersPage from '@/pages/CompetitorFiltersPage';
 import { HeaderWithSourceBadge } from "../components/HeaderWithSourceBadge";
+import { useTranslation } from 'react-i18next';
 
 import {
   startScrape,
@@ -52,6 +52,7 @@ export default function DashboardPage() {
   const { view, setView } = useViewMode();
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useTranslation('dashboard');
 
   // читаем неделю из URL (если валидна), иначе текущая
   const initWeekFromUrl = () => {
@@ -104,7 +105,7 @@ export default function DashboardPage() {
 
   // фильтры/сортировка/пагинация
   const [q, setQ] = useState('');
-  const [type, setType] = useState<YachtType | ''>('');
+  const [categoryId, setCategoryId] = useState<string>('');
   const [minYear, setMinYear] = useState<string>('');
   const [maxYear, setMaxYear] = useState<string>('');
   const [minPrice, setMinPrice] = useState<string>('');
@@ -123,7 +124,7 @@ export default function DashboardPage() {
   const params: YachtListParams = useMemo(
     () => ({
       q: q || undefined,
-      type: type || undefined,
+      categoryId: categoryId ? Number(categoryId) : undefined,
       minYear: minYear ? Number(minYear) : undefined,
       maxYear: maxYear ? Number(maxYear) : undefined,
       minPrice: minPrice ? Number(minPrice) : undefined,
@@ -132,7 +133,7 @@ export default function DashboardPage() {
       page,
       pageSize,
     }),
-    [q, type, minYear, maxYear, minPrice, maxPrice, sort, page, pageSize],
+    [q, categoryId, minYear, maxYear, minPrice, maxPrice, sort, page, pageSize],
   );
 
   // модалка фильтров конкуренток
@@ -302,12 +303,17 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl p-6">
+
       <div className="mb-4">
-      <h1 className="text-3xl font-bold mb-2">Boats</h1>
-      <div className="flex items-center justify-between">
-        <WeekPicker value={weekStart} onChange={setWeekStart} />
-        <HeaderWithSourceBadge />
-      </div>
+        <h1 className="text-3xl font-bold mb-2">
+          {t('title', 'Boats')}
+        </h1>
+
+        <div className="flex items-center justify-between">
+          <WeekPicker value={weekStart} onChange={setWeekStart} />
+          <HeaderWithSourceBadge />
+        </div>
+
         {/* Переключатель вида и Add+ */}
         <div className="mt-4 flex items-center justify-between gap-3">
           <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">
@@ -318,7 +324,7 @@ export default function DashboardPage() {
                 view === 'table' ? 'bg-gray-900 text-white' : '!text-gray-800 hover:bg-gray-100'
               }`}
             >
-              Table
+              {t('view.table', 'Table')}
             </button>
             <button
               type="button"
@@ -327,7 +333,7 @@ export default function DashboardPage() {
                 view === 'cards' ? 'bg-gray-900 text-white' : '!text-gray-800 hover:bg-gray-100'
               }`}
             >
-              Cards
+              {t('view.cards', 'Cards')}
             </button>
           </div>
 
@@ -335,7 +341,7 @@ export default function DashboardPage() {
             to="/yacht/new"
             className="rounded bg-blue-600 px-3 py-2 font-semibold text-white hover:bg-blue-700"
           >
-            + Add
+            {t('actions.add', '+ Add')}
           </Link>
         </div>
       </div>
@@ -343,7 +349,7 @@ export default function DashboardPage() {
       {/* Фильтры */}
       <YachtListFilters
         q={q} setQ={setQ}
-        type={type} setType={setType}
+        categoryId={categoryId} setCategoryId={setCategoryId} 
         minYear={minYear} setMinYear={setMinYear}
         maxYear={maxYear} setMaxYear={setMaxYear}
         minPrice={minPrice} setMinPrice={setMinPrice}
@@ -353,7 +359,7 @@ export default function DashboardPage() {
         onApply={applyFilters}
         onReset={() => {
           setQ('');
-          setType('');
+          setCategoryId('');
           setMinYear('');
           setMaxYear('');
           setMinPrice('');
@@ -392,7 +398,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <YachtTable
-          key={`table-${scanSource}-${weekStart}`} 
+          key={`table-${scanSource}-${weekStart}`}
           items={items}
           locationSearch={location.search}
           sort={sort}

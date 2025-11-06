@@ -81,6 +81,7 @@ export class YachtsController {
       maxYear?: string;
       minPrice?: string;
       maxPrice?: string;
+      categoryId?: string;
       sort?: 'priceAsc' | 'priceDesc' | 'yearAsc' | 'yearDesc' | 'createdDesc';
       page?: string;
       pageSize?: string;
@@ -93,6 +94,7 @@ export class YachtsController {
     const maxYear = toInt(query.maxYear);
     const minPrice = toNum(query.minPrice);
     const maxPrice = toNum(query.maxPrice);
+    const categoryId = toInt(query.categoryId);
 
     const page = clamp(toInt(query.page) ?? 1, 1, 10_000);
     const pageSize = clamp(toInt(query.pageSize) ?? 20, 1, 200);
@@ -123,6 +125,7 @@ export class YachtsController {
       maxPrice !== undefined
         ? { basePrice: { lte: String(maxPrice) } }
         : undefined,
+      categoryId !== undefined ? { categoryId } : undefined,
     ];
 
     const where: Prisma.YachtWhereInput = {

@@ -1,32 +1,26 @@
 // /frontend/src/components/YachtListFilters.tsx
 
-import React from 'react';
-import type { YachtType } from '@/types/yacht';
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { findCategories, type CatalogCategory } from '../api';
 
 type SortKey = 'createdDesc' | 'priceAsc' | 'priceDesc' | 'yearAsc' | 'yearDesc';
 
-const TYPE_OPTIONS = [
-  { value: '',           label: 'Any type' },
-  { value: 'monohull',   label: 'Monohull' },
-  { value: 'catamaran',  label: 'Catamaran' },
-  { value: 'trimaran',   label: 'Trimaran' },
-  { value: 'compromis',  label: 'Compromis' },
-] as const;
-
-const SORT_OPTIONS = [
-  { value: 'createdDesc', label: 'Newest' },
-  { value: 'priceAsc',    label: 'Price ↑' },
-  { value: 'priceDesc',   label: 'Price ↓' },
-  { value: 'yearAsc',     label: 'Year ↑' },
-  { value: 'yearDesc',    label: 'Year ↓' },
-] as const;
+const SORT_OPTIONS = (t: (k: string) => string) => [
+  { value: 'createdDesc', label: t('filters.sortNewest') },
+  { value: 'priceAsc',    label: t('filters.sortPriceAsc') },
+  { value: 'priceDesc',   label: t('filters.sortPriceDesc') },
+  { value: 'yearAsc',     label: t('filters.sortYearAsc') },
+  { value: 'yearDesc',    label: t('filters.sortYearDesc') },
+];
 
 export interface YachtListFiltersProps {
   q: string;
   setQ: (v: string) => void;
 
-  type: YachtType | '';
-  setType: (v: YachtType | '') => void;
+  // фильтр по категории (id в строке, '' = любая категория)
+  categoryId: string;
+  setCategoryId: (v: string) => void;
 
   minYear: string;
   setMinYear: (v: string) => void;
@@ -51,9 +45,16 @@ export interface YachtListFiltersProps {
 }
 
 export default function YachtListFilters(props: YachtListFiltersProps) {
+  const { t } = useTranslation('dashboard');
+
+  // ✅ локальный список категорий для селекта
+  const [categoryOptions, setCategoryOptions] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
+
   const {
     q, setQ,
-    type, setType,
+    categoryId, setCategoryId,
     minYear, setMinYear,
     maxYear, setMaxYear,
     minPrice, setMinPrice,
@@ -64,11 +65,44 @@ export default function YachtListFilters(props: YachtListFiltersProps) {
     onOpenCompetitorFilters,
   } = props;
 
+  // грузим список категорий (первые N штук) для селекта
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { items } = await findCategories('', 100);
+        if (cancelled) return;
+        const opts: Array<{ value: string; label: string }> = [
+          {
+            value: '',
+            label: t('filters.anyCategory', 'Any category'),
+          },
+          ...items.map((c: CatalogCategory) => ({
+            value: String(c.id),
+            label: c.nameEn || c.nameRu || `#${c.id}`,
+          })),
+        ];
+        setCategoryOptions(opts);
+      } catch (e) {
+        console.warn('[YachtListFilters] failed to load categories:', e);
+        // хотя бы fallback "Any category"
+        setCategoryOptions((prev) =>
+          prev.length
+            ? prev
+            : [{ value: '', label: t('filters.anyCategory', 'Any category') }],
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
   return (
     <form onSubmit={onApply} className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-6">
       <input
         className="rounded border p-2 md:col-span-2"
-        placeholder="Search (name, model, location, owner)…"
+        placeholder={t('filters.searchPlaceholder', 'Search (name, model, location, owner)…')}
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
@@ -78,33 +112,35 @@ export default function YachtListFilters(props: YachtListFiltersProps) {
         value={sort}
         onChange={(e) => setSort(e.target.value as SortKey)}
       >
-        {SORT_OPTIONS.map((s) => (
+        {SORT_OPTIONS(t).map((s) => (
           <option key={s.value} value={s.value}>
-            Sort: {s.label}
+            {s.label}
           </option>
         ))}
       </select>
 
       <select
         className="rounded border p-2"
-        value={type}
-        onChange={(e) => setType((e.target.value as YachtType) || '')}
+        value={categoryId}
+        onChange={(e) => setCategoryId(e.target.value)}
       >
-        {TYPE_OPTIONS.map((opt) => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        {categoryOptions.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
         ))}
       </select>
 
       <input
         className="rounded border p-2"
-        placeholder={`Min year (≤ ${currentYear})`}
+        placeholder={t('filters.minYear', 'Min year (≤ {{year}})', { year: currentYear })}
         inputMode="numeric"
         value={minYear}
         onChange={(e) => setMinYear(e.target.value)}
       />
       <input
         className="rounded border p-2"
-        placeholder={`Max year (≤ ${currentYear})`}
+        placeholder={t('filters.maxYear', 'Max year (≤ {{year}})', { year: currentYear })}
         inputMode="numeric"
         value={maxYear}
         onChange={(e) => setMaxYear(e.target.value)}
@@ -112,14 +148,14 @@ export default function YachtListFilters(props: YachtListFiltersProps) {
 
       <input
         className="rounded border p-2"
-        placeholder="Min price"
+        placeholder={t('filters.minPrice', 'Min price')}
         inputMode="numeric"
         value={minPrice}
         onChange={(e) => setMinPrice(e.target.value)}
       />
       <input
         className="rounded border p-2"
-        placeholder="Max price"
+        placeholder={t('filters.maxPrice', 'Max price')}
         inputMode="numeric"
         value={maxPrice}
         onChange={(e) => setMaxPrice(e.target.value)}
@@ -129,7 +165,7 @@ export default function YachtListFilters(props: YachtListFiltersProps) {
         type="submit"
         className="rounded bg-gray-800 px-4 py-2 text-white hover:bg-gray-900 md:col-span-1"
       >
-        Apply
+        {t('filters.apply', 'Apply')}
       </button>
 
       <button
@@ -137,7 +173,7 @@ export default function YachtListFilters(props: YachtListFiltersProps) {
         onClick={onReset}
         className="rounded bg-gray-300 px-4 py-2 text-black hover:bg-gray-400 md:col-span-1"
       >
-        Reset
+        {t('filters.reset', 'Reset')}
       </button>
 
       <button
@@ -145,7 +181,7 @@ export default function YachtListFilters(props: YachtListFiltersProps) {
         onClick={onOpenCompetitorFilters}
         className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 md:col-span-1"
       >
-        Competitors filter
+        {t('filters.competitorFilters', 'Competitors filter')}
       </button>
     </form>
   );

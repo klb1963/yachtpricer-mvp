@@ -1,0 +1,32 @@
+{
+  "title": "Яхты",
+  "view": {
+    "table": "Таблица",
+    "cards": "Карточки"
+  },
+  "actions": {
+    "add": "+ Добавить"
+  },
+  "loading": "Загрузка…",
+  "noResults": "Нет результатов",
+  "pagination": {
+    "summary": "Всего: {{total}} • Страница {{page}} из {{pages}}",
+    "perPage": "/ стр."
+  },
+  "filters": {
+    "searchPlaceholder": "Поиск (название, модель, локация, владелец)…",
+    "anyCategory": "Любая категория",
+    "minPrice": "Мин. цена",
+    "maxPrice": "Макс. цена",
+    "minYear": "Мин. год (≤ {{year}})",
+    "maxYear": "Макс. год (≤ {{year}})",
+    "apply": "Применить",
+    "reset": "Сбросить",
+    "competitorFilters": "Фильтры конкурентов",
+    "sortNewest": "Сначала новые",
+    "sortPriceAsc": "Цена ↑",
+    "sortPriceDesc": "Цена ↓",
+    "sortYearAsc": "Год ↑",
+    "sortYearDesc": "Год ↓"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "title": "Jedrilice",
+  "view": {
+    "table": "Tablica",
+    "cards": "Kartice"
+  },
+  "actions": {
+    "add": "+ Dodaj"
+  },
+  "loading": "Učitavanje…",
+  "noResults": "Nema rezultata",
+  "pagination": {
+    "summary": "Ukupno: {{total}} • Stranica {{page}} od {{pages}}",
+    "perPage": "/ str."
+  },
+  "filters": {
+    "searchPlaceholder": "Pretraži (naziv, model, lokacija, vlasnik)…",
+    "anyCategory": "Bilo koja kategorija",
+    "minPrice": "Minimalna cijena",
+    "maxPrice": "Maksimalna cijena",
+    "minYear": "Minimalna godina (≤ {{year}})",
+    "maxYear": "Maksimalna godina (≤ {{year}})",
+    "apply": "Primijeni",
+    "reset": "Poništi",
+    "competitorFilters": "Filteri konkurenata",
+    "sortNewest": "Najnovije",
+    "sortPriceAsc": "Cijena ↑",
+    "sortPriceDesc": "Cijena ↓",
+    "sortYearAsc": "Godina ↑",
+    "sortYearDesc": "Godina ↓"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "title": "Boats",
+  "view": {
+    "table": "Table",
+    "cards": "Cards"
+  },
+  "actions": {
+    "add": "+ Add"
+  },
+  "loading": "Loading…",
+  "noResults": "No results",
+  "pagination": {
+    "summary": "Total: {{total}} • Page {{page}} of {{pages}}",
+    "perPage": "/ page"
+  },
+  "filters": {
+    "searchPlaceholder": "Search (name, model, location, owner)…",
+    "anyCategory": "Any category",
+    "minPrice": "Min price",
+    "maxPrice": "Max price",
+    "minYear": "Min year (≤ {{year}})",
+    "maxYear": "Max year (≤ {{year}})",
+    "apply": "Apply",
+    "reset": "Reset",
+    "competitorFilters": "Competitors filter",
+    "sortNewest": "Newest",
+    "sortPriceAsc": "Price ↑",
+    "sortPriceDesc": "Price ↓",
+    "sortYearAsc": "Year ↑",
+    "sortYearDesc": "Year ↓"
+  }
+}
