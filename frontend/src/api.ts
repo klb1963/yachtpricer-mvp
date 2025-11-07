@@ -49,6 +49,10 @@ export interface Yacht {
   currentDiscountPct?: number | null
   currentPriceUpdatedAt?: string | null
   priceHistory?: YachtPriceHistoryItem[]
+
+   // 🔹 новое
+  responsibleManagerId?: string | null
+  responsibleManagerName?: string | null
 }
 
 export type YachtListParams = {
@@ -299,6 +303,8 @@ export type YachtUpdatePayload = {
   countryId?: string | null;
   categoryId?: number | null;
   builderId?: number | null;
+   // 🔹 новое поле для бэкенда
+  responsibleManagerId?: string | null;
 };
 
 export async function updateYacht(id: string, payload: YachtUpdatePayload): Promise<Yacht> {

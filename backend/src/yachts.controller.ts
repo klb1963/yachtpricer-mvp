@@ -38,6 +38,9 @@ interface YachtDetailsDto extends YachtWithCountry {
   currentDiscountPct: number | null;
   currentPriceUpdatedAt: string | null;
   priceHistory: PriceHistoryItemDto[];
+  // 🔹 Новый блок: ответственный менеджер
+  responsibleManagerId: string | null;
+  responsibleManagerName: string | null;
 }
 
 /** Хелперы парсинга */
@@ -206,6 +209,20 @@ export class YachtsController {
     });
     if (!y) throw new NotFoundException('Yacht not found');
 
+    // --- Ответственный менеджер (если назначен) ---
+    const link = await this.prisma.managerYacht.findFirst({
+      where: { yachtId: id },
+      include: {
+        manager: true,
+      },
+    });
+
+    const responsibleManagerId = link?.managerId ?? null;
+    const responsibleManagerName =
+      (link?.manager?.name && link.manager.name.trim()) ||
+      link?.manager?.email ||
+      null;
+
     // --- История за последний год (можно потом параметризовать) ---
     const now = new Date();
     const yearAgo = new Date(now);
@@ -255,6 +272,8 @@ export class YachtsController {
       currentDiscountPct,
       currentPriceUpdatedAt,
       priceHistory,
+      responsibleManagerId,
+      responsibleManagerName,
     };
   }
 
@@ -486,14 +505,35 @@ export class YachtsController {
       if (data[k] === undefined) delete data[k];
     });
 
-    return this.prisma.yacht.update({
-      where: { id },
-      data,
-      include: {
-        country: { select: { id: true, code2: true, name: true } },
-        category: { select: { id: true, nameEn: true, nameRu: true } },
-        builder: { select: { id: true, name: true } },
-      },
+    // --- Обновление яхты и ответственного менеджера в одной транзакции ---
+    const responsibleManagerId = this.optStr(body, 'responsibleManagerId');
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Обновляем основные поля яхты
+      const updatedYacht = await tx.yacht.update({
+        where: { id },
+        data,
+        include: {
+          country: { select: { id: true, code2: true, name: true } },
+          category: { select: { id: true, nameEn: true, nameRu: true } },
+          builder: { select: { id: true, name: true } },
+        },
+      });
+
+      // 2. Обновляем связь ManagerYacht
+      //    Удаляем старую и ставим новую, если передан responsibleManagerId
+      await tx.managerYacht.deleteMany({ where: { yachtId: id } });
+
+      if (responsibleManagerId) {
+        await tx.managerYacht.create({
+          data: {
+            yachtId: id,
+            managerId: responsibleManagerId,
+          },
+        });
+      }
+
+      return updatedYacht;
     });
   }
 
