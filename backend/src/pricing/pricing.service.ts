@@ -22,6 +22,7 @@ import {
   User,
   AuditAction,
   ScrapeSource,
+  WeekSlotStatus,
 } from '@prisma/client';
 import { PricingRepo, type YachtForRows } from './pricing.repo';
 import { toNum } from '../common/decimal';
@@ -361,7 +362,7 @@ export class PricingService {
         const note = dto.comment?.trim() || null;
 
         // 1) Ищем WeekSlot по (yachtId, weekStart)
-        const weekSlot = await tx.weekSlot.findUnique({
+        let weekSlot = await tx.weekSlot.findUnique({
           where: {
             yachtId_startDate: {
               yachtId,
@@ -370,48 +371,57 @@ export class PricingService {
           },
         });
 
+        // 2) Если слота нет — создаём
         if (!weekSlot) {
-          // Пока слота нет — просто логируем и пропускаем обновление фактической цены/истории.
-          // Позже можно добавить авто-создание WeekSlot.
-          console.warn(
-            '[pricing.changeStatus] WeekSlot not found, skip actuals/history',
-            { yachtId, weekStart },
-          );
+          weekSlot = await tx.weekSlot.create({
+            data: {
+              yachtId,
+              startDate: weekStart,
+              status: WeekSlotStatus.OPEN,
+              currentPrice: finalPrice,
+              currentDiscount: discountPct,
+              priceFetchedAt: now,
+              // priceSource: можно добавить позже, когда зафиксируешь enum
+            },
+          });
         } else {
-          // 2) Обновляем фактическую цену/скидку на слот
-          await tx.weekSlot.update({
+          // 3) Если слот есть — обновляем фактическую цену/скидку
+          weekSlot = await tx.weekSlot.update({
             where: { id: weekSlot.id },
             data: {
               currentPrice: finalPrice,
               currentDiscount: discountPct,
               priceFetchedAt: now,
-              // priceSource можно добавить позже, когда зафиксируешь enum/логику
-            },
-          });
-
-          // 3) Пишем запись в историю цен
-          await tx.priceHistory.create({
-            data: {
-              weekSlotId: weekSlot.id,
-              price: finalPrice,
-              discount: discountPct,
-              // source: 'INTERNAL', // когда заведёшь PriceSource.INTERNAL
-              authorId: user.id,
-              note,
-              date: now,
+              // priceSource: позже
             },
           });
         }
+
+        // 4) Пишем запись в историю цен
+        await tx.priceHistory.create({
+          data: {
+            weekSlotId: weekSlot.id,
+            price: finalPrice,
+            discount: discountPct,
+            // source: 'INTERNAL', // когда заведём PriceSource.INTERNAL
+            authorId: user.id,
+            note,
+            date: now,
+          },
+        });
       }
 
+      // возвращаем решение, чтобы выйти из транзакции
       return decision;
     });
 
-    // 5) Ответ + мета (каст к DecisionWithMeta, чтобы не ругался на optional yacht)
-    return {
+    // 5) Ответ + мета
+    const response: DecisionWithMeta = {
       ...updated,
       lastComment: dto.comment?.trim() || null,
       lastActionAt: new Date(),
-    } as DecisionWithMeta;
+    };
+
+    return response;
   }
 }
