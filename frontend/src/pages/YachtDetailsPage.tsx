@@ -73,6 +73,7 @@ export default function YachtDetailsPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
+
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">{yacht.name}</h1>
         <div className="flex items-center gap-3">
@@ -82,7 +83,6 @@ export default function YachtDetailsPage() {
           >
             ← {t('actions.back')}
           </Link>
-
           <Link
             to={`/yacht/${yacht.id}/edit`}
             className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 hover:bg-blue-700"
@@ -93,7 +93,21 @@ export default function YachtDetailsPage() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      {/* Manager */}
+      <div className="rounded-2xl border p-5 shadow-sm bg-white mt-6">
+        <h2 className="font-semibold mb-3">Ответственный менеджер</h2>
+        <p className="text-sm">
+          {yacht.responsibleManagerName ?? '—'}
+        </p>
+      </div>
+
+      {/* Owner */}
+      <div className="rounded-2xl border p-5 shadow-sm bg-white mt-6">
+        <span className="text-gray-600">{t('fields.owner')}: </span>
+        <span>{yacht.ownerName ?? '—'}</span>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6 mt-6">
         {/* Specs */}
         <div className="rounded-2xl border p-5 shadow-sm bg-white">
           <h2 className="font-semibold mb-3">{t('sections.specs')}</h2>
@@ -141,7 +155,7 @@ export default function YachtDetailsPage() {
 
             <dt className="text-gray-500">{t('fields.country', 'Country')}</dt>
             <dd>{country ? `${country.name} (${country.code2})` : '—'}</dd>
-            
+
           </dl>
         </div>
       </div>
@@ -257,11 +271,6 @@ export default function YachtDetailsPage() {
         )}
       </div>
 
-      {/* Owner */}
-      <div className="rounded-2xl border p-5 shadow-sm bg-white mt-6">
-        <span className="text-gray-600">{t('fields.owner')}: </span>
-        <span>{yacht.ownerName ?? '—'}</span>
-      </div>
     </div>
   )
 }

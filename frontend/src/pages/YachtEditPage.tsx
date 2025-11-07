@@ -16,7 +16,8 @@ import Select from 'react-select';
 import AsyncSelect from 'react-select/async';
 import {
   getYacht, updateYacht, createYacht, deleteYacht,
-  getCountries, findCategories, findBuilders, findModels
+  getCountries, findCategories, findBuilders, findModels,
+  api
 } from '../api';
 
 type YachtWithRefs = Yacht & {
@@ -26,6 +27,16 @@ type YachtWithRefs = Yacht & {
   category?: { id: number; nameEn?: string | null; nameRu?: string | null } | null;
   builderId?: number | null;
   builder?: { id: number; name: string } | null;
+};
+
+// Роли такие же, как на /admin/users
+type Role = 'ADMIN' | 'FLEET_MANAGER' | 'MANAGER' | 'OWNER';
+
+type UserRow = {
+  id: string;
+  email: string;
+  name: string | null;
+  role: Role;
 };
 
 type FormState = {
@@ -47,6 +58,8 @@ type FormState = {
   countryId: string;           // NEW
   categoryId: string;          // NEW (число в строке)
   builderId: string;           // NEW (число в строке)
+  // ID ответственного менеджера (user.id), пока как строка
+  responsibleManagerId: string;
 };
 
 const TYPE_OPTIONS = ['monohull', 'catamaran', 'trimaran', 'compromis'] as const;
@@ -68,6 +81,9 @@ const HEADS_OPTIONS = range(1, 12);
 export default function YachtEditPage() {
   type Opt = { value: string; label: string }
   const [countryOpts, setCountryOpts] = useState<Opt[]>([])
+  // Список доступных менеджеров для Select
+  const [managerOpts, setManagerOpts] = useState<Opt[]>([])
+  const [loadingManagers, setLoadingManagers] = useState(false)
   // Лейблы для уже выбранных (из API) значений category/builder
   const [categoryLabel, setCategoryLabel] = useState<string | null>(null)
   const [builderLabel, setBuilderLabel] = useState<string | null>(null)
@@ -119,6 +135,7 @@ export default function YachtEditPage() {
     countryId: '',
     categoryId: '',
     builderId: '',
+    responsibleManagerId: '',
   })
 
   const [yacht, setYacht] = useState<Yacht | null>(null)
@@ -147,6 +164,36 @@ export default function YachtEditPage() {
       cancelled = true
     }
   }, [])
+
+  // 🔹 Загружаем пользователей и собираем список менеджеров
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        setLoadingManagers(true)
+        const { data } = await api.get<{ items: UserRow[] }>('/users', {
+          params: { page: 1, limit: 100 },
+        })
+        if (cancelled) return
+        const items = data.items.filter((u) =>
+          ['MANAGER', 'FLEET_MANAGER', 'ADMIN'].includes(u.role)
+        )
+        const opts: Opt[] = items.map((u) => ({
+          value: u.id,
+          label: (u.name && u.name.trim()) || u.email,
+        }))
+        setManagerOpts(opts)
+      } catch {
+        if (!cancelled) setManagerOpts([])
+      } finally {
+        if (!cancelled) setLoadingManagers(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
 
   useEffect(() => {
     if (isCreate) {
@@ -208,6 +255,11 @@ export default function YachtEditPage() {
           currentExtraServices: extraStr,
           ownerName: y.ownerName ?? '',
           maxDiscountPct: y.maxDiscountPct != null ? String(y.maxDiscountPct) : '',
+          // если бэк начнёт присылать это поле в Yacht — подхватим, иначе пусто
+          responsibleManagerId:
+            (y as any).responsibleManagerId != null
+              ? String((y as any).responsibleManagerId)
+              : '',
         })
       })
       .catch((e: unknown) => setErr(e instanceof Error ? e.message : t('errors.loadFailed')))
@@ -279,6 +331,17 @@ export default function YachtEditPage() {
     return { value: form.model, label: modelLabel ?? form.model }
   }, [form.model, modelLabel])
 
+  // 🔹 Текущий выбранный менеджер для Select
+  const managerValue = useMemo<Opt | null>(() => {
+    if (!form.responsibleManagerId) return null
+    return (
+      managerOpts.find((o) => o.value === form.responsibleManagerId) ?? {
+        value: form.responsibleManagerId,
+        label: form.responsibleManagerId,
+      }
+    )
+  }, [form.responsibleManagerId, managerOpts]) 
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
@@ -294,6 +357,10 @@ export default function YachtEditPage() {
         form.builderId !== '' && Number.isFinite(Number(form.builderId))
           ? Number(form.builderId)
           : null
+
+      // ----- ответственный менеджер -----
+      const responsibleManagerId: string | null =
+        form.responsibleManagerId.trim() !== '' ? form.responsibleManagerId.trim() : null      
 
       // ----- скидка -----
       let maxDiscountPct: number | null = null
@@ -314,7 +381,7 @@ export default function YachtEditPage() {
         // оставляем строковое значение как есть
       }
 
-      // ----- итоговый payload без any -----
+      // ----- итоговый payload -----
       const payload: YachtUpdatePayload = {
         name: form.name,
         manufacturer: form.manufacturer,
@@ -335,6 +402,8 @@ export default function YachtEditPage() {
         countryId,
         categoryId,
         builderId,
+        // новое поле для бэкенда
+        responsibleManagerId,
       }
 
       if (isCreate) {
@@ -379,6 +448,9 @@ export default function YachtEditPage() {
   if (loading) return <div className="mt-10 text-center">{t('loading')}</div>
   if (err) return <div className="mt-10 text-center text-red-600">{err}</div>
 
+  // Пока не заморачиваемся с ролями — позже можно будет ограничить ADMIN/FLEET_MANAGER
+  const canEditManager = true
+
   return (
     <div className="mx-auto max-w-3xl p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -391,7 +463,30 @@ export default function YachtEditPage() {
       </div>
 
       <form onSubmit={onSubmit} className="space-y-6">
+        
         <fieldset className="grid gap-4 rounded-2xl border p-5 md:grid-cols-2">
+          <div>
+          {canEditManager && (
+            <label className="flex flex-col">
+              <span className="text-sm text-gray-600">Ответственный менеджер</span>
+              <Select<Opt, false>
+                className="mt-1"
+                classNamePrefix="rs"
+                isClearable
+                options={managerOpts}
+                value={managerValue}
+                onChange={(opt) => {
+                  const v = opt?.value ?? ''
+                  setForm((f) => ({ ...f, responsibleManagerId: v }))
+                }}
+                placeholder={
+                  loadingManagers ? 'Загрузка менеджеров…' : 'Выберите менеджера…'
+                }
+              />
+            </label>
+          )}
+          </div>
+
           <Legend>{t('sections.general', 'General')}</Legend>
 
           <Field label={t('fields.name', 'Name')} value={form.name} onChange={onChange('name')} />

@@ -69,6 +69,19 @@ curl -s "http://localhost:8000/api/pricing/rows?week=2025-09-20" \
 | jq '.[] | select(.yachtId=="411239cb-bf6b-4d5e-80dd-db2a7c896fe3") | {name, status: .decision?.status, lastComment}'
 
 ============================
+## Полная очистка трех таблиц
+
+leonidk@Mac yachtpricer-mvp %
+docker compose exec db psql -U postgres -d yachtpricer
+
+TRUNCATE TABLE 
+  "price_history",
+  "price_audit_logs",
+  "pricing_decisions"
+RESTART IDENTITY CASCADE;
+
+exit
+
 ## Полная очистка обеих таблиц
 docker compose exec -T db psql -U postgres -d yachtpricer -c "
 TRUNCATE TABLE price_audit_logs CASCADE;
