@@ -8,6 +8,16 @@ import axios, {
 } from "axios";
 
 // ---- Types ----
+
+export type YachtPriceHistoryItem = {
+  date: string;
+  weekStart: string;
+  price: number | null;
+  discountPct: number | null;
+  source?: string | null;
+  note?: string | null;
+};
+
 export interface Yacht {
   id: string
   name: string
@@ -34,6 +44,11 @@ export interface Yacht {
   actualPrice?: number | null
   actualDiscountPct?: number | null
   fetchedAt?: string | null
+  // ─ NEW: current price summary from PriceHistory/YachtDetailsDto ─
+  currentPrice?: number | null
+  currentDiscountPct?: number | null
+  currentPriceUpdatedAt?: string | null
+  priceHistory?: YachtPriceHistoryItem[]
 }
 
 export type YachtListParams = {
@@ -189,6 +204,8 @@ type YachtRaw = {
   ownerName?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  countryCode?: string | null;
+  countryName?: string | null;
   // возможные варианты pricing-полей:
   maxDiscountPct?: number | string | null;
   maxDiscountPercent?: number | string | null;
@@ -199,6 +216,17 @@ type YachtRaw = {
   currentDiscount?: number | string | null;
   fetchedAt?: string | null;
   priceFetchedAt?: string | null;
+  // NEW: поля из YachtDetailsDto (бекенд)
+  currentDiscountPct?: number | string | null;
+  currentPriceUpdatedAt?: string | null;
+  priceHistory?: Array<{
+    date: string;
+    weekStart: string;
+    price: number | string | null;
+    discountPct: number | string | null;
+    source?: string | null;
+    note?: string | null;
+  }> | null;
 };
 
 
@@ -224,7 +252,7 @@ export async function getYacht(id: string): Promise<Yacht> {
       toNum(data?.maxDiscountPct) ??
       toNum(data?.maxDiscountPercent) ??
       null,
-    actualPrice:
+     actualPrice:
       toNum(data?.actualPrice) ??
       toNum(data?.currentPrice) ??
       null,
@@ -234,6 +262,18 @@ export async function getYacht(id: string): Promise<Yacht> {
       toNum(data?.currentDiscount) ??
       null,
     fetchedAt: data?.fetchedAt ?? data?.priceFetchedAt ?? null,
+    // NEW: current price snapshot from backend (YachtDetailsDto)
+    currentPrice: toNum(data?.currentPrice),
+    currentDiscountPct: toNum(data?.currentDiscountPct),
+    currentPriceUpdatedAt: data?.currentPriceUpdatedAt ?? null,
+    priceHistory: (data?.priceHistory ?? []).map((h) => ({
+      date: h.date,
+      weekStart: h.weekStart,
+      price: toNum(h.price),
+      discountPct: toNum(h.discountPct),
+      source: h.source ?? null,
+      note: h.note ?? null,
+    })),     
   };
   return normalized
 }

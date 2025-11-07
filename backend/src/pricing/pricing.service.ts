@@ -22,6 +22,7 @@ import {
   User,
   AuditAction,
   ScrapeSource,
+  WeekSlotStatus,
 } from '@prisma/client';
 import { PricingRepo, type YachtForRows } from './pricing.repo';
 import { toNum } from '../common/decimal';
@@ -291,9 +292,9 @@ export class PricingService {
       ensureWithinMaxDiscount(maxLimit, effectiveDiscount);
     }
 
-    // 4) Транзакция: (а) при SUBMIT — обновить пару; (б) обновить статус; (в) аудит
+    // 4) Транзакция: (а) при SUBMIT — обновить пару; (б) статус + аудит; (в) при APPROVED — актуал/история
     const updated = await this.repo.tx(async (tx) => {
-      // (а) применяем discount/final если заданы
+      // (а) при SUBMIT — применяем discount/final, если заданы
       if (
         toStatus === DecisionStatus.SUBMITTED &&
         (newDiscountPct !== undefined || newFinalPrice !== undefined)
@@ -344,6 +345,73 @@ export class PricingService {
         });
       }
 
+      // (г) при APPROVED фиксируем цену в WeekSlot и пишем PriceHistory
+      if (toStatus === DecisionStatus.APPROVED) {
+        // страхуемся: к моменту APPROVED пара должна быть заполнена
+        if (decision.finalPrice == null || decision.discountPct == null) {
+          throw new ForbiddenException(
+            'finalPrice and discountPct must be set before Approve',
+          );
+        }
+
+        const finalPrice = decision.finalPrice;
+        const discountPct = decision.discountPct;
+        const weekStart = decision.weekStart; // Date
+        const yachtId = decision.yachtId;
+        const now = new Date();
+        const note = dto.comment?.trim() || null;
+
+        // 1) Ищем WeekSlot по (yachtId, weekStart)
+        let weekSlot = await tx.weekSlot.findUnique({
+          where: {
+            yachtId_startDate: {
+              yachtId,
+              startDate: weekStart,
+            },
+          },
+        });
+
+        // 2) Если слота нет — создаём
+        if (!weekSlot) {
+          weekSlot = await tx.weekSlot.create({
+            data: {
+              yachtId,
+              startDate: weekStart,
+              status: WeekSlotStatus.OPEN,
+              currentPrice: finalPrice,
+              currentDiscount: discountPct,
+              priceFetchedAt: now,
+              // priceSource: можно добавить позже, когда зафиксируешь enum
+            },
+          });
+        } else {
+          // 3) Если слот есть — обновляем фактическую цену/скидку
+          weekSlot = await tx.weekSlot.update({
+            where: { id: weekSlot.id },
+            data: {
+              currentPrice: finalPrice,
+              currentDiscount: discountPct,
+              priceFetchedAt: now,
+              // priceSource: позже
+            },
+          });
+        }
+
+        // 4) Пишем запись в историю цен
+        await tx.priceHistory.create({
+          data: {
+            weekSlotId: weekSlot.id,
+            price: finalPrice,
+            discount: discountPct,
+            // source: 'INTERNAL', // когда заведём PriceSource.INTERNAL
+            authorId: user.id,
+            note,
+            date: now,
+          },
+        });
+      }
+
+      // возвращаем решение, чтобы выйти из транзакции
       return decision;
     });
 

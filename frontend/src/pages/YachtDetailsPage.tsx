@@ -156,16 +156,90 @@ export default function YachtDetailsPage() {
           <dt className="text-gray-500">{t('fields.maxDiscountPct')}</dt>
           <dd>{asPercent(yacht.maxDiscountPct ?? null)}</dd>
 
-          <dt className="text-gray-500">{t('fields.actualPrice')}</dt>
-          <dd>{asMoney(yacht.actualPrice ?? null)}</dd>
+          {/* Текущая согласованная цена/скидка из PriceHistory */}
+          <dt className="text-gray-500">
+            {t('fields.currentPrice', 'Current price')}
+          </dt>
+          <dd>{asMoney(yacht.currentPrice ?? null)}</dd>
 
-          <dt className="text-gray-500">{t('fields.actualDiscount')}</dt>
-          <dd>{asPercent(yacht.actualDiscountPct ?? null)}</dd>
+          <dt className="text-gray-500">
+            {t('fields.currentDiscountPct', 'Current discount')}
+          </dt>
+          <dd>{asPercent(yacht.currentDiscountPct ?? null)}</dd>
 
-          <dt className="text-gray-500">{t('fields.fetchedAt')}</dt>
-          <dd title={yacht.fetchedAt ?? ''}>{fmtWhen(yacht.fetchedAt ?? null)}</dd>
+          <dt className="text-gray-500">
+            {t('fields.currentPriceUpdatedAt', 'Price updated at')}
+          </dt>
+          <dd title={yacht.currentPriceUpdatedAt ?? ''}>
+            {fmtWhen(yacht.currentPriceUpdatedAt ?? null)}
+          </dd>
+
         </dl>
       </div>
+
+      {/* Price history */}
+      <div className="rounded-2xl border p-5 shadow-sm bg-white mt-6">
+        <h2 className="font-semibold mb-3">
+          {t('sections.priceHistory', 'Price history')}
+        </h2>
+
+        {Array.isArray(yacht.priceHistory) && yacht.priceHistory.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 pr-4 text-gray-500">
+                    {t('history.date', 'Date')}
+                  </th>
+                  <th className="text-left py-2 pr-4 text-gray-500">
+                    {t('history.weekStart', 'Week start')}
+                  </th>
+                  <th className="text-left py-2 pr-4 text-gray-500">
+                    {t('history.price', 'Price')}
+                  </th>
+                  <th className="text-left py-2 pr-4 text-gray-500">
+                    {t('history.discount', 'Discount')}
+                  </th>
+                  <th className="text-left py-2 pr-4 text-gray-500">
+                    {t('history.source', 'Source')}
+                  </th>
+                  <th className="text-left py-2 pr-4 text-gray-500">
+                    {t('history.note', 'Note')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {yacht.priceHistory.map((h, idx) => (
+                  <tr key={idx} className="border-b last:border-0">
+                    <td className="py-1 pr-4">
+                      {fmtWhen(h.date)}
+                    </td>
+                    <td className="py-1 pr-4">
+                      {fmtWhen(h.weekStart)}
+                    </td>
+                    <td className="py-1 pr-4">
+                      {asMoney(h.price ?? null)}
+                    </td>
+                    <td className="py-1 pr-4">
+                      {asPercent(h.discountPct ?? null)}
+                    </td>
+                    <td className="py-1 pr-4">
+                      {h.source ?? '—'}
+                    </td>
+                    <td className="py-1 pr-4">
+                      {h.note || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500">
+            {t('history.empty', 'No price history yet')}
+          </div>
+        )}
+      </div>     
 
       {/* Extra services */}
       <div className="rounded-2xl border p-5 shadow-sm bg-white mt-6">

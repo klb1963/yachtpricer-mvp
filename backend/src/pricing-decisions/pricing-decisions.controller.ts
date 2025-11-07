@@ -122,6 +122,21 @@ export class PricingDecisionsController {
     if (status !== DecisionStatus.SUBMITTED)
       throw new ForbiddenException('Invalid source status');
 
+    // --- Жёстко валидируем, что цена/скидка заданы ---
+    if (decision.finalPrice == null) {
+      throw new ForbiddenException('finalPrice must be set before approve');
+    }
+    if (decision.discountPct == null) {
+      throw new ForbiddenException('discountPct must be set before approve');
+    }
+
+    // --- Локальные переменные суженного типа (Decimal, без null) ---
+    const finalPrice = decision.finalPrice;
+    const discountPct = decision.discountPct;
+    const weekStart = decision.weekStart;
+    const yachtId = decision.yachtId;
+    const notes = decision.notes ?? null;
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const u = await tx.pricingDecision.update({
         where: { id },
@@ -131,6 +146,7 @@ export class PricingDecisionsController {
           approvedAt: new Date(),
         },
       });
+
       await tx.priceAuditLog.create({
         data: {
           decisionId: id,
@@ -141,6 +157,49 @@ export class PricingDecisionsController {
           comment: 'Approved',
         },
       });
+
+      // WeekSlot для этой яхты и недели
+      const weekSlot = await tx.weekSlot.findUnique({
+        where: {
+          yachtId_startDate: {
+            yachtId,
+            startDate: weekStart,
+          },
+        },
+      });
+
+      if (!weekSlot) {
+        throw new NotFoundException(
+          'WeekSlot not found for this decision (yachtId + weekStart)',
+        );
+      }
+
+      const now = new Date();
+
+      // Обновляем фактическую цену/скидку на слот
+      await tx.weekSlot.update({
+        where: { id: weekSlot.id },
+        data: {
+          currentPrice: finalPrice, // OK: Decimal, без null
+          currentDiscount: discountPct, // OK: Decimal, без null
+          priceFetchedAt: now,
+          // priceSource: PriceSource.INTERNAL_DECISION, // добавим позже, если нужно
+        },
+      });
+
+      // Пишем запись в PriceHistory
+      await tx.priceHistory.create({
+        data: {
+          weekSlotId: weekSlot.id,
+          price: finalPrice, // OK: Decimal
+          discount: discountPct, // OK: Decimal
+          // source: PriceSource.INTERNAL_DECISION,
+          authorId: actor.id,
+          note: notes,
+          date: now,
+        },
+      });
+
       return u;
     });
 
