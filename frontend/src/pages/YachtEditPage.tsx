@@ -37,6 +37,7 @@ type UserRow = {
   email: string;
   name: string | null;
   role: Role;
+  isActive: boolean;
 };
 
 type FormState = {
@@ -175,8 +176,10 @@ export default function YachtEditPage() {
           params: { page: 1, limit: 100 },
         })
         if (cancelled) return
-        const items = data.items.filter((u) =>
-          ['MANAGER', 'FLEET_MANAGER', 'ADMIN'].includes(u.role)
+        const items = data.items.filter(
+          (u) =>
+            u.isActive &&                              // 🔹 только активные
+            ['MANAGER', 'FLEET_MANAGER', 'ADMIN'].includes(u.role)
         )
         const opts: Opt[] = items.map((u) => ({
           value: u.id,

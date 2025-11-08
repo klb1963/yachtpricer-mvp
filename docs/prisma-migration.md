@@ -32,6 +32,9 @@ export DATABASE_URL="postgresql://postgres:postgres@localhost:5440/yachtpricer"
 # создаём и применяем миграцию
 npx prisma migrate dev -n "имя_миграции"
 
+пример:
+npx prisma migrate dev -n add_is_active_to_user
+
 # на всякий случай отдельно генерим клиент
 npx prisma generate
 

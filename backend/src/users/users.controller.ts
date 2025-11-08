@@ -3,12 +3,17 @@ import { Controller, Get, Patch, Body, Query, UseGuards } from '@nestjs/common';
 import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrgAdminGuard } from '../auth/org-admin.guard';
-import { IsEnum, IsString } from 'class-validator';
+import { IsEnum, IsString, IsBoolean } from 'class-validator';
 import { Roles } from '../auth/roles.decorator';
 
 class UpdateUserRoleDto {
   @IsString() userId!: string;
   @IsEnum(Role) role!: Role;
+}
+
+class UpdateUserActiveDto {
+  @IsString() userId!: string;
+  @IsBoolean() isActive!: boolean;
 }
 
 @UseGuards(OrgAdminGuard)
@@ -47,7 +52,15 @@ export class UsersController {
         orderBy: { createdAt: 'desc' },
         skip: (p - 1) * l,
         take: l,
-        include: {
+        // ⚠️ ВАЖНО: используем ТОЛЬКО select, без include
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          orgId: true,
+          isActive: true,
+          createdAt: true,
           org: { select: { slug: true } },
         },
       }),
@@ -63,7 +76,31 @@ export class UsersController {
     return this.prisma.user.update({
       where: { id: dto.userId },
       data: { role: dto.role },
-      select: { id: true, email: true, name: true, role: true, orgId: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        orgId: true,
+        isActive: true,
+      },
+    });
+  }
+
+  // PATCH /api/users/active
+  @Patch('active')
+  async updateActive(@Body() dto: UpdateUserActiveDto) {
+    return this.prisma.user.update({
+      where: { id: dto.userId },
+      data: { isActive: dto.isActive },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        orgId: true,
+        isActive: true,
+      },
     });
   }
 }

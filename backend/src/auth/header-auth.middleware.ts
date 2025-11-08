@@ -32,6 +32,7 @@ export class HeaderAuthMiddleware implements NestMiddleware {
           name: true,
           createdAt: true,
           updatedAt: true,
+          isActive: true,
         },
       });
 

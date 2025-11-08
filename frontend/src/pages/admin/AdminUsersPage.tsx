@@ -12,6 +12,7 @@ type UserRow = {
   orgId: string | null;
   org?: { slug: string };
   createdAt?: string;
+  isActive: boolean;
 };
 
 type ListResp = {
@@ -69,6 +70,16 @@ export default function AdminUsersPage() {
     } catch (e) {
       console.error(e);
       alert("Failed to update role");
+    }
+  };
+
+  const toggleActive = async (userId: string, isActive: boolean) => {
+    try {
+      await api.patch("/users/active", { userId, isActive });
+      await load();
+    } catch (e) {
+      console.error(e);
+      alert("Failed to update user status");
     }
   };
 
@@ -146,23 +157,41 @@ export default function AdminUsersPage() {
             </thead>
             <tbody>
               {data.items.map((u) => (
-                <tr key={u.id} className="border-t">
+                <tr
+                  key={u.id}
+                  className={`border-t ${u.isActive ? "" : "opacity-60 bg-gray-50"}`}
+                >
                   <td className="p-2">{u.email}</td>
                   <td className="p-2">{u.name ?? '—'}</td>
                   <td className="p-2">{u.role}</td>
                   <td className="p-2">{u.org?.slug ?? '—'}</td>
                   <td className="p-2">
-                    <select
-                      defaultValue={u.role}
-                      onChange={(e) => changeRole(u.id, e.target.value as Role)}
-                      className="border px-2 py-1 rounded"
-                    >
-                      {(['ADMIN', 'FLEET_MANAGER', 'MANAGER', 'OWNER'] as Role[]).map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex items-center gap-3">
+                      <select
+                        defaultValue={u.role}
+                        onChange={(e) => changeRole(u.id, e.target.value as Role)}
+                        className="border px-2 py-1 rounded"
+                      >
+                        {(['ADMIN', 'FLEET_MANAGER', 'MANAGER', 'OWNER'] as Role[]).map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </select>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleActive(u.id, !u.isActive)}
+                        className={`px-3 py-1 rounded text-xs font-semibold border ${
+                          u.isActive
+                            ? "bg-green-100 text-green-800 border-green-300"
+                            : "bg-gray-200 text-gray-700 border-gray-300"
+                        }`}
+                        title={u.isActive ? "Deactivate user" : "Activate user"}
+                      >
+                        {u.isActive ? "Active" : "Inactive"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
