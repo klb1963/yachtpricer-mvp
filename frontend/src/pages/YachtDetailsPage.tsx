@@ -8,12 +8,20 @@ import { PencilSquareIcon } from '@heroicons/react/24/solid';
 import { useTranslation } from 'react-i18next';
 
 // ─ helpers (как на PricingPage) ─
-function asMoney(n: number | string | null | undefined) {
+function asMoney(
+  n: number | string | null | undefined,
+  currency: string | null | undefined = 'EUR',
+) {
   if (n == null) return '—';
   const num = typeof n === 'string' ? Number(n) : n;
   if (!Number.isFinite(num as number)) return '—';
-  return `€ ${(num as number).toLocaleString('en-EN', { maximumFractionDigits: 0 })}`;
+  const cur = currency || 'EUR';
+  const symbol = cur === 'EUR' || cur === '€' ? '€' : cur;
+  return `${symbol} ${(num as number).toLocaleString('en-EN', {
+    maximumFractionDigits: 0,
+  })}`;
 }
+
 function asPercent(n: number | null | undefined) {
   if (n == null || !Number.isFinite(n as number)) return '—';
   return `${n}%`;
@@ -28,6 +36,17 @@ function fmtWhen(iso: string | null | undefined) {
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+  });
+}
+
+function fmtDate(iso: string | null | undefined) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
   });
 }
 
@@ -162,10 +181,23 @@ export default function YachtDetailsPage() {
 
       {/* Pricing */}
       <div className="rounded-2xl border p-5 shadow-sm bg-white mt-6">
-        <h2 className="font-semibold mb-3">{t('sections.pricing')}</h2>
+        <h2 className="font-semibold mb-1">{t('sections.pricing')}</h2>
+        {yacht.selectedWeekStart && (
+          <div className="mb-3 text-sm text-gray-500">
+            {t('fields.weekScope', 'for week starting')}: {fmtDate(yacht.selectedWeekStart)}
+          </div>
+        )}
+
         <dl className="grid grid-cols-2 gap-y-2 text-sm">
-          <dt className="text-gray-500">{t('fields.basePrice')}</dt>
-          <dd>{asMoney(yacht.basePrice)}</dd>
+          <dt className="text-gray-500">
+            {t('fields.basePrice', 'Base price (selected week)')}
+          </dt>
+          <dd>
+            {asMoney(
+              yacht.currentBasePrice ?? yacht.basePrice,
+              yacht.currency ?? undefined,
+            )}
+          </dd>
 
           <dt className="text-gray-500">{t('fields.maxDiscountPct')}</dt>
           <dd>{asPercent(yacht.maxDiscountPct ?? null)}</dd>
@@ -174,7 +206,7 @@ export default function YachtDetailsPage() {
           <dt className="text-gray-500">
             {t('fields.currentPrice', 'Current price')}
           </dt>
-          <dd>{asMoney(yacht.currentPrice ?? null)}</dd>
+          <dd>{asMoney(yacht.currentPrice ?? null, yacht.currency ?? undefined)}</dd>
 
           <dt className="text-gray-500">
             {t('fields.currentDiscountPct', 'Current discount')}
@@ -187,7 +219,6 @@ export default function YachtDetailsPage() {
           <dd title={yacht.currentPriceUpdatedAt ?? ''}>
             {fmtWhen(yacht.currentPriceUpdatedAt ?? null)}
           </dd>
-
         </dl>
       </div>
 
@@ -232,7 +263,7 @@ export default function YachtDetailsPage() {
                       {fmtWhen(h.weekStart)}
                     </td>
                     <td className="py-1 pr-4">
-                      {asMoney(h.price ?? null)}
+                      {asMoney(h.price ?? null, yacht.currency ?? undefined)}
                     </td>
                     <td className="py-1 pr-4">
                       {asPercent(h.discountPct ?? null)}

@@ -38,9 +38,14 @@ interface YachtDetailsDto extends YachtWithCountry {
   currentDiscountPct: number | null;
   currentPriceUpdatedAt: string | null;
   priceHistory: PriceHistoryItemDto[];
-  // 🔹 Новый блок: ответственный менеджер
+  // 🔹 ответственный менеджер
   responsibleManagerId: string | null;
   responsibleManagerName: string | null;
+  // 🔹 актуальная базовая цена (на выбранную неделю) и валюта
+  currentBasePrice: number | null;
+  currency: string | null;
+  // 🔹 по какой неделе считаем всё на показываемой странице
+  selectedWeekStart: string | null;
 }
 
 /** Хелперы парсинга */
@@ -82,6 +87,10 @@ const toNullableNum = (v: unknown): number | null | undefined => {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
+
+function safeStr(v: unknown): string | null {
+  return typeof v === 'string' ? v : null;
+}
 
 const clamp = (n: number, a: number, b: number) => Math.min(Math.max(n, a), b);
 
@@ -198,7 +207,10 @@ export class YachtsController {
 
   // -------- by id --------
   @Get(':id')
-  async byId(@Param('id') id: string): Promise<YachtDetailsDto> {
+  async byId(
+    @Param('id') id: string,
+    @Query('weekStart') weekStart?: string,
+  ): Promise<YachtDetailsDto> {
     const y = await this.prisma.yacht.findUnique({
       where: { id },
       include: {
@@ -228,15 +240,29 @@ export class YachtsController {
     const yearAgo = new Date(now);
     yearAgo.setFullYear(now.getFullYear() - 1);
 
-    const history = await this.prisma.priceHistory.findMany({
-      where: {
-        weekSlot: {
-          yachtId: id,
-        },
-        date: {
-          gte: yearAgo,
-        },
+    // 🔹 Пытаемся распарсить weekStart из query
+    let weekStartDate: Date | null = null;
+    if (weekStart) {
+      const d = new Date(weekStart);
+      if (!Number.isNaN(d.getTime())) {
+        weekStartDate = d;
+      }
+    }
+
+    // 🔹 Фильтр для истории: по яхте, за последний год
+    // и, если задана неделя, только weekSlots с startDate <= weekStart
+    const historyWhere: Prisma.PriceHistoryWhereInput = {
+      weekSlot: {
+        yachtId: id,
+        ...(weekStartDate ? { startDate: { lte: weekStartDate } } : {}),
       },
+      date: {
+        gte: yearAgo,
+      },
+    };
+
+    const history = await this.prisma.priceHistory.findMany({
+      where: historyWhere,
       orderBy: {
         date: 'asc', // для таблицы сверху-вниз во времени
       },
@@ -247,6 +273,7 @@ export class YachtsController {
 
     const last = history.length > 0 ? history[history.length - 1] : null;
 
+    // 🔹 Текущие "фактические" цена и скидка на выбранную неделю (или последнюю)
     const currentPrice =
       last?.price != null ? Number(last.price as unknown as number) : null;
     const currentDiscountPct =
@@ -254,6 +281,36 @@ export class YachtsController {
         ? Number(last.discount as unknown as number)
         : null;
     const currentPriceUpdatedAt = last ? last.date.toISOString() : null;
+
+    // 🔹 Базовая цена и валюта на эту же неделю
+    let currentBasePrice: number | null = null;
+    let currency: string | null = null;
+
+    if (last?.weekSlot) {
+      const slot = last.weekSlot;
+
+      if (slot.basePrice != null) {
+        currentBasePrice = Number(slot.basePrice as unknown as number);
+      } else if (last.price != null) {
+        // fallback: если ещё не заполняем basePrice, используем фактическую цену
+        currentBasePrice = Number(last.price as unknown as number);
+      }
+
+      // аккуратно читаем валюту, чтобы не ловить no-unsafe-assignment
+      if (typeof slot.currency === 'string') {
+        currency = safeStr(slot.currency);
+      } else {
+        currency = null;
+      }
+    }
+
+    // 🔹 Какую неделю считаем "выбранной" для этой карточки
+    let selectedWeekStart: string | null = null;
+    if (weekStartDate) {
+      selectedWeekStart = weekStartDate.toISOString();
+    } else if (last?.weekSlot?.startDate) {
+      selectedWeekStart = last.weekSlot.startDate.toISOString();
+    }
 
     const priceHistory: PriceHistoryItemDto[] = history.map((h) => ({
       date: h.date.toISOString(),
@@ -274,6 +331,9 @@ export class YachtsController {
       priceHistory,
       responsibleManagerId,
       responsibleManagerName,
+      currentBasePrice,
+      currency,
+      selectedWeekStart,
     };
   }
 

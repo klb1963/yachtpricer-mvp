@@ -214,8 +214,13 @@ model WeekSlot {
   currentPrice    Decimal @db.Decimal(12, 2)
   currentDiscount Decimal @db.Decimal(5, 2)
 
-  // НОВОЕ: откуда взяли цену и когда
-  priceSource    PriceSource?
+  // Базовая цена на эту неделю (после согласования, потом попадает во внутренний прайс-лист через экспорт из YP)
+  basePrice Decimal? @db.Decimal(12, 2)
+  // Валюта базовой/текущей цены (в коде по умолчанию будем считать 'EUR')
+  currency  String?
+
+  // откуда взяли цену и когда
+  priceSource    PriceSource? // практически всегда INTERNAL, обновляется из PriceDecision
   priceFetchedAt DateTime?
 
   priceHistory PriceHistory[]

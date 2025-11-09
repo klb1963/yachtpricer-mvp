@@ -44,15 +44,18 @@ export interface Yacht {
   actualPrice?: number | null
   actualDiscountPct?: number | null
   fetchedAt?: string | null
-  // ─ NEW: current price summary from PriceHistory/YachtDetailsDto ─
+  // - Current price summary from PriceHistory/YachtDetailsDto ─
   currentPrice?: number | null
   currentDiscountPct?: number | null
   currentPriceUpdatedAt?: string | null
   priceHistory?: YachtPriceHistoryItem[]
-
    // 🔹 новое
   responsibleManagerId?: string | null
   responsibleManagerName?: string | null
+  // 🔹 новые поля для текущей базовой цены на неделю и её валюты
+  currentBasePrice?: number | null
+  currency?: string | null
+  selectedWeekStart?: string | null
 }
 
 export type YachtListParams = {
@@ -210,19 +213,26 @@ type YachtRaw = {
   updatedAt?: string;
   countryCode?: string | null;
   countryName?: string | null;
-  // возможные варианты pricing-полей:
+
+  // ─ возможные варианты pricing-полей с бэка ─
   maxDiscountPct?: number | string | null;
   maxDiscountPercent?: number | string | null;
+
   actualPrice?: number | string | null;
+  // "сырые" текущие значения (могут приходить как string/number)
   currentPrice?: number | string | null;
+
   actualDiscountPct?: number | string | null;
   actualDiscountPercent?: number | string | null;
   currentDiscount?: number | string | null;
+  currentDiscountPct?: number | string | null;
+
   fetchedAt?: string | null;
   priceFetchedAt?: string | null;
-  // NEW: поля из YachtDetailsDto (бекенд)
-  currentDiscountPct?: number | string | null;
+
+  // ─ расширенный DTO с историей и текущим snapshot ─
   currentPriceUpdatedAt?: string | null;
+
   priceHistory?: Array<{
     date: string;
     weekStart: string;
@@ -231,6 +241,11 @@ type YachtRaw = {
     source?: string | null;
     note?: string | null;
   }> | null;
+
+  // ─ weekly base price additions (YachtDetailsDto) ─
+  currentBasePrice?: number | string | null;
+  currency?: string | null;
+  selectedWeekStart?: string | null;
 };
 
 
@@ -247,9 +262,14 @@ export async function getYachts(): Promise<Yacht[]> {
     : ((data as { items?: Yacht[] })?.items ?? []);
 }
 
-export async function getYacht(id: string): Promise<Yacht> {
-  // Грузим деталь и нормализуем возможные имена полей (Pct/Percent, currentPrice/Discount, priceFetchedAt/fetchedAt)
-  const { data } = await api.get<YachtRaw>(`/yachts/${id}`);
+export async function getYacht(
+  id: string,
+  params?: { weekStart?: string | null }
+): Promise<Yacht> {
+  // Грузим деталь (можно указать ?weekStart=2025-06-14)
+  const { data } = await api.get<YachtRaw>(`/yachts/${id}`, {
+    params: params?.weekStart ? { weekStart: params.weekStart } : undefined,
+  });
   const normalized: Yacht = {
     ...data,
     maxDiscountPct:
@@ -277,7 +297,11 @@ export async function getYacht(id: string): Promise<Yacht> {
       discountPct: toNum(h.discountPct),
       source: h.source ?? null,
       note: h.note ?? null,
-    })),     
+    })),
+    // 🔹 weekly base price additions
+    currentBasePrice: toNum(data?.currentBasePrice),
+    currency: data?.currency ?? null,
+    selectedWeekStart: data?.selectedWeekStart ?? null,
   };
   return normalized
 }
