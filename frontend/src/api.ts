@@ -69,6 +69,8 @@ export type YachtListParams = {
   sort?: "priceAsc" | "priceDesc" | "yearAsc" | "yearDesc" | "createdDesc";
   page?: number;
   pageSize?: number;
+  /** неделя, для которой хотим получить basePrice, ISO YYYY-MM-DD */
+  weekStart?: string;
 };
 
 export type YachtListResponse = {

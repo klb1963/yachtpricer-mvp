@@ -12,7 +12,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { Prisma, YachtType } from '@prisma/client';
+import { Prisma, WeekSlot, YachtType } from '@prisma/client';
 import { Roles } from './auth/roles.decorator';
 import { PrismaService } from './prisma/prisma.service';
 
@@ -113,6 +113,8 @@ export class YachtsController {
       sort?: 'priceAsc' | 'priceDesc' | 'yearAsc' | 'yearDesc' | 'createdDesc';
       page?: string;
       pageSize?: string;
+      // неделя, для которой хотим показывать base price
+      weekStart?: string;
     },
   ) {
     const q = (query.q ?? '').trim();
@@ -128,6 +130,15 @@ export class YachtsController {
     const pageSize = clamp(toInt(query.pageSize) ?? 20, 1, 200);
     const skip = (page - 1) * pageSize;
     const take = pageSize;
+
+    // 🔹 Пытаемся распарсить weekStart из query, как в byId()
+    let weekStartDate: Date | null = null;
+    if (query.weekStart) {
+      const d = new Date(query.weekStart);
+      if (!Number.isNaN(d.getTime())) {
+        weekStartDate = d;
+      }
+    }
 
     const andClauses: Array<Prisma.YachtWhereInput | undefined> = [
       q
@@ -196,11 +207,65 @@ export class YachtsController {
       }),
     ]);
 
-    const mapped = items.map((y) => ({
-      ...y,
-      countryCode: y.country?.code2 ?? null,
-      countryName: y.country?.name ?? null,
-    }));
+    // 🔹 Подтягиваем week slots для всех яхт страницы,
+    //    чтобы посчитать currentBasePrice/currency/selectedWeekStart
+    let bestSlotByYacht: Record<string, WeekSlot> = {};
+
+    // Если неделя не задана, weekly base price не считаем (оставляем старый basePrice)
+    if (items.length > 0 && weekStartDate) {
+      const yachtIds = items.map((y) => y.id);
+
+      // Берём WeekSlot РОВНО на выбранную дату недели
+      const slotWhere: Prisma.WeekSlotWhereInput = {
+        yachtId: { in: yachtIds },
+        startDate: weekStartDate,
+      };
+
+      const slots = await this.prisma.weekSlot.findMany({
+        where: slotWhere,
+        // порядок уже не критичен, но пусть явно будет
+        orderBy: { startDate: 'desc' },
+      });
+
+      // для каждой яхты берём первый (самый "свежий") слот
+      bestSlotByYacht = slots.reduce<Record<string, WeekSlot>>((acc, slot) => {
+        if (!acc[slot.yachtId]) {
+          acc[slot.yachtId] = slot;
+        }
+        return acc;
+      }, {});
+    }
+
+    const mapped = items.map((y) => {
+      const slot = bestSlotByYacht[y.id];
+
+      let currentBasePrice: number | null = null;
+      let currency: string | null = null;
+      let selectedWeekStart: string | null = null;
+
+      if (slot) {
+        if (slot.basePrice != null) {
+          currentBasePrice = Number(slot.basePrice as unknown as number);
+        } else if (slot.currentPrice != null) {
+          // fallback: если basePrice ещё не заполняем, используем текущую цену
+          currentBasePrice = Number(slot.currentPrice as unknown as number);
+        }
+        currency = safeStr(slot.currency);
+        selectedWeekStart = slot.startDate.toISOString();
+      } else if (weekStartDate) {
+        // слота нет, но неделя была в запросе — хотя бы отдадим её
+        selectedWeekStart = weekStartDate.toISOString();
+      }
+
+      return {
+        ...y,
+        countryCode: y.country?.code2 ?? null,
+        countryName: y.country?.name ?? null,
+        currentBasePrice,
+        currency,
+        selectedWeekStart,
+      };
+    });
 
     return { items: mapped, total, page, pageSize };
   }

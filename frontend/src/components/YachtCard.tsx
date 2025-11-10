@@ -65,10 +65,25 @@ function getCategoryLabel(y: YachtWithImage): string {
   );
 }
 
-function fmtPrice(p: Yacht['basePrice']) {
-  if (typeof p === 'string') return p;
-  if (typeof p === 'number' && Number.isFinite(p)) return String(Math.round(p));
-  return '—';
+function fmtPrice(
+  value: Yacht['basePrice'] | number | null | undefined,
+  currency?: string | null,
+) {
+  let n: number | null = null;
+
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    n = Number.isFinite(parsed) ? parsed : null;
+  } else if (typeof value === 'number') {
+    n = Number.isFinite(value) ? value : null;
+  }
+
+  if (n == null) return '—';
+
+  const cur = (currency ?? '').trim() || '€';
+  return `${cur} ${Math.round(n).toLocaleString('en-EN', {
+    maximumFractionDigits: 0,
+  })}`;
 }
 
 function Badge({ children }: { children: React.ReactNode }) {
@@ -101,6 +116,11 @@ export default function YachtCard({
   const fromDb = (y.imageUrl ?? '').trim();
   const categoryLabel = getCategoryLabel(y);
   const src = fromDb || pickByCategory(categoryLabel);
+
+  // цена на выбранную неделю: сначала currentBasePrice, потом общий basePrice
+  const displayBasePrice =
+    y.currentBasePrice != null ? y.currentBasePrice : y.basePrice;
+
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md">
@@ -215,7 +235,9 @@ export default function YachtCard({
         <div className="mt-auto flex items-center justify-between pt-2">
           <div>
             <div className="text-xs text-gray-500">{t('fields.basePrice')}</div>
-            <div className="text-lg font-bold text-gray-900">€ {fmtPrice(y.basePrice)}</div>
+            <div className="text-lg font-bold text-gray-900">
+              {fmtPrice(displayBasePrice, y.currency)}
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2 justify-end">
@@ -224,12 +246,11 @@ export default function YachtCard({
                 type="button"
                 onClick={() => onScan(y)}
                 disabled={!!scanning}
-                className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50 ${
-                  scanning ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                }`}
-                title="Fetch competitors and aggregate"
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50 ${scanning ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                title={t('hints.fetchCompetitors', 'Fetch competitors and aggregate')}
               >
-                {scanning ? t('loading') : 'Scan'}
+                {scanning ? t('loading', 'Loading…') : t('actions.scan', 'Scan')}
               </button>
             )}
             <Link

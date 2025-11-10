@@ -24,7 +24,21 @@
     "specs": "Specifikacije",
     "pricing": "Cijene i popusti",
     "extraServices": "Dodatne usluge (JSON)",
-    "charter": "Čarter"
+    "charter": "Čarter",
+    "priceHistory": "Povijest cijena"
+  },
+  "pricing": {
+    "forWeekStarting": "za tjedan koji počinje:",
+    "currentDiscount": "Trenutni popust",
+    "priceUpdatedAt": "Cijena ažurirana: "
+  },
+  "history": {
+    "weekStart": "Početak tjedna",
+    "price": "Cijena",
+    "discount": "Popust",
+    "note": "Napomena",
+    "date": "Datum",
+    "empty": "Još nema povijesti cijena"
   },
   "fields": {
     "name": "Naziv",
@@ -44,10 +58,11 @@
     "heads": "WC-i",
     "cabinsHeads": "Kabine / WC-i",
     "basePrice": "Osnovna cijena",
-    "maxDiscountPct": "Maks. popust %",
+    "maxDiscountPct": "Maks. popust",
     "actualPrice": "Trenutna cijena",
     "actualDiscount": "Trenutni popust",
-    "fetchedAt": "Podaci ažurirani"
+    "fetchedAt": "Podaci ažurirani",
+    "maxDiscount": "Maks. popust %"
   },
   "placeholders": {
     "chooseType": "Odaberite tip…",
@@ -69,7 +84,8 @@
     "compromis": "Kompromis"
   },
   "hints": {
-    "extraServicesJsonHint": "Možete ostaviti kao običan tekst — poslužitelj će ga obraditi automatski."
+    "extraServicesJsonHint": "Možete ostaviti kao običan tekst — poslužitelj će ga obraditi automatski.",
+    "fetchCompetitors": "Dohvati konkurente i agregiraj"
   },
   "errors": {
     "loadFailed": "Greška pri učitavanju",

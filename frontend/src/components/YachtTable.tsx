@@ -119,11 +119,22 @@ const YachtTable: React.FC<Props> = ({
                 </td>
                 <td>{y.location}</td>
                 <td>
-                  {typeof y.basePrice === 'string'
-                    ? y.basePrice
-                    : Number.isFinite(y.basePrice)
-                      ? String(Math.round(Number(y.basePrice)))
-                      : '—'}
+                  {(() => {
+                    // weekly base price для выбранной недели (если есть),
+                    // иначе — старое поле basePrice
+                    const raw = y.currentBasePrice ?? y.basePrice;
+                    if (raw == null) return '—';
+
+                    const num = typeof raw === 'string' ? Number(raw) : raw;
+                    if (!Number.isFinite(num as number)) {
+                      // если не распарсилось число — покажем как есть
+                      return String(raw);
+                    }
+
+                    const rounded = Math.round(num as number);
+                    const cur = y.currency ?? '€';
+                    return `${rounded} ${cur}`;
+                  })()}
                 </td>
 
                 {/* Competitors cell */}

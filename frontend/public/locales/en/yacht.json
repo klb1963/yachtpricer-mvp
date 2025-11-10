@@ -24,7 +24,21 @@
     "specs": "Specs",
     "pricing": "Pricing",
     "extraServices": "Extra services (JSON)",
-    "charter": "Charter"
+    "charter": "Charter",
+    "priceHistory": "Price history"
+  },
+    "pricing": {
+    "forWeekStarting": "for week starting:",
+    "currentDiscount": "Current discount",
+    "priceUpdatedAt": "Price updated at: "
+  },
+  "history": {
+    "weekStart": "Week start",
+    "price": "Price",
+    "discount": "Discount",
+    "note": "Note",
+    "date": "Date",
+    "empty": "No price history yet"
   },
   "fields": {
     "name": "Name",
@@ -47,7 +61,8 @@
     "maxDiscountPct": "Max discount %",
     "actualPrice": "Actual price",
     "actualDiscount": "Actual discount",
-    "fetchedAt": "Fetched at"
+    "fetchedAt": "Fetched at",
+    "maxDiscount": "Max. discount"
   },
   "placeholders": {
     "chooseType": "Choose type…",
@@ -69,7 +84,8 @@
     "compromis": "Compromis"
   },
   "hints": {
-    "extraServicesJsonHint": "You may keep it as plain text — the server will handle it."
+    "extraServicesJsonHint": "You may keep it as plain text — the server will handle it.",
+    "fetchCompetitors": "Fetch competitors and aggregate"
   },
   "errors": {
     "loadFailed": "Failed to load",

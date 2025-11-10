@@ -24,7 +24,21 @@
     "specs": "Характеристики",
     "pricing": "Цены и скидки",
     "extraServices": "Дополнительные услуги (JSON)",
-    "charter": "Чартер"
+    "charter": "Чартер",
+    "priceHistory": "История цен"
+  },
+    "pricing": {
+    "forWeekStarting": "на неделю, начиная с:",
+    "currentDiscount": "Текущая скидка",
+    "priceUpdatedAt": "Цена обновлена: "
+  },
+  "history": {
+    "weekStart": "Начало недели",
+    "price": "Цена",
+    "discount": "Скидка",
+    "note": "Примечание",
+    "date": "Дата",
+    "empty": "История цен отсутствует"
   },
   "fields": {
     "name": "Название",
@@ -47,7 +61,8 @@
     "maxDiscountPct": "Макс. скидка %",
     "actualPrice": "Текущая цена",
     "actualDiscount": "Текущая скидка",
-    "fetchedAt": "Данные обновлены"
+    "fetchedAt": "Данные обновлены",
+    "maxDiscount": "Макс. скидка"
   },
   "placeholders": {
     "chooseType": "Выберите тип…",
@@ -69,7 +84,8 @@
     "compromis": "Компромисс"
   },
   "hints": {
-    "extraServicesJsonHint": "Можно оставить как текст — сервер обработает автоматически."
+    "extraServicesJsonHint": "Можно оставить как текст — сервер обработает автоматически.",
+    "fetchCompetitors": "Загрузить конкурентов и агрегировать"
   },
   "errors": {
     "loadFailed": "Ошибка загрузки",

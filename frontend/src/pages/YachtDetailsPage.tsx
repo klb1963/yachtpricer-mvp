@@ -179,47 +179,38 @@ export default function YachtDetailsPage() {
         </div>
       </div>
 
-      {/* Pricing */}
+      {/* Pricing section */}
       <div className="rounded-2xl border p-5 shadow-sm bg-white mt-6">
-        <h2 className="font-semibold mb-1">{t('sections.pricing')}</h2>
+        <h2 className="font-semibold mb-3">
+          {t('sections.pricing', 'Pricing')}
+        </h2>
+
         {yacht.selectedWeekStart && (
-          <div className="mb-3 text-sm text-gray-500">
-            {t('fields.weekScope', 'for week starting')}: {fmtDate(yacht.selectedWeekStart)}
+          <div className="text-gray-500 text-base mb-3">
+            {t('pricing.forWeekStarting', 'for week starting:')}{' '}
+            <span className="font-medium text-gray-900">{fmtDate(yacht.selectedWeekStart)}</span>
           </div>
         )}
 
-        <dl className="grid grid-cols-2 gap-y-2 text-sm">
-          <dt className="text-gray-500">
-            {t('fields.basePrice', 'Base price (selected week)')}
-          </dt>
-          <dd>
-            {asMoney(
-              yacht.currentBasePrice ?? yacht.basePrice,
-              yacht.currency ?? undefined,
-            )}
-          </dd>
+        <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
+          <div className="text-gray-500">{t('fields.basePrice', 'Base price')}</div>
+          <div className="font-medium">
+            {asMoney(yacht.currentBasePrice ?? null, yacht.currency ?? undefined)}
+          </div>
 
-          <dt className="text-gray-500">{t('fields.maxDiscountPct')}</dt>
-          <dd>{asPercent(yacht.maxDiscountPct ?? null)}</dd>
+          <div className="text-gray-500">{t('pricing.currentDiscount', 'Current discount')}</div>
+          <div className="font-medium">{asPercent(yacht.currentDiscountPct ?? null)}</div>
 
-          {/* Текущая согласованная цена/скидка из PriceHistory */}
-          <dt className="text-gray-500">
-            {t('fields.currentPrice', 'Current price')}
-          </dt>
-          <dd>{asMoney(yacht.currentPrice ?? null, yacht.currency ?? undefined)}</dd>
+          <div className="text-gray-500">{t('fields.maxDiscount', 'Max. discount %')}</div>
+          <div className="font-medium">{asPercent(yacht.maxDiscountPct ?? null)}</div>
 
-          <dt className="text-gray-500">
-            {t('fields.currentDiscountPct', 'Current discount')}
-          </dt>
-          <dd>{asPercent(yacht.currentDiscountPct ?? null)}</dd>
-
-          <dt className="text-gray-500">
-            {t('fields.currentPriceUpdatedAt', 'Price updated at')}
-          </dt>
-          <dd title={yacht.currentPriceUpdatedAt ?? ''}>
-            {fmtWhen(yacht.currentPriceUpdatedAt ?? null)}
-          </dd>
-        </dl>
+          <div className="mt-2 text-gray-500 text-base mb-3">
+            {t('pricing.priceUpdatedAt', 'Price updated at')}{' '}
+            <span className="font-medium text-gray-900">
+              {yacht.currentPriceUpdatedAt ? fmtWhen(yacht.currentPriceUpdatedAt) : '—'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Price history */}
@@ -234,9 +225,6 @@ export default function YachtDetailsPage() {
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-2 pr-4 text-gray-500">
-                    {t('history.date', 'Date')}
-                  </th>
-                  <th className="text-left py-2 pr-4 text-gray-500">
                     {t('history.weekStart', 'Week start')}
                   </th>
                   <th className="text-left py-2 pr-4 text-gray-500">
@@ -246,34 +234,23 @@ export default function YachtDetailsPage() {
                     {t('history.discount', 'Discount')}
                   </th>
                   <th className="text-left py-2 pr-4 text-gray-500">
-                    {t('history.source', 'Source')}
+                    {t('history.note', 'Note')}
                   </th>
                   <th className="text-left py-2 pr-4 text-gray-500">
-                    {t('history.note', 'Note')}
+                    {t('history.date', 'Date')}
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {yacht.priceHistory.map((h, idx) => (
                   <tr key={idx} className="border-b last:border-0">
-                    <td className="py-1 pr-4">
-                      {fmtWhen(h.date)}
-                    </td>
-                    <td className="py-1 pr-4">
-                      {fmtWhen(h.weekStart)}
-                    </td>
+                    <td className="py-1 pr-4">{fmtWhen(h.weekStart)}</td>
                     <td className="py-1 pr-4">
                       {asMoney(h.price ?? null, yacht.currency ?? undefined)}
                     </td>
-                    <td className="py-1 pr-4">
-                      {asPercent(h.discountPct ?? null)}
-                    </td>
-                    <td className="py-1 pr-4">
-                      {h.source ?? '—'}
-                    </td>
-                    <td className="py-1 pr-4">
-                      {h.note || '—'}
-                    </td>
+                    <td className="py-1 pr-4">{asPercent(h.discountPct ?? null)}</td>
+                    <td className="py-1 pr-4">{h.note || '—'}</td>
+                    <td className="py-1 pr-4">{fmtWhen(h.date)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -284,7 +261,7 @@ export default function YachtDetailsPage() {
             {t('history.empty', 'No price history yet')}
           </div>
         )}
-      </div>     
+      </div>
 
       {/* Extra services */}
       <div className="rounded-2xl border p-5 shadow-sm bg-white mt-6">

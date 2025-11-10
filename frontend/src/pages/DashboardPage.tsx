@@ -13,7 +13,7 @@ import YachtTable from '../components/YachtTable';
 import Modal from '@/components/Modal';
 import CompetitorFiltersPage from '@/pages/CompetitorFiltersPage';
 import { HeaderWithSourceBadge } from "../components/HeaderWithSourceBadge";
-import { useTranslation } from 'react-i18next';
+
 
 import {
   startScrape,
@@ -24,6 +24,7 @@ import {
 } from '../api';
 
 import type { CompetitorPrice, StartResponseDto, ScrapeSource, CompetitorFiltersDto, } from '../api';
+import { useTranslation } from 'react-i18next';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -132,8 +133,10 @@ export default function DashboardPage() {
       sort,
       page,
       pageSize,
+      // 🔹 неделя, для которой хотим подтянуть basePrice из WeekSlot
+      weekStart,
     }),
-    [q, categoryId, minYear, maxYear, minPrice, maxPrice, sort, page, pageSize],
+    [q, categoryId, minYear, maxYear, minPrice, maxPrice, sort, page, pageSize, weekStart],
   );
 
   // модалка фильтров конкуренток
