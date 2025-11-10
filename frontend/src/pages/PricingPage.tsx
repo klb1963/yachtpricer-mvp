@@ -1,7 +1,7 @@
 // frontend/src/pages/PricingPage.tsx
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { changeStatus, fetchRows, upsertDecision, pairFromRow } from '../api/pricing';
 import type { PricingRow, DecisionStatus } from '../api/pricing';
 import type { ScrapeSource } from '../api';
@@ -496,8 +496,20 @@ export default function PricingPage() {
                 return (
                   <tr key={r.yachtId} className="border-t">
                     <td className="p-3 sticky left-0 bg-white z-10">
-                      <div className="font-medium">{r.name}</div>
-                      <div className="text-xs text-gray-500">{r.snapshot?.currency ?? 'EUR'}</div>
+                      <div className="font-medium">
+                        <Link
+                          to={{
+                            pathname: `/yacht/${r.yachtId}`,
+                            search: `?week=${week}`,
+                          }}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {r.name}
+                        </Link>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {r.snapshot?.currency ?? 'EUR'}
+                      </div>
                     </td>
                     <td className="p-3 text-right tabular-nums">{asMoney(r.basePrice)}</td>
                     {/* NEW: Actuals column */}
@@ -593,7 +605,17 @@ export default function PricingPage() {
 
             return (
               <div key={r.yachtId} className="border rounded-lg p-4 shadow bg-white">
-                <h2 className="font-semibold text-lg mb-2">{r.name}</h2>
+                <h2 className="font-semibold text-lg mb-2">
+                  <Link
+                    to={{
+                      pathname: `/yacht/${r.yachtId}`,
+                      search: `?week=${week}`,
+                    }}
+                    className="text-blue-600 hover:underline"
+                  >
+                    {r.name}
+                  </Link>
+                </h2>
 
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                   <div className="text-gray-500">{t('base')}</div>
