@@ -94,5 +94,8 @@
   },
   "competitors": "Конкуренты",
   "thisYacht": "эта яхта",
-  "loading": "Загрузка…"
+  "loading": "Загрузка…",
+    "competitorOffers": {
+    "header": "{{count}} предложений"
+  }
 }

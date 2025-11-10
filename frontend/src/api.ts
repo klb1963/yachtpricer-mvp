@@ -429,15 +429,35 @@ export type CompetitorPrice = {
   weekStart: string; // ISO
   source: ScrapeSource;
   competitorYacht: string | null;
-  price: string;
+  price: string;              // Decimal → строка
   currency: string | null;
   link: string | null;
-  scrapedAt: string; // ISO
+  scrapedAt: string;          // ISO
+
+  // базовые характеристики лодки-конкурента
   lengthFt?: number | null;
   cabins?: number | null;
   heads?: number | null;
   year?: number | null;
-  marina?: string | null;
+  marina?: string | null;     // сырой ID/название марины (для совместимости)
+
+  // денежные параметры
+  discountPct?: string | null; // Decimal → строка
+  feesTotal?: string | null;   // Decimal → строка
+
+  // измерения/ссылки на справочники
+  countryCode?: string | null;
+  countryId?: string | null;
+  categoryId?: number | null;
+  regionId?: number | null;
+  locationId?: string | null;
+  builderId?: number | null;
+  modelId?: number | null;
+
+  // "расплющенные" имена из справочников (удобно для UI)
+  modelName?: string | null;
+  marinaName?: string | null;
+  countryName?: string | null;
 };
 
 export async function listCompetitorPrices(params: { yachtId?: string; week?: string; source?: ScrapeSource }) {

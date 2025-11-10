@@ -94,5 +94,8 @@
   },
   "competitors": "Konkurenti",
   "thisYacht": "ova jahta",
-  "loading": "Učitavanje…"
+  "loading": "Učitavanje…",
+  "competitorOffers": {
+    "header": "{{count}} ponuda"
+  }
 }

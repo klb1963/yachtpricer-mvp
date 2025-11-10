@@ -625,7 +625,7 @@ export class ScraperService {
       }
     }
 
-    return this.prisma.competitorPrice.findMany({
+    const rows = await this.prisma.competitorPrice.findMany({
       where: {
         ...(q.yachtId ? { yachtId: q.yachtId } : {}),
         ...weekFilter,
@@ -633,7 +633,33 @@ export class ScraperService {
       },
       orderBy: [{ scrapedAt: 'desc' }],
       take: 50,
+      include: {
+        // модель конкурента (если есть связь)
+        model: { select: { name: true } },
+        // локация + страна
+        location: {
+          select: {
+            name: true,
+            country: { select: { code2: true, name: true } },
+          },
+        },
+        // страна по прямой FK countryId (на случай, если location не заполнен)
+        country: { select: { code2: true, name: true } },
+      },
     });
+
+    // Обогащаем плоскими полями для фронта
+    return rows.map((p) => ({
+      ...p,
+      // читаемое название модели
+      modelName: p.model?.name ?? null,
+      // название марины (если есть Location)
+      marinaName: p.location?.name ?? p.marina ?? null,
+      // код / название страны (приоритет: relation, затем scalar countryCode)
+      countryCode:
+        p.country?.code2 ?? p.location?.country?.code2 ?? p.countryCode ?? null,
+      countryName: p.country?.name ?? p.location?.country?.name ?? null,
+    }));
   }
 
   /** Агрегирует CompetitorPrice → CompetitorSnapshot. */

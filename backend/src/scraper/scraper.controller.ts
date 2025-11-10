@@ -103,6 +103,7 @@ export class ScraperController {
   /**
    * Сохранённые цены конкурентов.
    */
+  @Public()
   @Get('competitors-prices')
   list(@Query() query: CompetitorsQueryDto) {
     return this.svc.getCompetitors({

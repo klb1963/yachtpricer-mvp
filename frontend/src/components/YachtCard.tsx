@@ -4,7 +4,8 @@
 import { Link } from 'react-router-dom';
 import type { Yacht, CompetitorPrice } from '../api';
 import { useTranslation } from 'react-i18next';
-import type { ScrapeSource } from '../api'
+import type { ScrapeSource } from '../api';
+import CompetitorOffersList from './CompetitorOffersList';
 
 // Бэкенд может прислать imageUrl (опционально)
 type YachtWithImage = Yacht & {
@@ -212,25 +213,9 @@ export default function YachtCard({
           </div>
         )}
 
-        {open && details.length > 0 && (
-          <div className="mt-2 rounded border p-2">
-            <div className="mb-1 text-[11px] text-gray-600">{details.length} offers:</div>
-            <ul className="max-h-40 space-y-1 overflow-auto pr-1">
-              {details.map((p) => (
-                <li key={p.id} className="flex justify-between gap-2 text-[11px]">
-                  <span className="truncate">
-                    {p.competitorYacht ?? '—'} {p.year ? `(${p.year})` : ''} · {p.marina ?? '—'}
-                    {p.cabins != null ? ` · ${p.cabins}c` : ''}
-                    {p.heads != null ? `/${p.heads}h` : ''}
-                  </span>
-                  <span className="shrink-0">
-                    {p.price} {p.currency ?? ''}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+
+        {/* CompetitorOffersList */}
+        {open && details.length > 0 && <CompetitorOffersList prices={details} />}
 
         <div className="mt-auto flex items-center justify-between pt-2">
           <div>

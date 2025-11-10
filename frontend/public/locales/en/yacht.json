@@ -94,5 +94,8 @@
   },
   "competitors": "Competitors",
   "thisYacht": "this yacht",
-  "loading": "Loading…"
+  "loading": "Loading…",
+  "competitorOffers": {
+    "header": "{{count}} offers"
+  }
 }
