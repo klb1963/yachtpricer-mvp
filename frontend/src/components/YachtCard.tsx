@@ -145,7 +145,17 @@ export default function YachtCard({
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="truncate text-lg font-semibold text-gray-900">{y.name}</h3>
+            <h3 className="truncate text-lg font-semibold">
+              <Link
+                to={{
+                  pathname: `/yacht/${y.id}`,
+                  search,
+                }}
+                className="text-blue-600 hover:underline"
+              >
+                {y.name}
+              </Link>
+            </h3>
             <p className="truncate text-sm text-gray-600">
               {y.manufacturer} {y.model}
             </p>
