@@ -13,6 +13,7 @@ import PricingPage from "./pages/PricingPage";
 import OrganizationPage from "./pages/OrganizationPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import DebugWhoamiPage from "./pages/DebugWhoamiPage";
+import HomePage from "./pages/HomePage";
 
 import { useWhoami } from "./hooks/useWhoami";
 
@@ -30,7 +31,9 @@ export default function App() {
       <Navbar />
 
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        {/* 🏠 Публичная главная страница */}
+        <Route path="/" element={<HomePage />} />
+
         <Route path="/sign-in" element={<SignInPage />} />
         <Route path="/sign-up" element={<SignUpPage />} />
 

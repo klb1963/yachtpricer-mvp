@@ -1,0 +1,53 @@
+{
+  "brand": "YachtPricer",
+  "hero": {
+    "titleLine1": "Price management",
+    "titleLine2": "for charter yachts",
+    "subtitle": "Helps fleet managers find the optimal price for each week of the season.",
+    "ctaMain": "Sign in",
+    "ctaNoAccess": "Request access",
+    "exampleLabel": "Workflow example"
+  },
+  "steps": {
+    "title": "How it works",
+    "step1": "Select a week and a yacht",
+    "step2": "Start competitor scan",
+    "step3": "Compare prices and discounts",
+    "step4": "Approve the base price for the week"
+  },
+  "example": {
+    "historyLabel": "Decision history",
+    "historyText": "Week 27: base price € 4,900",
+    "competitorsLabel": "Competitors",
+    "competitorsText": "7 offers · average discount 12%"
+  },
+  "benefits": {
+    "title": "Key advantages",
+    "integrationTitle": "Integration",
+    "integrationText": "Connected with NauSYS and internal fleet database.",
+    "fleetTitle": "For fleet managers",
+    "fleetText": "UI designed for fleet management workflows, not marketing dashboards.",
+    "historyTitle": "Decision history",
+    "historyText": "See how prices and discounts evolved week by week through the season.",
+    "analyticsTitle": "Analytics base",
+    "analyticsText": "Builds a foundation for seasonal analytics — without overpromising dashboards."
+  },
+  "forWhom": {
+    "title": "Who it's for",
+    "fleetManagersTitle": "Fleet managers",
+    "fleetManagersText": "Need a quick market overview and confidence their prices stay competitive.",
+    "ownersTitle": "Yacht owners",
+    "ownersText": "Want transparency in earnings and how weekly prices are formed.",
+    "companiesTitle": "Charter companies",
+    "companiesText": "Seek a systematic pricing approach instead of scattered Excel files."
+  },
+  "ctaBottom": {
+    "title": "Want to manage prices systematically, not in Excel?",
+    "subtitle": "YachtPricer — pilot platform for Aquatoria Group teams and partners.",
+    "button": "Request access"
+  },
+  "footer": {
+    "pilot": "Pilot version · Internal use only",
+    "copyright": "YachtPricer · Aquatoria Group"
+  }
+}

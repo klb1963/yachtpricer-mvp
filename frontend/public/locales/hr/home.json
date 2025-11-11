@@ -1,0 +1,53 @@
+{
+  "brand": "YachtPricer",
+  "hero": {
+    "titleLine1": "Upravljanje cijenama",
+    "titleLine2": "čarter jahti",
+    "subtitle": "Pomaže menadžerima flote pronaći optimalnu cijenu za svaki tjedan sezone.",
+    "ctaMain": "Prijava",
+    "ctaNoAccess": "Zatraži pristup",
+    "exampleLabel": "Primjer radnog procesa"
+  },
+  "steps": {
+    "title": "Kako funkcionira",
+    "step1": "Odaberite tjedan i jahtu",
+    "step2": "Pokrenite skeniranje konkurenata",
+    "step3": "Usporedite cijene i popuste",
+    "step4": "Odobrite osnovnu cijenu za tjedan"
+  },
+  "example": {
+    "historyLabel": "Povijest odluka",
+    "historyText": "Tjedan 27: osnovna cijena € 4.900",
+    "competitorsLabel": "Konkurenti",
+    "competitorsText": "7 ponuda · prosječni popust 12%"
+  },
+  "benefits": {
+    "title": "Ključne prednosti",
+    "integrationTitle": "Integracija",
+    "integrationText": "Integracija s NauSYS sustavom i internom bazom podataka flote.",
+    "fleetTitle": "Za menadžere flote",
+    "fleetText": "Korisničko sučelje dizajnirano prema potrebama menadžera flote, a ne marketinga.",
+    "historyTitle": "Povijest odluka",
+    "historyText": "Pratite kako su se cijene i popusti mijenjali iz tjedna u tjedan tijekom sezone.",
+    "analyticsTitle": "Osnova za analitiku",
+    "analyticsText": "Stvara osnovu za sezonsku analitiku – bez prevelikih obećanja o 'nadzornim pločama'."
+  },
+  "forWhom": {
+    "title": "Za koga je namijenjeno",
+    "fleetManagersTitle": "Menadžeri flote",
+    "fleetManagersText": "Treba im brz pregled tržišta i sigurnost da su cijene konkurentne.",
+    "ownersTitle": "Vlasnici jahti",
+    "ownersText": "Žele transparentnost prihoda i razumijevanje formiranja cijena po tjednima.",
+    "companiesTitle": "Čarter tvrtke",
+    "companiesText": "Traže sustavni pristup određivanju cijena umjesto nepovezanih Excel datoteka."
+  },
+  "ctaBottom": {
+    "title": "Želite upravljati cijenama sustavno, a ne u Excelu?",
+    "subtitle": "YachtPricer — pilot platforma za timove i partnere Aquatoria Group.",
+    "button": "Zatraži pristup"
+  },
+  "footer": {
+    "pilot": "Pilot verzija · samo za internu upotrebu",
+    "copyright": "YachtPricer · Aquatoria Group"
+  }
+}
