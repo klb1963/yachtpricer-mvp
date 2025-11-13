@@ -16,7 +16,11 @@ import {
   canView,
   canEditDraft,
 } from '../auth/policies';
-import { RejectDto } from './dto';
+import {
+  RejectDto,
+  PendingPricingDecisionsResponseDto,
+  PendingPricingDecisionItemDto,
+} from './dto';
 import { DecisionStatus, AuditAction, User } from '@prisma/client';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator'; // ← ВАЖНО
@@ -30,6 +34,67 @@ export class PricingDecisionsController {
     private readonly prisma: PrismaService,
     private readonly accessCtx: AccessCtxService,
   ) {}
+
+  // ─────────────────────────────────────────────────────────────
+  // Pending decisions для in-app уведомлений на Dashboard
+  // Возвращаем только те решения, по которым текущий пользователь
+  // реально может/должен что-то сделать (по policy).
+  // ─────────────────────────────────────────────────────────────
+
+  @Get('pending')
+  async listPending(
+    @CurrentUser() actor?: User, // 👈 делаем опциональным
+  ): Promise<PendingPricingDecisionsResponseDto> {
+    // если нет актёра (нет токена) — просто ничего не показываем
+    if (!actor) {
+      return { count: 0, items: [] };
+    }
+
+    const decisions = await this.prisma.pricingDecision.findMany({
+      where: {
+        status: {
+          in: [DecisionStatus.SUBMITTED, DecisionStatus.REJECTED],
+        },
+      },
+      include: {
+        yacht: true,
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    });
+
+    const items: PendingPricingDecisionItemDto[] = [];
+
+    for (const d of decisions) {
+      const ctx = await this.accessCtx.build(actor, d.yachtId);
+
+      const needsAction =
+        (d.status === DecisionStatus.SUBMITTED &&
+          canApproveOrReject(actor, d, ctx)) ||
+        (d.status === DecisionStatus.REJECTED && canSubmit(actor, d, ctx));
+
+      if (!needsAction) continue;
+
+      const weekStartIso =
+        d.weekStart instanceof Date
+          ? d.weekStart.toISOString().slice(0, 10)
+          : '';
+
+      items.push({
+        id: d.id,
+        yachtId: d.yachtId,
+        yachtLabel: d.yacht?.name ?? null,
+        weekStart: weekStartIso,
+        status: d.status,
+      });
+    }
+
+    return {
+      count: items.length,
+      items,
+    };
+  }
 
   // Список решений + права (берём актёра из req.user)
   @Get('list/with-perms')

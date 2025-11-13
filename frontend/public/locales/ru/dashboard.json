@@ -32,5 +32,19 @@
     "sourceBadge": {
     "label": "Источник",
     "tooltip": "Текущий источник данных сканирования"
-    } 
+    },
+  "pending": {
+    "title": "Требуется действие по ценам",
+    "subtitle": "{{count}} цен(ы) ожидают решения",
+    "itemLine": "Неделя с {{week}}: {{yacht}} — статус {{status}}",
+    "yachtFallback": "Яхта",
+    "more": "И ещё {{count}}…",
+    "cta": "Перейти к согласованию цен"
+  },
+  "status": {
+    "DRAFT": "DRAFT",
+    "SUBMITTED": "SUBMITTED",
+    "APPROVED": "APPROVED",
+    "REJECTED": "REJECTED"
+  }
 }

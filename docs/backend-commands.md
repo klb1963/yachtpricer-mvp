@@ -12,6 +12,8 @@ docker compose restart backend - перезапускает контейнер, 
 
 docker compose up -d --build backend - пересобрать и перезапустить с нуля (на случай изменений зависимостей)
 
+docker compose build backend && docker compose up -d backend
+
 docker compose exec backend printenv | grep NAUSYS - убедиться, что креды действительно доступны
 
 ## Локально (без Docker)
