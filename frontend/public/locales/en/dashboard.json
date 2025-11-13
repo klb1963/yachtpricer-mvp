@@ -32,5 +32,19 @@
     "sourceBadge": {
     "label": "Source",
     "tooltip": "Current scan data source"
-    }
+    },
+    "pending": {
+    "title": "Price action required",
+    "subtitle": "{{count}} price decision(s) awaiting review",
+    "itemLine": "Week starting {{week}}: {{yacht}} — status {{status}}",
+    "yachtFallback": "Yacht",
+    "more": "And {{count}} more…",
+    "cta": "Go to pricing approval"
+  },
+  "status": {
+    "DRAFT": "DRAFT",
+    "SUBMITTED": "SUBMITTED",
+    "APPROVED": "APPROVED",
+    "REJECTED": "REJECTED"
+  }
 }

@@ -32,5 +32,19 @@
     "sourceBadge": {
     "label": "Izvor",
     "tooltip": "Trenutni izvor podataka za skeniranje"
-    } 
+    },
+  "pending": {
+    "title": "Potrebna je akcija s cijenama",
+    "subtitle": "{{count}} cijena čeka odluku",
+    "itemLine": "Tjedan od {{week}}: {{yacht}} — status {{status}}",
+    "yachtFallback": "Jahta",
+    "more": "I još {{count}}…",
+    "cta": "Prijeđi na odobravanje cijena"
+  },
+  "status": {
+    "DRAFT": "DRAFT",
+    "SUBMITTED": "SUBMITTED",
+    "APPROVED": "APPROVED",
+    "REJECTED": "REJECTED"
+  }
 }

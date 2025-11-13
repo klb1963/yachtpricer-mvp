@@ -80,6 +80,31 @@ export type YachtListResponse = {
   pageSize: number;
 };
 
+// ──────────────────────────────────────────────
+// Pending pricing decisions (для уведомлений)
+// ──────────────────────────────────────────────
+
+export type PendingDecisionStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "APPROVED"
+  | "REJECTED";
+
+export type PendingPricingDecisionItem = {
+  id: string;
+  yachtId: string;
+  /** Короткий ярлык яхты (имя/модель) для отображения */
+  yachtLabel: string | null;
+  /** Дата начала недели в формате YYYY-MM-DD */
+  weekStart: string;
+  status: PendingDecisionStatus;
+};
+
+export type PendingPricingDecisionsResponse = {
+  count: number;
+  items: PendingPricingDecisionItem[];
+};
+
 // ============================
 // Общий Axios-клиент
 // ============================
@@ -188,6 +213,17 @@ api.interceptors.response.use(
     throw error;
   }
 );
+
+// ──────────────────────────────────────────────
+// API: pending pricing decisions (для Dashboard)
+// ──────────────────────────────────────────────
+
+export async function getPendingPricingDecisions(): Promise<PendingPricingDecisionsResponse> {
+  const { data } = await api.get<PendingPricingDecisionsResponse>(
+    "/pricing-decisions/pending"
+  );
+  return data;
+}
 
 // ============================
 // Yachts API

@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import type { Yacht, YachtListParams, YachtListResponse } from '../api';
+import type {
+  Yacht,
+  YachtListParams,
+  YachtListResponse,
+  PendingPricingDecisionsResponse,
+} from '../api';
 import { parseISO } from 'date-fns';
 import { listYachts } from '../api';
 import YachtCard from '../components/YachtCard';
@@ -14,13 +19,13 @@ import Modal from '@/components/Modal';
 import CompetitorFiltersPage from '@/pages/CompetitorFiltersPage';
 import { HeaderWithSourceBadge } from "../components/HeaderWithSourceBadge";
 
-
 import {
   startScrape,
   getScrapeStatus,
   aggregateSnapshot,
   listCompetitorPrices,
   upsertCompetitorFilters,
+  getPendingPricingDecisions,
 } from '../api';
 
 import type { CompetitorPrice, StartResponseDto, ScrapeSource, CompetitorFiltersDto, } from '../api';
@@ -54,6 +59,10 @@ export default function DashboardPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation('dashboard');
+
+  // pending decisions для уведомлений
+  const [pending, setPending] = useState<PendingPricingDecisionsResponse | null>(null);
+  const [pendingError, setPendingError] = useState(false); 
 
   // читаем неделю из URL (если валидна), иначе текущая
   const initWeekFromUrl = () => {
@@ -152,6 +161,25 @@ export default function DashboardPage() {
       localStorage.setItem('competitor:activeFilterId', activeFilterId);
     }
   }, [activeFilterId]);
+
+  // загрузка pending-решений для баннера уведомлений
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getPendingPricingDecisions();
+        if (!cancelled) {
+          setPending(data);
+        }
+      } catch (e) {
+        console.error('Failed to load pending decisions', e);
+        if (!cancelled) setPendingError(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // загрузка списка яхт
   useEffect(() => {
@@ -348,6 +376,56 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* 🔔 Уведомление о решениях, ожидающих действия */}
+      {pending && pending.count > 0 && (
+        <div className="mb-4 rounded-xl border-l-4 border-amber-500 bg-amber-50 p-4 text-sm text-amber-900">
+          <div className="mb-1 flex items-center justify-between">
+            <div className="font-semibold">
+              🔔 {t('pending.title', 'Price action required')}
+            </div>
+            <div className="text-xs text-amber-800">
+              {t('pending.subtitle', '{{count}} prices awaiting decision', {
+                count: pending.count,
+              })}
+            </div>
+          </div>
+          {pending.items.slice(0, 3).map((item) => (
+            <div key={item.id} className="text-xs text-amber-800">
+              {t(
+                'pending.itemLine',
+                'Week starting {{week}}: {{yacht}} — status {{status}}',
+                {
+                  week: item.weekStart,
+                  yacht:
+                    item.yachtLabel ??
+                    t('pending.yachtFallback', 'Yacht'),
+                  status: t(`status.${item.status}`, item.status),
+                },
+              )}
+            </div>
+          ))}
+          {pending.count > 3 && (
+            <div className="mt-1 text-[11px] text-amber-700">
+              {t('pending.more', 'And {{count}} more…', {
+                count: pending.count - 3,
+              })}
+            </div>
+          )}
+          <div className="mt-3">
+            <Link
+              to={
+                pending.items[0]?.weekStart
+                  ? `/pricing?week=${pending.items[0].weekStart}`
+                  : "/pricing"
+              }
+              className="inline-flex items-center rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+            >
+              {t('pending.cta', 'Go to pricing approval')}
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Фильтры */}
       <YachtListFilters
