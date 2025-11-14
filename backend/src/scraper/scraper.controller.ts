@@ -66,9 +66,9 @@ export class ScraperController {
   /**
    * Старт задачи скрейпа.
    */
-  @Public()
+  // @Public()
   @Post('start')
-  @Roles('MANAGER', 'ADMIN')
+  @Roles('MANAGER', 'FLEET_MANAGER', 'ADMIN')
   start(
     @CurrentUser() user: Pick<User, 'id' | 'orgId'>,
     @Body() dto: StartScrapeDto,
@@ -87,8 +87,19 @@ export class ScraperController {
   }
 
   @Post('aggregate')
-  @Roles('MANAGER', 'ADMIN')
-  aggregate(@Body() dto: AggregateDto) {
+  @Roles('MANAGER', 'FLEET_MANAGER', 'ADMIN')
+  aggregate(
+    @CurrentUser() user: Pick<User, 'id' | 'orgId'>,
+    @Body() dto: AggregateDto,
+  ) {
+    this.logger.log(
+      `hit /scrape/aggregate: ${JSON.stringify({
+        yachtId: dto.yachtId,
+        week: dto.week,
+        source: dto.source,
+        userOrgId: user?.orgId ?? null,
+      })}`,
+    );
     return this.svc.aggregate(dto);
   }
 
