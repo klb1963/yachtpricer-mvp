@@ -34,8 +34,9 @@ export default function App() {
         {/* 🏠 Публичная главная страница */}
         <Route path="/" element={<HomePage />} />
 
-        <Route path="/sign-in" element={<SignInPage />} />
-        <Route path="/sign-up" element={<SignUpPage />} />
+        {/* Clerk sign-in/sign-up должны матчить вложенные пути типа /sign-in/factor-one */}
+        <Route path="/sign-in/*" element={<SignInPage />} />
+        <Route path="/sign-up/*" element={<SignUpPage />} />
 
         <Route
           path="/dashboard"
