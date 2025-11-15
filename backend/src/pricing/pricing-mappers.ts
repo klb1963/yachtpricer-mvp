@@ -1,8 +1,8 @@
 // backend/src/pricing/pricing-mappers.ts
+
 import { Prisma, CompetitorSnapshot, PricingDecision } from '@prisma/client';
 import { toNum } from '../common/decimal';
 import type { SnapshotDto, DecisionDto } from './pricing-row.dto';
-import type { PriceSourceLiteral } from './pricing-row.dto';
 
 // Узкий тип для weekSlot, который мы выбираем в запросе findMany(select: {...})
 export type WeekSlotMini = {
@@ -16,26 +16,11 @@ export type WeekSlotMini = {
 // Последний аудит по decision (используется в сервисе для last* полей)
 export type AuditMini = { comment: string | null; createdAt: Date };
 
-// нормализация источника цены к нашему литеральному типу
-const ALLOWED_SOURCES: readonly PriceSourceLiteral[] = [
-  'INTERNAL',
-  'NAUSYS',
-  'BOOKING_MANAGER',
-  'OTHER',
-] as const;
-function normalizePriceSource(src?: string | null): PriceSourceLiteral | null {
-  if (!src) return null;
-  return (ALLOWED_SOURCES as readonly string[]).includes(src)
-    ? (src as PriceSourceLiteral)
-    : 'OTHER';
-}
-
 /** Actual price/discount + источник → примитивы для фронта */
 export function mapActualFields(slot?: WeekSlotMini) {
   return {
     actualPrice: toNum(slot?.currentPrice),
     actualDiscountPct: toNum(slot?.currentDiscount),
-    priceSource: normalizePriceSource(slot?.priceSource ?? null),
     priceFetchedAt: slot?.priceFetchedAt
       ? slot.priceFetchedAt.toISOString()
       : null,

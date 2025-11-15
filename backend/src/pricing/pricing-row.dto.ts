@@ -24,13 +24,6 @@ export type RowPermsDto = {
   canApproveOrReject: boolean;
 };
 
-// локальная замена prisma.$Enums.PriceSource
-export type PriceSourceLiteral =
-  | 'INTERNAL'
-  | 'NAUSYS'
-  | 'BOOKING_MANAGER'
-  | 'OTHER';
-
 /** Основная строка таблички на /pricing/rows */
 export type PricingRowDto = {
   yachtId: string;
@@ -40,9 +33,11 @@ export type PricingRowDto = {
   snapshot: SnapshotDto | null;
   decision: DecisionDto | null;
 
-  /** «Actual price» за неделю — уже как примитивы */
+  /** «Actual price» за неделю — уже как примитив (number) */
+  actualPrice: number | null;
+
+  /** «Actual discount» за неделю — тоже как примитив */
   actualDiscountPercent: number | null;
-  priceSource: PriceSourceLiteral | null;
   /** ISO-строка (удобно для фронта) */
   fetchedAt: string | null;
 

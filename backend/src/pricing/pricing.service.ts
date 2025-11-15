@@ -27,6 +27,7 @@ import {
 import { PricingRepo, type YachtForRows } from './pricing.repo';
 import { toNum } from '../common/decimal';
 import type { PricingRowDto } from './pricing-row.dto';
+import { getEffectiveBasePriceForWeek } from '../pricing-decisions/effective-base-price.helper';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 import {
@@ -72,7 +73,6 @@ export class PricingService {
 
     // 2) Данные недели (снимки конкурентов, решения, слоты)
     const [snaps, decisions, weekSlots] = await Promise.all([
-      // 👇 теперь тянем снапшоты по конкретному source (INNERDB / NAUSYS / BOATAROUND)
       this.repo.listSnapshots(ws, source),
       this.repo.listDecisions(ws),
       this.repo.listWeekSlots(ws, yachtIds),
@@ -103,86 +103,123 @@ export class PricingService {
       }
     }
 
-    // 4) Сборка строк
-    return Promise.all(
-      yachts.map(async (y) => {
-        const s = snapByYacht.get(y.id) ?? null;
-        const d = decByYacht.get(y.id) ?? null;
-        const status = d?.status ?? DecisionStatus.DRAFT;
+    // 4) Сборка строк (for-of, чтобы не плодить async-map)
+    const rows: PricingRowDto[] = [];
 
-        // контекст доступа для этой лодки
-        const ctx: AccessCtx = await this.accessCtx.build(
-          { id: user.id, role: user.role, orgId: user.orgId },
-          y.id,
+    for (const y of yachts) {
+      const s = snapByYacht.get(y.id) ?? null;
+      const d = decByYacht.get(y.id) ?? null;
+      const status = d?.status ?? DecisionStatus.DRAFT;
+
+      // контекст доступа для этой лодки
+      const ctx: AccessCtx = await this.accessCtx.build(
+        { id: user.id, role: user.role, orgId: user.orgId },
+        y.id,
+      );
+
+      // права на действия
+      const perms = {
+        canEditDraft: canEditDraft(user, { status }, ctx),
+        canSubmit: canSubmit(user, { status }, ctx),
+        canApproveOrReject: canApproveOrReject(user, { status }, ctx),
+      };
+
+      // рекомендация = top3Avg, если есть
+      const mlReco = s?.top3Avg ?? null;
+
+      // 🔹 Эффективная базовая цена + данные решения (для факта)
+      const effectiveBase = await getEffectiveBasePriceForWeek(this.prisma, {
+        yachtId: y.id,
+        weekStart: ws,
+      });
+
+      const baseDecimal = effectiveBase.price ?? y.basePrice;
+
+      // если у решения есть discountPct, пересчитаем итог (если finalPrice не задан)
+      let finalPrice = d?.finalPrice ?? null;
+      if (finalPrice == null && d?.discountPct != null) {
+        finalPrice = baseDecimal.mul(
+          new Prisma.Decimal(1).sub(d.discountPct.div(100)),
         );
+      }
 
-        // права на действия
-        const perms = {
-          canEditDraft: canEditDraft(user, { status }, ctx),
-          canSubmit: canSubmit(user, { status }, ctx),
-          canApproveOrReject: canApproveOrReject(user, { status }, ctx),
-        };
+      const lastAudit = d?.id ? lastAuditByDecision.get(d.id) : undefined;
+      const slot = slotByYacht.get(y.id);
 
-        // рекомендация = top3Avg, если есть
-        const mlReco = s?.top3Avg ?? null;
+      // маппинги к примитивам
+      const snapshot = mapSnapshot(s);
+      const decision = mapDecision(d);
 
-        // если у решения есть discountPct, пересчитаем итог (если finalPrice не задан)
-        let finalPrice = d?.finalPrice ?? null;
-        if (finalPrice == null && d?.discountPct != null) {
-          finalPrice = y.basePrice.mul(
-            new Prisma.Decimal(1).sub(d.discountPct.div(100)),
-          );
-        }
+      let { actualPrice, actualDiscountPct, priceFetchedAt } =
+        mapActualFields(slot);
 
-        const lastAudit = d?.id ? lastAuditByDecision.get(d.id) : undefined;
-        const slot = slotByYacht.get(y.id);
+      // Если по этой неделе нет WeekSlot (всё пусто),
+      // но есть утверждённое решение в прошлом —
+      // показываем его как «фактическую» цену/скидку.
+      if (
+        actualPrice == null &&
+        actualDiscountPct == null &&
+        !priceFetchedAt &&
+        effectiveBase.price &&
+        effectiveBase.fromDecisionId
+      ) {
+        actualPrice = effectiveBase.price.toNumber();
+        actualDiscountPct = effectiveBase.discountPct
+          ? effectiveBase.discountPct.toNumber()
+          : null;
+        priceFetchedAt = effectiveBase.approvedAt
+          ? effectiveBase.approvedAt.toISOString()
+          : null;
+        // priceSource оставляем как есть (null или NAUSYS/… при наличии)
+      }
 
-        // маппинги к примитивам
-        const snapshot = mapSnapshot(s);
-        const decision = mapDecision(d);
-        const { actualPrice, actualDiscountPct, priceSource, priceFetchedAt } =
-          mapActualFields(slot);
+      // Decimal → number | null
+      const maxDiscountPercent = toNum(y.maxDiscountPct);
 
-        // Decimal → number | null
-        const maxDiscountPercent = toNum(y.maxDiscountPct);
+      rows.push({
+        yachtId: y.id,
+        name: y.name,
+        // 🔹 на фронт отдаём уже эффективную базовую цену
+        basePrice: baseDecimal,
+        snapshot,
+        decision,
+        actualPrice,
+        actualDiscountPercent: actualDiscountPct,
+        fetchedAt: priceFetchedAt,
+        maxDiscountPercent,
 
-        return {
-          yachtId: y.id,
-          name: y.name,
-          basePrice: y.basePrice, // Prisma.Decimal — фронт сам показывает (как и раньше)
-          snapshot,
-          decision,
+        // последний комментарий и время действия (ISO-строка под DTO)
+        lastComment: lastAudit?.comment ?? null,
+        lastActionAt: lastAudit?.createdAt
+          ? lastAudit.createdAt.toISOString()
+          : null,
 
-          // новые поля (примитивы)
-          actualPrice,
-          actualDiscountPercent: actualDiscountPct,
-          priceSource,
-          fetchedAt: priceFetchedAt,
-          maxDiscountPercent,
+        mlReco,
+        finalPrice,
+        perms,
+      });
+    }
 
-          // последние комментарий и время действия (ISO-строка под DTO)
-          lastComment: lastAudit?.comment ?? null,
-          lastActionAt: lastAudit?.createdAt
-            ? lastAudit.createdAt.toISOString()
-            : null,
-
-          mlReco,
-          finalPrice,
-          perms,
-        };
-      }),
-    );
+    return rows;
   }
 
   /** Создать/обновить черновик решения на неделю для лодки (RBAC: canEditDraft) */
   async upsertDecision(dto: UpsertDecisionDto, user: User) {
     const ws = weekStartUTC(new Date(dto.week));
 
-    // текущая базовая цена лодки и id
+    // текущая базовая цена лодки и id (исходная)
     const yacht = await this.prisma.yacht.findUniqueOrThrow({
       where: { id: dto.yachtId },
-      select: { basePrice: true, id: true },
+      select: { basePrice: true, id: true, maxDiscountPct: true },
     });
+
+    // 🔹 Эффективная базовая цена на эту неделю
+    const effectiveBase = await getEffectiveBasePriceForWeek(this.prisma, {
+      yachtId: dto.yachtId,
+      weekStart: ws,
+    });
+    const baseDecimal =
+      effectiveBase.price ?? yacht.basePrice ?? new Prisma.Decimal(0);
 
     // узнать текущий статус (если запись уже есть)
     const current = await this.prisma.pricingDecision.findUnique({
@@ -200,7 +237,8 @@ export class PricingService {
       throw new ForbiddenException('Недостаточно прав для изменения черновика');
     }
 
-    const base = (yacht.basePrice ?? new Prisma.Decimal(0)).toNumber();
+    const base = baseDecimal.toNumber();
+
     // нормализуем пару (если задан один параметр)
     const normalized = resolveDiscountPair(
       base,
@@ -275,7 +313,13 @@ export class PricingService {
     let newFinalPrice: number | undefined;
 
     if (toStatus === DecisionStatus.SUBMITTED) {
-      const base = toNum(current.yacht?.basePrice) ?? 0;
+      // 🔹 Эффективная базовая цена на эту неделю
+      const effectiveBase = await getEffectiveBasePriceForWeek(this.prisma, {
+        yachtId: dto.yachtId,
+        weekStart: ws,
+      });
+
+      const base = toNum(effectiveBase.price ?? current.yacht?.basePrice) ?? 0;
 
       const pair = resolveDiscountPair(base, dto.discountPct, dto.finalPrice);
       newDiscountPct = pair.discountPct;

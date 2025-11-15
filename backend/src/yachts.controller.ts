@@ -12,9 +12,10 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { Prisma, WeekSlot, YachtType } from '@prisma/client';
+import { Prisma, YachtType } from '@prisma/client';
 import { Roles } from './auth/roles.decorator';
 import { PrismaService } from './prisma/prisma.service';
+import { getEffectiveBasePriceForWeek } from './pricing-decisions/effective-base-price.helper';
 
 interface YachtWithCountry
   extends Prisma.YachtGetPayload<{
@@ -207,54 +208,44 @@ export class YachtsController {
       }),
     ]);
 
-    // 🔹 Подтягиваем week slots для всех яхт страницы,
-    //    чтобы посчитать currentBasePrice/currency/selectedWeekStart
-    let bestSlotByYacht: Record<string, WeekSlot> = {};
+    // 🔹 «Эффективная» базовая цена по последнему APPROVED-решению
+    //    на/до выбранной недели
+    let effectiveByYacht: Record<
+      string,
+      { price: Prisma.Decimal | null; fromWeekStart?: Date | null }
+    > = {};
 
-    // Если неделя не задана, weekly base price не считаем (оставляем старый basePrice)
     if (items.length > 0 && weekStartDate) {
-      const yachtIds = items.map((y) => y.id);
+      const entries = await Promise.all(
+        items.map(async (y) => {
+          const eff = await getEffectiveBasePriceForWeek(this.prisma, {
+            yachtId: y.id,
+            weekStart: weekStartDate,
+          });
+          return [y.id, eff] as const;
+        }),
+      );
 
-      // Берём WeekSlot РОВНО на выбранную дату недели
-      const slotWhere: Prisma.WeekSlotWhereInput = {
-        yachtId: { in: yachtIds },
-        startDate: weekStartDate,
-      };
-
-      const slots = await this.prisma.weekSlot.findMany({
-        where: slotWhere,
-        // порядок уже не критичен, но пусть явно будет
-        orderBy: { startDate: 'desc' },
-      });
-
-      // для каждой яхты берём первый (самый "свежий") слот
-      bestSlotByYacht = slots.reduce<Record<string, WeekSlot>>((acc, slot) => {
-        if (!acc[slot.yachtId]) {
-          acc[slot.yachtId] = slot;
-        }
-        return acc;
-      }, {});
+      effectiveByYacht = Object.fromEntries(entries);
     }
-
     const mapped = items.map((y) => {
-      const slot = bestSlotByYacht[y.id];
-
       let currentBasePrice: number | null = null;
-      let currency: string | null = null;
       let selectedWeekStart: string | null = null;
 
-      if (slot) {
-        if (slot.basePrice != null) {
-          currentBasePrice = Number(slot.basePrice as unknown as number);
-        } else if (slot.currentPrice != null) {
-          // fallback: если basePrice ещё не заполняем, используем текущую цену
-          currentBasePrice = Number(slot.currentPrice as unknown as number);
+      if (weekStartDate) {
+        // если неделя запрошена — стараемся отдать эффективную цену
+        const eff = effectiveByYacht[y.id];
+        if (eff && eff.price != null) {
+          currentBasePrice = Number(eff.price as unknown as number);
+          selectedWeekStart = weekStartDate.toISOString();
+        } else {
+          // нет решений — возвращаем исходную basePrice яхты
+          currentBasePrice =
+            typeof y.basePrice === 'string'
+              ? Number(y.basePrice as unknown as number)
+              : null;
+          selectedWeekStart = weekStartDate.toISOString();
         }
-        currency = safeStr(slot.currency);
-        selectedWeekStart = slot.startDate.toISOString();
-      } else if (weekStartDate) {
-        // слота нет, но неделя была в запросе — хотя бы отдадим её
-        selectedWeekStart = weekStartDate.toISOString();
       }
 
       return {
@@ -262,7 +253,6 @@ export class YachtsController {
         countryCode: y.country?.code2 ?? null,
         countryName: y.country?.name ?? null,
         currentBasePrice,
-        currency,
         selectedWeekStart,
       };
     });

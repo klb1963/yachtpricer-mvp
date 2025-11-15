@@ -50,6 +50,20 @@ function calcFinal(base: number, discountPct: number | null | undefined) {
   return Math.round(base * k);
 }
 
+// 🔹 Эффективная базовая цена для строки Pricing:
+//    если по этой неделе есть APPROVED-решение с finalPrice,
+//    считаем базой именно его; иначе — исходная basePrice.
+function getBaseForRow(row: PricingRow): number {
+  if (
+    row.decision?.status === 'APPROVED' &&
+    row.decision.finalPrice != null &&
+    Number.isFinite(row.decision.finalPrice)
+  ) {
+    return row.decision.finalPrice as number;
+  }
+  return row.basePrice;
+}
+
 export default function PricingPage() {
   // i18n
   const { t } = useTranslation('pricing');
@@ -158,7 +172,8 @@ export default function PricingPage() {
     setRows(prev =>
       prev.map(r => {
         if (r.yachtId !== yachtId) return r;
-        const newFinal = calcFinal(r.basePrice, discount);
+        const base = getBaseForRow(r);
+        const newFinal = calcFinal(base, discount);
         return {
           ...r,
           finalPrice: newFinal,
@@ -177,7 +192,8 @@ export default function PricingPage() {
     setRows(prev =>
       prev.map(r => {
         if (r.yachtId !== yachtId) return r;
-        const newDiscount = calcDiscountPct(r.basePrice, finalPrice);
+        const base = getBaseForRow(r);
+        const newDiscount = calcDiscountPct(base, finalPrice);
         return {
           ...r,
           finalPrice,
@@ -196,7 +212,8 @@ export default function PricingPage() {
     const row = rows.find(x => x.yachtId === yachtId);
     if (!row) return;
     const discountPct = row.decision?.discountPct ?? null;
-    const finalPrice = calcFinal(row.basePrice, discountPct);
+    const base = getBaseForRow(row);
+    const finalPrice = calcFinal(base, discountPct);
 
     setSavingId(yachtId);
     try {
@@ -211,7 +228,8 @@ export default function PricingPage() {
     const row = rows.find(x => x.yachtId === yachtId);
     if (!row) return;
     const finalPrice = row.decision?.finalPrice ?? null;
-    const discountPct = calcDiscountPct(row.basePrice, finalPrice);
+    const base = getBaseForRow(row);
+    const discountPct = calcDiscountPct(base, finalPrice);
     // если обе стороны null/равны — ничего не отправляем
     const prevFinal = row.decision?.finalPrice ?? null;
     const prevDisc = row.decision?.discountPct ?? null;
@@ -511,7 +529,10 @@ export default function PricingPage() {
                         {r.snapshot?.currency ?? 'EUR'}
                       </div>
                     </td>
-                    <td className="p-3 text-right tabular-nums">{asMoney(r.basePrice)}</td>
+                    {/* База: показываем эффективную цену для недели */}
+                    <td className="p-3 text-right tabular-nums">
+                      {asMoney(getBaseForRow(r))}
+                    </td>
                     {/* NEW: Actuals column */}
                     <td className="p-3 align-top">
                       <div className="text-[11px] leading-4 text-gray-500">{t('actualPrice')}</div>
@@ -618,9 +639,6 @@ export default function PricingPage() {
                 </h2>
 
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  <div className="text-gray-500">{t('base')}</div>
-                  <div>{asMoney(r.basePrice)}</div>
-                  {/* NEW (cards): Actuals */}
                   <div className="text-gray-500">{t('actualPrice')}</div>
                   <div>{asMoney(r.actualPrice)}</div>
                   <div className="text-gray-500">{t('actualDiscount')}</div>
