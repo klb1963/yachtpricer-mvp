@@ -30,7 +30,8 @@
     "pricing": {
     "forWeekStarting": "на неделю, начиная с:",
     "currentDiscount": "Текущая скидка",
-    "priceUpdatedAt": "Цена обновлена: "
+    "priceUpdatedAt": "Цена обновлена: ",
+    "startingBasePriceHint": "Это значение устанавливается только при создании яхты и не может быть изменено позже."
   },
   "history": {
     "weekStart": "Начало недели",
@@ -62,7 +63,8 @@
     "actualPrice": "Текущая цена",
     "actualDiscount": "Текущая скидка",
     "fetchedAt": "Данные обновлены",
-    "maxDiscount": "Макс. скидка"
+    "maxDiscount": "Макс. скидка",
+    "startingBasePrice": "Стартовая базовая цена"
   },
   "placeholders": {
     "chooseType": "Выберите тип…",

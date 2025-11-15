@@ -30,7 +30,8 @@
   "pricing": {
     "forWeekStarting": "za tjedan koji počinje:",
     "currentDiscount": "Trenutni popust",
-    "priceUpdatedAt": "Cijena ažurirana: "
+    "priceUpdatedAt": "Cijena ažurirana: ",
+    "startingBasePriceHint": "Ova se vrijednost postavlja samo prilikom stvaranja jahte i kasnije se ne može mijenjati."
   },
   "history": {
     "weekStart": "Početak tjedna",
@@ -62,7 +63,8 @@
     "actualPrice": "Trenutna cijena",
     "actualDiscount": "Trenutni popust",
     "fetchedAt": "Podaci ažurirani",
-    "maxDiscount": "Maks. popust %"
+    "maxDiscount": "Maks. popust %",
+    "startingBasePrice": "Početna osnovna cijena"
   },
   "placeholders": {
     "chooseType": "Odaberite tip…",

@@ -5,7 +5,7 @@ import type { Yacht } from '../../../api';
 import { Field } from '../../form/Field';
 
 type Props = {
-  // ⚠️ теперь трактуем как "Last minute base price"
+  // Стартовая базовая цена яхты (записывается в Yacht.basePrice)
   basePrice: string;
   maxDiscountPct: string; // оставили в пропсах, но не редактируем здесь
   onBasePriceChange: (value: string) => void;
@@ -59,6 +59,7 @@ export function YachtPricingSection({
       <Legend>{t('sections.pricing')}</Legend>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+
         {/* Базовая цена (read-only, из WeekSlot/basePrice) */}
         <label className="flex flex-col">
           <span className="text-sm text-gray-600">
@@ -94,18 +95,43 @@ export function YachtPricingSection({
             value={maxDiscount}
           />
         </label>
-
-        {/* Last minute base price — единственное редактируемое поле */}
-        <Field
-          label={t('fields.lastMinuteBasePrice', 'Last minute base price')}
-          value={basePrice}
-          onChange={(e) => onBasePriceChange(e.target.value)}
-        />
       </div>
 
       <div className="mt-3 text-xs text-gray-500">
         {t('pricing.priceUpdatedAt', 'Price updated at')}: {updatedAtStr}
       </div>
+
+      {/* Starting base price:
+            - при создании яхты (yacht == null) — редактируемое поле
+            - при редактировании существующей — только read-only */}
+      {yacht == null ? (
+        <div className="mt-4 max-w-xs">
+          <Field
+            label={t('fields.startingBasePrice', 'Starting base price')}
+            value={basePrice}
+            onChange={(e) => onBasePriceChange(e.target.value)}
+          />
+        </div>
+      ) : (
+        <div className="mt-4 max-w-xs">
+          <label className="flex flex-col">
+            <span className="text-sm text-gray-600">
+              {t('fields.startingBasePrice', 'Starting base price')}
+            </span>
+            <input
+              className="mt-1 rounded border p-2 bg-gray-50 text-gray-500 cursor-not-allowed"
+              readOnly
+              value={basePrice}
+            />
+            <span className="mt-1 text-xs text-gray-400">
+              {t(
+                'pricing.startingBasePriceHint',
+                'This value is set only when creating the yacht and cannot be changed later.',
+              )}
+            </span>
+          </label>
+        </div>
+      )}
     </fieldset>
   );
 }
