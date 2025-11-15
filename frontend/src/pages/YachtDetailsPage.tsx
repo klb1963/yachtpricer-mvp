@@ -26,6 +26,7 @@ function asPercent(n: number | null | undefined) {
   if (n == null || !Number.isFinite(n as number)) return '—';
   return `${n}%`;
 }
+
 function fmtWhen(iso: string | null | undefined) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -50,12 +51,29 @@ function fmtDate(iso: string | null | undefined) {
   });
 }
 
+type HistorySortKey = 'weekStart' | 'price' | 'discount' | 'date';
+
 export default function YachtDetailsPage() {
   const { t, i18n } = useTranslation('yacht');
   const { id } = useParams();
   const [yacht, setYacht] = useState<Yacht | null>(null);
   const [error, setError] = useState<string | null>(null);
   const location = useLocation();
+
+  // сортировка истории цен
+  const [sortKey, setSortKey] = useState<HistorySortKey>('weekStart');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  function toggleSort(key: HistorySortKey) {
+    if (key === sortKey) {
+      // повторный клик по той же колонке → инвертируем направление
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      // новая колонка → делаем её активной и ставим asc
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -64,8 +82,12 @@ export default function YachtDetailsPage() {
       .catch((e) => setError(e?.message ?? t('errors.loadFailed')));
   }, [id, t]);
 
-  if (error) return <div className="text-center mt-16 text-red-600">{error}</div>;
-  if (!yacht) return <div className="text-center mt-16 text-gray-500">{t('loading')}</div>;
+  if (error)
+    return <div className="text-center mt-16 text-red-600">{error}</div>;
+  if (!yacht)
+    return (
+      <div className="text-center mt-16 text-gray-500">{t('loading')}</div>
+    );
 
   // безаварийный парсинг услуг
   let services: any = yacht.currentExtraServices;
@@ -78,21 +100,40 @@ export default function YachtDetailsPage() {
   }
 
   // ссылки из бекенда (могут быть не в типе Yacht, поэтому any)
-  const country = (yacht as any)?.country as { id: string; code2: string; name: string } | undefined;
-  const category = (yacht as any)?.category as { id: number; nameEn?: string | null; nameRu?: string | null; nameHr?: string | null } | undefined;
-  const builder = (yacht as any)?.builder as { id: number; name: string } | undefined;
+  const country = (yacht as any)?.country as
+    | { id: string; code2: string; name: string }
+    | undefined;
+  const category = (yacht as any)?.category as
+    | {
+        id: number;
+        nameEn?: string | null;
+        nameRu?: string | null;
+        nameHr?: string | null;
+      }
+    | undefined;
+  const builder = (yacht as any)?.builder as
+    | { id: number; name: string }
+    | undefined;
 
   const pickCategoryLabel = () => {
     if (!category) return '—';
     const lng = (i18n.language || 'en').toLowerCase();
-    if (lng.startsWith('ru')) return category.nameRu ?? category.nameEn ?? `#${category.id}`;
-    if (lng.startsWith('hr')) return category.nameHr ?? category.nameEn ?? category.nameRu ?? `#${category.id}`;
-    return category.nameEn ?? category.nameRu ?? category.nameHr ?? `#${category.id}`;
+    if (lng.startsWith('ru'))
+      return category.nameRu ?? category.nameEn ?? `#${category.id}`;
+    if (lng.startsWith('hr'))
+      return (
+        category.nameHr ??
+        category.nameEn ??
+        category.nameRu ??
+        `#${category.id}`
+      );
+    return (
+      category.nameEn ?? category.nameRu ?? category.nameHr ?? `#${category.id}`
+    );
   };
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
-
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">{yacht.name}</h1>
         <div className="flex items-center gap-3">
@@ -115,9 +156,7 @@ export default function YachtDetailsPage() {
       {/* Manager */}
       <div className="rounded-2xl border p-5 shadow-sm bg-white mt-6">
         <h2 className="font-semibold mb-3">Ответственный менеджер</h2>
-        <p className="text-sm">
-          {yacht.responsibleManagerName ?? '—'}
-        </p>
+        <p className="text-sm">{yacht.responsibleManagerName ?? '—'}</p>
       </div>
 
       {/* Owner */}
@@ -140,7 +179,9 @@ export default function YachtDetailsPage() {
             <dt className="text-gray-500">{t('fields.type')}</dt>
             <dd>{yacht.type}</dd>
 
-            <dt className="text-gray-500">{t('fields.category', 'Category')}</dt>
+            <dt className="text-gray-500">
+              {t('fields.category', 'Category')}
+            </dt>
             <dd>{pickCategoryLabel()}</dd>
 
             <dt className="text-gray-500">{t('fields.builder', 'Builder')}</dt>
@@ -172,9 +213,12 @@ export default function YachtDetailsPage() {
             <dt className="text-gray-500">{t('fields.location')}</dt>
             <dd>{yacht.location}</dd>
 
-            <dt className="text-gray-500">{t('fields.country', 'Country')}</dt>
-            <dd>{country ? `${country.name} (${country.code2})` : '—'}</dd>
-
+            <dt className="text-gray-500">
+              {t('fields.country', 'Country')}
+            </dt>
+            <dd>
+              {country ? `${country.name} (${country.code2})` : '—'}
+            </dd>
           </dl>
         </div>
       </div>
@@ -188,26 +232,43 @@ export default function YachtDetailsPage() {
         {yacht.selectedWeekStart && (
           <div className="text-gray-500 text-base mb-3">
             {t('pricing.forWeekStarting', 'for week starting:')}{' '}
-            <span className="font-medium text-gray-900">{fmtDate(yacht.selectedWeekStart)}</span>
+            <span className="font-medium text-gray-900">
+              {fmtDate(yacht.selectedWeekStart)}
+            </span>
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
-          <div className="text-gray-500">{t('fields.basePrice', 'Base price')}</div>
+          <div className="text-gray-500">
+            {t('fields.basePrice', 'Base price')}
+          </div>
           <div className="font-medium">
-            {asMoney(yacht.currentBasePrice ?? null, yacht.currency ?? undefined)}
+            {asMoney(
+              yacht.currentBasePrice ?? null,
+              yacht.currency ?? undefined,
+            )}
           </div>
 
-          <div className="text-gray-500">{t('pricing.currentDiscount', 'Current discount')}</div>
-          <div className="font-medium">{asPercent(yacht.currentDiscountPct ?? null)}</div>
+          <div className="text-gray-500">
+            {t('pricing.currentDiscount', 'Current discount')}
+          </div>
+          <div className="font-medium">
+            {asPercent(yacht.currentDiscountPct ?? null)}
+          </div>
 
-          <div className="text-gray-500">{t('fields.maxDiscount', 'Max. discount %')}</div>
-          <div className="font-medium">{asPercent(yacht.maxDiscountPct ?? null)}</div>
+          <div className="text-gray-500">
+            {t('fields.maxDiscount', 'Max. discount %')}
+          </div>
+          <div className="font-medium">
+            {asPercent(yacht.maxDiscountPct ?? null)}
+          </div>
 
           <div className="mt-2 text-gray-500 text-base mb-3">
             {t('pricing.priceUpdatedAt', 'Price updated at')}{' '}
             <span className="font-medium text-gray-900">
-              {yacht.currentPriceUpdatedAt ? fmtWhen(yacht.currentPriceUpdatedAt) : '—'}
+              {yacht.currentPriceUpdatedAt
+                ? fmtWhen(yacht.currentPriceUpdatedAt)
+                : '—'}
             </span>
           </div>
         </div>
@@ -219,40 +280,129 @@ export default function YachtDetailsPage() {
           {t('sections.priceHistory', 'Price history')}
         </h2>
 
-        {Array.isArray(yacht.priceHistory) && yacht.priceHistory.length > 0 ? (
+        {Array.isArray(yacht.priceHistory) &&
+        yacht.priceHistory.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-2 pr-4 text-gray-500">
-                    {t('history.weekStart', 'Week start')}
+                  <th
+                    className="text-left py-2 pr-4 text-gray-500 cursor-pointer select-none"
+                    onClick={() => toggleSort('weekStart')}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {t('history.weekStart', 'Week start')}
+                      <span className="text-xs">
+                        {sortKey === 'weekStart'
+                          ? sortDir === 'asc'
+                            ? '↑'
+                            : '↓'
+                          : '↕︎'}
+                      </span>
+                    </span>
                   </th>
-                  <th className="text-left py-2 pr-4 text-gray-500">
-                    {t('history.price', 'Price')}
+
+                  <th
+                    className="text-left py-2 pr-4 text-gray-500 cursor-pointer select-none"
+                    onClick={() => toggleSort('price')}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {t('history.price', 'Price')}
+                      <span className="text-xs">
+                        {sortKey === 'price'
+                          ? sortDir === 'asc'
+                            ? '↑'
+                            : '↓'
+                          : '↕︎'}
+                      </span>
+                    </span>
                   </th>
-                  <th className="text-left py-2 pr-4 text-gray-500">
-                    {t('history.discount', 'Discount')}
+                  
+                  <th
+                    className="text-left py-2 pr-4 text-gray-500 cursor-pointer select-none"
+                    onClick={() => toggleSort('discount')}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {t('history.discount', 'Discount')}
+                      <span className="text-xs">
+                        {sortKey === 'discount'
+                          ? sortDir === 'asc'
+                            ? '↑'
+                            : '↓'
+                          : '↕︎'}
+                      </span>
+                    </span>
                   </th>
+
+                  {/* Несортируемая колонка Примечание / Note */}
                   <th className="text-left py-2 pr-4 text-gray-500">
                     {t('history.note', 'Note')}
                   </th>
-                  <th className="text-left py-2 pr-4 text-gray-500">
-                    {t('history.date', 'Date')}
+
+                  <th
+                    className="text-left py-2 pr-4 text-gray-500 cursor-pointer select-none"
+                    onClick={() => toggleSort('date')}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {t('history.date', 'Date')}
+                      <span className="text-xs">
+                        {sortKey === 'date'
+                          ? sortDir === 'asc'
+                            ? '↑'
+                            : '↓'
+                          : '↕︎'}
+                      </span>
+                    </span>
                   </th>
                 </tr>
               </thead>
+
               <tbody>
-                {yacht.priceHistory.map((h, idx) => (
-                  <tr key={idx} className="border-b last:border-0">
-                    <td className="py-1 pr-4">{fmtWhen(h.weekStart)}</td>
-                    <td className="py-1 pr-4">
-                      {asMoney(h.price ?? null, yacht.currency ?? undefined)}
-                    </td>
-                    <td className="py-1 pr-4">{asPercent(h.discountPct ?? null)}</td>
-                    <td className="py-1 pr-4">{h.note || '—'}</td>
-                    <td className="py-1 pr-4">{fmtWhen(h.date)}</td>
-                  </tr>
-                ))}
+                {yacht.priceHistory
+                  .slice()
+                  .sort((a, b) => {
+                    let v1 = 0;
+                    let v2 = 0;
+
+                    switch (sortKey) {
+                      case 'weekStart':
+                        v1 = new Date(a.weekStart).getTime();
+                        v2 = new Date(b.weekStart).getTime();
+                        break;
+                      case 'price':
+                        v1 = a.price != null ? Number(a.price) : 0;
+                        v2 = b.price != null ? Number(b.price) : 0;
+                        break;
+                      case 'discount':
+                        v1 =
+                          a.discountPct != null ? Number(a.discountPct) : 0;
+                        v2 =
+                          b.discountPct != null ? Number(b.discountPct) : 0;
+                        break;
+                      case 'date':
+                        v1 = new Date(a.date).getTime();
+                        v2 = new Date(b.date).getTime();
+                        break;
+                    }
+
+                    return sortDir === 'asc' ? v1 - v2 : v2 - v1;
+                  })
+                  .map((h, idx) => (
+                    <tr key={idx} className="border-b last:border-0">
+                      <td className="py-1 pr-4">{fmtWhen(h.weekStart)}</td>
+                      <td className="py-1 pr-4">
+                        {asMoney(
+                          h.price ?? null,
+                          yacht.currency ?? undefined,
+                        )}
+                      </td>
+                      <td className="py-1 pr-4">
+                        {asPercent(h.discountPct ?? null)}
+                      </td>
+                      <td className="py-1 pr-4">{h.note || '—'}</td>
+                      <td className="py-1 pr-4">{fmtWhen(h.date)}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -265,20 +415,23 @@ export default function YachtDetailsPage() {
 
       {/* Extra services */}
       <div className="rounded-2xl border p-5 shadow-sm bg-white mt-6">
-        <h2 className="font-semibold mb-3">{t('sections.extraServices')}</h2>
+        <h2 className="font-semibold mb-3">
+          {t('sections.extraServices')}
+        </h2>
         {Array.isArray(services) && services.length > 0 ? (
           <ul className="list-disc ml-5 text-sm">
-            {services.map((s: { name: string; price: number }, i: number) => (
-              <li key={i}>
-                {s.name} — {s.price}
-              </li>
-            ))}
+            {services.map(
+              (s: { name: string; price: number }, i: number) => (
+                <li key={i}>
+                  {s.name} — {s.price}
+                </li>
+              ),
+            )}
           </ul>
         ) : (
           <div className="text-sm text-gray-500">{t('noData')}</div>
         )}
       </div>
-
     </div>
-  )
+  );
 }
