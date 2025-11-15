@@ -31,7 +31,8 @@
     "forWeekStarting": "for week starting:",
     "currentDiscount": "Current discount",
     "priceUpdatedAt": "Price updated at: ",
-    "startingBasePriceHint": "This value is set only when creating the yacht and cannot be changed later."
+    "startingBasePriceHint": "This value is set only when creating the yacht and cannot be changed later.",
+    "maxDiscountHint": "This value is set only when creating the yacht and cannot be changed later."
 
   },
   "history": {

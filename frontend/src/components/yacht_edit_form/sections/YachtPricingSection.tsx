@@ -84,17 +84,32 @@ export function YachtPricingSection({
           />
         </label>
 
-        {/* Максимальная скидка (read-only) */}
-        <label className="flex flex-col">
-          <span className="text-sm text-gray-600">
-            {t('fields.maxDiscountPct', 'Max. discount %')}
-          </span>
-          <input
-            className="mt-1 rounded border p-2 bg-gray-50"
-            readOnly
-            value={maxDiscount}
+        {/* Max discount — логика как у Starting base price */}
+        {yacht == null ? (
+          <Field
+            label={t('fields.maxDiscountPct', 'Max. discount %')}
+            value={maxDiscountPct}
+            onChange={(e) => onMaxDiscountPctChange(e.target.value)}
           />
-        </label>
+        ) : (
+          <label className="flex flex-col">
+            <span className="text-sm text-gray-600">
+              {t('fields.maxDiscountPct', 'Max. discount %')}
+            </span>
+            <input
+              className="mt-1 rounded border p-2 bg-gray-50 text-gray-500 cursor-not-allowed"
+              readOnly
+              value={maxDiscount}
+            />
+            <span className="mt-1 text-xs text-gray-400">
+              {t(
+                'pricing.maxDiscountHint',
+                'This value is set only when creating the yacht and cannot be changed later.'
+              )}
+            </span>
+          </label>
+        )}
+
       </div>
 
       <div className="mt-3 text-xs text-gray-500">
