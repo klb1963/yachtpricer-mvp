@@ -458,7 +458,7 @@ export class YachtsController {
 
   // ===== create =====
   @Post()
-  @Roles('MANAGER', 'ADMIN')
+  @Roles('MANAGER', 'FLEET_MANAGER', 'ADMIN')
   async create(@Body() body: Record<string, unknown>) {
     type CreateBase = Omit<
       Prisma.YachtCreateInput,
@@ -535,7 +535,7 @@ export class YachtsController {
 
   // ===== update =====
   @Patch(':id')
-  @Roles('MANAGER', 'ADMIN')
+  @Roles('MANAGER', 'FLEET_MANAGER', 'ADMIN')
   async update(@Param('id') id: string, @Body() body: Record<string, unknown>) {
     const exists = await this.prisma.yacht.findUnique({ where: { id } });
     if (!exists) throw new NotFoundException('Yacht not found');
@@ -654,7 +654,7 @@ export class YachtsController {
 
   // ===== delete =====
   @Delete(':id')
-  @Roles('MANAGER', 'ADMIN')
+  @Roles('MANAGER', 'FLEET_MANAGER', 'ADMIN')
   async delete(@Param('id') id: string) {
     const exists = await this.prisma.yacht.findUnique({ where: { id } });
     if (!exists) throw new NotFoundException('Yacht not found');
