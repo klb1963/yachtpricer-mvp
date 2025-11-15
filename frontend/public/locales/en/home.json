@@ -6,14 +6,15 @@
     "subtitle": "Helps fleet managers find the optimal price for each week of the season.",
     "ctaMain": "Sign in",
     "ctaNoAccess": "Request access",
-    "exampleLabel": "Workflow example"
+    "exampleLabel": "Workflow example",
+    "ctaGoToApp": "Start working"
   },
   "steps": {
     "title": "How it works",
     "step1": "Select a week and a yacht",
     "step2": "Start competitor scan",
     "step3": "Compare prices and discounts",
-    "step4": "Approve the base price for the week"
+    "step4": "Adjust and lock new weekly base price."
   },
   "example": {
     "historyLabel": "Decision history",

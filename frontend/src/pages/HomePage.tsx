@@ -2,6 +2,7 @@
 
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { SignedIn, SignedOut } from "@clerk/clerk-react";
 
 export default function HomePage() {
   // 👇 используем namespace "home"
@@ -45,12 +46,27 @@ export default function HomePage() {
               </p>
 
               <div className="space-y-3">
-                <Link
-                  to="/sign-in"
-                  className="inline-flex items-center justify-center rounded-xl px-6 py-3 text-base font-medium bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition shadow-lg shadow-cyan-500/20"
-                >
-                  {t("hero.ctaMain")}
-                </Link>
+                {/* Когда пользователь НЕ залогинен — показываем Sign in */}
+                <SignedOut>
+                  <Link
+                    to="/sign-in"
+                    className="inline-flex items-center justify-center rounded-xl px-6 py-3 text-base font-medium bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition shadow-lg shadow-cyan-500/20"
+                  >
+                    {t("hero.ctaMain")}
+                  </Link>
+                </SignedOut>
+
+                {/* Когда пользователь уже залогинен — кнопку Sign in скрываем, 
+                   при желании можно заменить на "Перейти в приложение" */}
+                <SignedIn>
+                  <Link
+                    to="/dashboard"
+                    className="inline-flex items-center justify-center rounded-xl px-6 py-3 text-base font-medium bg-emerald-500 text-slate-950 hover:bg-emerald-400 transition shadow-lg shadow-emerald-500/20"
+                  >
+                    {t("hero.ctaGoToApp", "Start working")}
+                  </Link>
+                </SignedIn>
+
                 <div>
                   <button
                     type="button"
@@ -64,6 +80,7 @@ export default function HomePage() {
                   </button>
                 </div>
               </div>
+
             </div>
 
             {/* Иллюстрация-панель */}

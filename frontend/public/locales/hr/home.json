@@ -6,7 +6,8 @@
     "subtitle": "Pomaže menadžerima flote pronaći optimalnu cijenu za svaki tjedan sezone.",
     "ctaMain": "Prijava",
     "ctaNoAccess": "Zatraži pristup",
-    "exampleLabel": "Primjer radnog procesa"
+    "exampleLabel": "Primjer radnog procesa",
+    "ctaGoToApp": "Započni rad"
   },
   "steps": {
     "title": "Kako funkcionira",
