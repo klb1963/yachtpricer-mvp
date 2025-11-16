@@ -20,8 +20,9 @@ export class OrgAdminGuard implements CanActivate {
     const user = req.user;
     if (!user) throw new UnauthorizedException('Not authenticated');
 
-    if (user.role !== Role.ADMIN) {
-      throw new ForbiddenException('Admin only');
+    // Разрешаем ADMIN и FLEET_MANAGER
+    if (user.role !== Role.ADMIN && user.role !== Role.FLEET_MANAGER) {
+      throw new ForbiddenException('Admin or Fleet Manager only');
     }
     return true;
   }

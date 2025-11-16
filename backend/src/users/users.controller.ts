@@ -17,9 +17,9 @@ class UpdateUserActiveDto {
 }
 
 @UseGuards(OrgAdminGuard)
-// весь контроллер доступен только ADMIN
-@Roles('ADMIN')
+// контроллер доступен ADMIN и FLEET_MANAGER (org-level)
 @Controller('users')
+@Roles('ADMIN', 'FLEET_MANAGER')
 export class UsersController {
   constructor(private readonly prisma: PrismaService) {
     console.log('✅ UsersController mounted at /users');
