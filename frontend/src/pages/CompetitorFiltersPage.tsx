@@ -1,6 +1,7 @@
 // frontend/src/pages/CompetitorFiltersPage.tsx
 
 import Select from "react-select";
+import type { ScrapeSource } from "../api";
 import AsyncSelect from "react-select/async";
 import { useTranslation } from "react-i18next";
 
@@ -18,25 +19,35 @@ import useCompetitorFiltersState, {
   type IdLabel,
 } from "../hooks/useCompetitorFiltersState";
 
-type ScrapeSource = "INNERDB" | "NAUSYS";
-
 // Feature flag: скрыть People фильтр в UI (оставляем в DTO/стейте)
 const SHOW_PEOPLE = false;
+
+type Props = {
+  scope?: Scope;
+  onSubmit?: (dto: SaveDto, scanSource?: ScrapeSource) => void;
+  onClose?: () => void;
+
+  /**
+   * Если переданы, страница использует внешний scanSource (из Dashboard/Pricing)
+   * и не создаёт свой "отдельный" источник истины.
+   */
+  externalScanSource?: ScrapeSource;
+  onExternalScanSourceChange?: (source: ScrapeSource) => void;
+};
 
 export default function CompetitorFiltersPage({
   scope = "USER",
   onSubmit,
   onClose,
-}: {
-  scope?: Scope;
-  onSubmit?: (dto: SaveDto, scanSource?: "INNERDB" | "NAUSYS") => void;
-  onClose?: () => void;
-}) {
+  externalScanSource,
+  onExternalScanSourceChange,
+}: Props) {
+
   const { t } = useTranslation("competitors");
 
   const {
-    scanSource,
-    setScanSource,
+    scanSource: innerScanSource,
+    setScanSource: innerSetScanSource,
 
     countries,
     selectedCountries,
@@ -102,7 +113,28 @@ export default function CompetitorFiltersPage({
     scope: scope ?? "USER",
     onSubmit,
     onClose,
+    initialScanSource: externalScanSource,   // ← передаём наружный источник
   });
+
+  // Нормализуем внешний source: если вдруг придёт BOATAROUND/SEARADAR и т.п.,
+  // внутри модалки всё равно работаем только с INNERDB/NAUSYS
+  const normalizedExternal: "INNERDB" | "NAUSYS" | null =
+    externalScanSource === "INNERDB" || externalScanSource === "NAUSYS"
+      ? externalScanSource
+      : null;
+
+  // нормализуем внутренний source: всё, что не NAUSYS, считаем INNERDB
+  const normalizedInner: "INNERDB" | "NAUSYS" =
+    innerScanSource === "NAUSYS" ? "NAUSYS" : "INNERDB";
+
+  const effectiveScanSource: "INNERDB" | "NAUSYS" =
+    normalizedExternal ?? normalizedInner;
+
+  // функция, которая меняет источник и синхронизирует внешний/внутренний state
+  const effectiveSetScanSource = (next: "INNERDB" | "NAUSYS") => {
+    onExternalScanSourceChange?.(next);   // обновляем Dashboard
+    innerSetScanSource(next);             // обновляем внутренний state хука
+  };
 
   return (
     <form
@@ -129,9 +161,9 @@ export default function CompetitorFiltersPage({
           <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm select-none">
             <button
               type="button"
-              onClick={() => setScanSource("INNERDB")}
+              onClick={() => effectiveSetScanSource("INNERDB")}
               className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                scanSource === "INNERDB"
+                effectiveScanSource === "INNERDB"
                   ? "bg-gray-900 text-white"
                   : "!text-gray-800 hover:bg-gray-100"
               }`}
@@ -144,9 +176,9 @@ export default function CompetitorFiltersPage({
             </button>
             <button
               type="button"
-              onClick={() => setScanSource("NAUSYS")}
+              onClick={() => effectiveSetScanSource("NAUSYS")}
               className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                scanSource === "NAUSYS"
+                effectiveScanSource === "NAUSYS"
                   ? "bg-gray-900 text-white"
                   : "!text-gray-800 hover:bg-gray-100"
               }`}

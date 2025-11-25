@@ -29,6 +29,7 @@ import {
   createFilterPreset,
   deleteFilterPreset,
 } from "../api";
+import type { ScrapeSource } from "../api";
 
 export type Scope = "USER" | "ORG";
 
@@ -89,16 +90,30 @@ type Args = {
   scope: Scope;
   onSubmit?: (dto: SaveDto, scanSource?: "INNERDB" | "NAUSYS") => void;
   onClose?: () => void;
+  // новый опциональный параметр — начальный источник,
+  // который мы пробрасываем из Dashboard
+  initialScanSource?: ScrapeSource;
+
 };
 
 export default function useCompetitorFiltersState({
   scope,
   onSubmit,
   onClose,
+  initialScanSource,
 }: Args) {
   // --- URL search params + scanSource ---
   const [searchParams, setSearchParams] = useSearchParams();
-  const [scanSource, setScanSource] = useState<"INNERDB" | "NAUSYS">("INNERDB");
+  const [scanSource, setScanSource] = useState<ScrapeSource>(() => {
+  if (initialScanSource === "INNERDB" || initialScanSource === "NAUSYS") {
+    return initialScanSource;
+  }
+  const fromLs = (localStorage.getItem("competitor:scanSource") || "").toUpperCase();
+  if (fromLs === "INNERDB" || fromLs === "NAUSYS") {
+    return fromLs as ScrapeSource;
+  }
+  return "INNERDB";
+});
 
   // 1) стартовый источник: URL ?source → localStorage → дефолт
   useEffect(() => {
@@ -428,7 +443,12 @@ export default function useCompetitorFiltersState({
   // ===== Apply & Save =====
   const handleApplySave = useCallback(async () => {
     try {
-      onSubmit?.(dto, scanSource);
+      const normalizedForSubmit =
+        scanSource === "INNERDB" || scanSource === "NAUSYS"
+          ? (scanSource as "INNERDB" | "NAUSYS")
+          : undefined;
+
+      onSubmit?.(dto, normalizedForSubmit);
       await saveCompetitorFilters(dto);
       alert("Filters applied and saved.");
       onClose?.();

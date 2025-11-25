@@ -85,7 +85,7 @@ export default function DashboardPage() {
     if (fromLs === 'INNERDB' || fromLs === 'NAUSYS') return fromLs as ScrapeSource;
     return 'INNERDB';
   };
-  
+
   const [scanSource, setScanSource] = useState<ScrapeSource>(initSource());
 
   // ← NEW: если кто-то (модалка) поменял ?source= в URL, подтягиваем это в state
@@ -537,6 +537,10 @@ export default function DashboardPage() {
         <CompetitorFiltersPage
           onSubmit={handleCompetitorFiltersSubmit}
           onClose={() => setCompFiltersOpen(false)}
+          // 🔥 главное добавление — даём модалке работать с тем же scanSource,
+          // что и Dashboard (и Pricing)
+          externalScanSource={scanSource}
+          onExternalScanSourceChange={setScanSource}
         />
       </Modal>
     </div>
