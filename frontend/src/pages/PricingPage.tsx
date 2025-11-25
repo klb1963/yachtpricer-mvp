@@ -375,7 +375,7 @@ export default function PricingPage() {
                 : ''
             }`}
             type="number"
-            step="0.1"
+            step="1" // изменено с 0.1 на 1
             placeholder="—"
             value={discountValue as number | string}
             onChange={(e) => canEditByStatus && onDraftDiscountChange(r.yachtId, e.target.value)}
@@ -489,11 +489,13 @@ export default function PricingPage() {
       ) : rows.length === 0 ? (
         <div className="text-gray-500">{t('noRows')}</div>
       ) : viewMode === 'table' ? (
-        <div className="overflow-x-auto border rounded-lg relative">
+        <div className="border rounded-lg relative max-h-[70vh] overflow-auto">
           <table className="min-w-full text-sm table-fixed">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-20">
               <tr className="text-left">
-                <th className="p-3 w-56 sticky left-0 bg-gray-50 z-10">{t('yacht')}</th>
+                <th className="p-3 w-56 sticky left-0 bg-gray-50 z-10">
+                  {t('yacht')}
+                </th>
                 <th className="p-3 w-28 text-right">{t('base')}</th>
                 <th className="p-3 w-44">{t('actuals')}</th>
                 <th className="p-3 w-32 text-right">{t('maxDiscount')}</th>
@@ -665,7 +667,7 @@ export default function PricingPage() {
                           : ''
                       }`}
                       type="number"
-                      step="0.1"
+                      step="1" // изменено с 0.1 на 1
                       placeholder="—"
                       value={discVal as number | string}
                       onChange={(e) =>

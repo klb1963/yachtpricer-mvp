@@ -85,6 +85,7 @@ export default function DashboardPage() {
     if (fromLs === 'INNERDB' || fromLs === 'NAUSYS') return fromLs as ScrapeSource;
     return 'INNERDB';
   };
+  
   const [scanSource, setScanSource] = useState<ScrapeSource>(initSource());
 
   // ← NEW: если кто-то (модалка) поменял ?source= в URL, подтягиваем это в state

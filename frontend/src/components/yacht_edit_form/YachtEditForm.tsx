@@ -314,8 +314,24 @@ export default function YachtEditForm({ yachtId }: Props) {
 
     async function onSubmit(e: React.FormEvent) {
         e.preventDefault();
-        setSaving(true);
         setErr(null);
+
+        // При создании яхты Max discount % — обязательное поле
+        if (isCreate) {
+            const raw = form.maxDiscountPct.trim();
+            const n = Number(raw.replace(',', '.'));
+            if (!raw || !Number.isFinite(n)) {
+                alert(
+                    t(
+                        'errors.maxDiscountRequired',
+                        'Please specify maximum discount (%) when creating a yacht.',
+                    ),
+                );
+                return;
+            }
+        }
+
+        setSaving(true);
         try {
             const countryId: string | null =
                 form.countryId !== '' ? form.countryId : null;

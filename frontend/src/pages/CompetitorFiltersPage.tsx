@@ -18,6 +18,8 @@ import useCompetitorFiltersState, {
   type IdLabel,
 } from "../hooks/useCompetitorFiltersState";
 
+type ScrapeSource = "INNERDB" | "NAUSYS";
+
 // Feature flag: скрыть People фильтр в UI (оставляем в DTO/стейте)
 const SHOW_PEOPLE = false;
 

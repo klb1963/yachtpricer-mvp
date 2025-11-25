@@ -87,7 +87,7 @@ export function YachtPricingSection({
         {/* Max discount — логика как у Starting base price */}
         {yacht == null ? (
           <Field
-            label={t('fields.maxDiscountPct', 'Max. discount %')}
+            label={t('fields.maxDiscountPct', 'Max. discount %') + ' *'}
             value={maxDiscountPct}
             onChange={(e) => onMaxDiscountPctChange(e.target.value)}
           />

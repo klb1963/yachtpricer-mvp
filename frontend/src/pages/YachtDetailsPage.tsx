@@ -188,7 +188,7 @@ export default function YachtDetailsPage() {
             <dd>{builder?.name ?? '—'}</dd>
 
             <dt className="text-gray-500">{t('fields.length')}</dt>
-            <dd>{yacht.length} m</dd>
+            <dd>{yacht.length} ft</dd>
 
             <dt className="text-gray-500">{t('fields.built')}</dt>
             <dd>{yacht.builtYear}</dd>
