@@ -126,6 +126,9 @@ export default function YachtEditForm({ yachtId }: Props) {
     const [yacht, setYacht] = useState<Yacht | null>(null);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState<string | null>(null);
+    const [fieldErrors, setFieldErrors] = useState<
+        Partial<Record<keyof FormState, string>>
+    >({});
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
 
@@ -402,11 +405,52 @@ export default function YachtEditForm({ yachtId }: Props) {
                 nav(`/yacht/${id}`);
             }
         } catch (e: unknown) {
-            setErr(
-                e instanceof Error
-                    ? e.message
-                    : t('errors.saveFailed', 'Failed to save'),
-            );
+            const anyErr = e as any;
+            const fallback = t('errors.saveFailed', 'Failed to save');
+
+            // Пытаемся вытащить payload от NestJS / Axios
+            const resp = anyErr?.response?.data ?? anyErr?.response;
+            const rawMessage = resp?.message ?? resp;
+
+            let messageKey: string | undefined;
+            let field: string | undefined;
+
+            if (rawMessage && typeof rawMessage === 'object') {
+                messageKey =
+                    (rawMessage as any).messageKey ??
+                    (rawMessage as any).message_key;
+                field = (rawMessage as any).field;
+            } else if (resp && typeof resp === 'object') {
+                messageKey =
+                    (resp as any).messageKey ?? (resp as any).message_key;
+                field = (resp as any).field;
+            }
+
+            if (messageKey && typeof messageKey === 'string') {
+                const translated = t(messageKey);
+
+                if (field && field in form) {
+                    setFieldErrors((prev) => ({
+                        ...prev,
+                        [field as keyof FormState]: translated,
+                    }));
+                } else {
+                    setErr(translated);
+                }
+                return;
+            }
+
+            if (typeof rawMessage === 'string') {
+                setErr(rawMessage);
+                return;
+            }
+
+            if (anyErr instanceof Error && anyErr.message) {
+                setErr(anyErr.message);
+                return;
+            }
+
+            setErr(fallback);
         } finally {
             setSaving(false);
         }
@@ -438,7 +482,6 @@ export default function YachtEditForm({ yachtId }: Props) {
     }
 
     if (loading) return <div className="mt-10 text-center">{t('loading')}</div>;
-    if (err) return <div className="mt-10 text-center text-red-600">{err}</div>;
 
     const canEditManager = true;
 
@@ -450,10 +493,19 @@ export default function YachtEditForm({ yachtId }: Props) {
                         ? t('actions.addYacht', 'Add yacht')
                         : t('actions.editYacht', 'Edit yacht')}
                 </h1>
-                <Link to={id ? `/yacht/${id}` : '/dashboard'} className="text-blue-600 hover:underline">
+                <Link
+                    to={id ? `/yacht/${id}` : '/dashboard'}
+                    className="text-blue-600 hover:underline"
+                >
                     ← {t('actions.back')}
                 </Link>
             </div>
+
+            {err && (
+                <div className="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 text-center">
+                    {err}
+                </div>
+            )}
 
             <form onSubmit={onSubmit} className="space-y-6">
                 <fieldset className="grid gap-4 rounded-2xl border p-5 md:grid-cols-2">
@@ -462,7 +514,10 @@ export default function YachtEditForm({ yachtId }: Props) {
                             <ResponsibleManagerSelect
                                 value={form.responsibleManagerId}
                                 onChange={(v) =>
-                                    setForm((f) => ({ ...f, responsibleManagerId: v }))
+                                    setForm((f) => ({
+                                        ...f,
+                                        responsibleManagerId: v,
+                                    }))
                                 }
                             />
                         )}
@@ -470,13 +525,44 @@ export default function YachtEditForm({ yachtId }: Props) {
 
                     <Legend>{t('sections.general', 'General')}</Legend>
 
-                    <Field label={t('fields.name', 'Name')} value={form.name} onChange={onChange('name')} />
-                    <Field label={t('fields.fleet')} value={form.fleet} onChange={onChange('fleet')} />
-                    <Field
-                        label={t('fields.company', 'Charter company')}
-                        value={form.charterCompany}
-                        onChange={onChange('charterCompany')}
-                    />
+                    <div>
+                        <Field
+                            label={t('fields.name', 'Name')}
+                            value={form.name}
+                            onChange={onChange('name')}
+                        />
+                        {fieldErrors.name && (
+                            <p className="mt-1 text-xs text-red-600">
+                                {fieldErrors.name}
+                            </p>
+                        )}
+                    </div>
+
+                    <div>
+                        <Field
+                            label={t('fields.fleet')}
+                            value={form.fleet}
+                            onChange={onChange('fleet')}
+                        />
+                        {fieldErrors.fleet && (
+                            <p className="mt-1 text-xs text-red-600">
+                                {fieldErrors.fleet}
+                            </p>
+                        )}
+                    </div>
+
+                    <div>
+                        <Field
+                            label={t('fields.company', 'Charter company')}
+                            value={form.charterCompany}
+                            onChange={onChange('charterCompany')}
+                        />
+                        {fieldErrors.charterCompany && (
+                            <p className="mt-1 text-xs text-red-600">
+                                {fieldErrors.charterCompany}
+                            </p>
+                        )}
+                    </div>
 
                     <Field
                         label={t('fields.owner', 'Owner name')}
@@ -485,7 +571,9 @@ export default function YachtEditForm({ yachtId }: Props) {
                     />
 
                     <label className="flex flex-col">
-                        <span className="text-sm text-gray-600">{t('fields.country', 'Country')}</span>
+                        <span className="text-sm text-gray-600">
+                            {t('fields.country', 'Country')}
+                        </span>
                         <Select<Opt, false>
                             className="mt-1"
                             classNamePrefix="rs"
@@ -498,12 +586,22 @@ export default function YachtEditForm({ yachtId }: Props) {
                             }}
                             getOptionValue={(o) => o.value}
                             getOptionLabel={(o) => o.label}
-                            placeholder={t('placeholders.chooseCountry', 'Choose country…')}
+                            placeholder={t(
+                                'placeholders.chooseCountry',
+                                'Choose country…',
+                            )}
                         />
+                        {fieldErrors.countryId && (
+                            <p className="mt-1 text-xs text-red-600">
+                                {fieldErrors.countryId}
+                            </p>
+                        )}
                     </label>
 
                     <label className="flex flex-col">
-                        <span className="text-sm text-gray-600">{t('fields.category', 'Category')}</span>
+                        <span className="text-sm text-gray-600">
+                            {t('fields.category', 'Category')}
+                        </span>
                         <AsyncSelect<Opt, false>
                             className="mt-1"
                             classNamePrefix="rs"
@@ -517,16 +615,29 @@ export default function YachtEditForm({ yachtId }: Props) {
                                     setForm((f) => ({ ...f, categoryId: '' }));
                                     setCategoryLabel(null);
                                 } else {
-                                    setForm((f) => ({ ...f, categoryId: opt.value }));
+                                    setForm((f) => ({
+                                        ...f,
+                                        categoryId: opt.value,
+                                    }));
                                     setCategoryLabel(opt.label);
                                 }
                             }}
-                            placeholder={t('placeholders.chooseCategory', 'Choose category…')}
+                            placeholder={t(
+                                'placeholders.chooseCategory',
+                                'Choose category…',
+                            )}
                         />
+                        {fieldErrors.categoryId && (
+                            <p className="mt-1 text-xs text-red-600">
+                                {fieldErrors.categoryId}
+                            </p>
+                        )}
                     </label>
 
                     <label className="flex flex-col">
-                        <span className="text-sm text-gray-600">{t('fields.builder', 'Builder')}</span>
+                        <span className="text-sm text-gray-600">
+                            {t('fields.builder', 'Builder')}
+                        </span>
                         <AsyncSelect<Opt, false>
                             className="mt-1"
                             classNamePrefix="rs"
@@ -537,21 +648,34 @@ export default function YachtEditForm({ yachtId }: Props) {
                             value={builderValue}
                             onChange={(opt) => {
                                 if (!opt) {
-                                    setForm((f) => ({ ...f, builderId: '', model: '' }));
+                                    setForm((f) => ({
+                                        ...f,
+                                        builderId: '',
+                                        model: '',
+                                    }));
                                     setBuilderLabel(null);
                                     setModelLabel(null);
                                 } else {
-                                    setForm((f) => ({ ...f, builderId: opt.value, model: '' }));
+                                    setForm((f) => ({
+                                        ...f,
+                                        builderId: opt.value,
+                                        model: '',
+                                    }));
                                     setBuilderLabel(opt.label);
                                     setModelLabel(null);
                                 }
                             }}
-                            placeholder={t('placeholders.chooseBuilder', 'Choose builder…')}
+                            placeholder={t(
+                                'placeholders.chooseBuilder',
+                                'Choose builder…',
+                            )}
                         />
                     </label>
 
                     <label className="flex flex-col">
-                        <span className="text-sm text-gray-600">{t('fields.model', 'Model')}</span>
+                        <span className="text-sm text-gray-600">
+                            {t('fields.model', 'Model')}
+                        </span>
                         <AsyncSelect<Opt, false>
                             className="mt-1"
                             classNamePrefix="rs"
@@ -565,11 +689,17 @@ export default function YachtEditForm({ yachtId }: Props) {
                                     setForm((f) => ({ ...f, model: '' }));
                                     setModelLabel(null);
                                 } else {
-                                    setForm((f) => ({ ...f, model: opt.value }));
+                                    setForm((f) => ({
+                                        ...f,
+                                        model: opt.value,
+                                    }));
                                     setModelLabel(opt.label);
                                 }
                             }}
-                            placeholder={t('placeholders.chooseModel', 'Choose model…')}
+                            placeholder={t(
+                                'placeholders.chooseModel',
+                                'Choose model…',
+                            )}
                         />
                     </label>
                 </fieldset>
@@ -644,13 +774,19 @@ export default function YachtEditForm({ yachtId }: Props) {
                          bg-red-600 hover:bg-red-700
                          focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2
                          disabled:opacity-60"
-                            title={t('actions.deleteTitle', 'Delete this yacht')}
+                            title={t(
+                                'actions.deleteTitle',
+                                'Delete this yacht',
+                            )}
                         >
-                            {deleting ? t('actions.deleting', 'Deleting…') : t('actions.delete', 'Delete')}
+                            {deleting
+                                ? t('actions.deleting', 'Deleting…')
+                                : t('actions.delete', 'Delete')}
                         </button>
                     )}
                 </div>
             </form>
         </div>
     );
+
 }

@@ -460,6 +460,52 @@ export class YachtsController {
   @Post()
   @Roles('MANAGER', 'FLEET_MANAGER', 'ADMIN')
   async create(@Body() body: Record<string, unknown>) {
+    // --- helper for validation errors (i18n handled on frontend) ---
+    const throwValidation = (field: string, messageKey: string): never => {
+      throw new BadRequestException({
+        type: 'VALIDATION_ERROR',
+        field,
+        messageKey, // пример: 'yacht:errors.nameRequired'
+      });
+    };
+
+    // --- basic validation, messageKey -> public/locales/*/yacht.json ---
+    if (!body.name || typeof body.name !== 'string' || !body.name.trim()) {
+      throwValidation('name', 'yacht:errors.nameRequired');
+    }
+
+    if (!body.fleet || typeof body.fleet !== 'string' || !body.fleet.trim()) {
+      throwValidation('fleet', 'yacht:errors.fleetRequired');
+    }
+
+    if (
+      !body.charterCompany ||
+      typeof body.charterCompany !== 'string' ||
+      !body.charterCompany.trim()
+    ) {
+      throwValidation('charterCompany', 'yacht:errors.charterCompanyRequired');
+    }
+
+    if (!body.countryId) {
+      throwValidation('countryId', 'yacht:errors.countryRequired');
+    }
+
+    if (!body.categoryId) {
+      throwValidation('categoryId', 'yacht:errors.categoryRequired');
+    }
+
+    if (!body.builtYear) {
+      throwValidation('builtYear', 'yacht:errors.builtYearRequired');
+    }
+
+    if (!body.cabins) {
+      throwValidation('cabins', 'yacht:errors.cabinsRequired');
+    }
+
+    if (!body.heads) {
+      throwValidation('heads', 'yacht:errors.headsRequired');
+    }
+
     type CreateBase = Omit<
       Prisma.YachtCreateInput,
       | 'currentExtraServices'

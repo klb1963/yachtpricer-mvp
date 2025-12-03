@@ -91,9 +91,18 @@
     "fetchCompetitors": "Dohvati konkurente i agregiraj"
   },
   "errors": {
-    "loadFailed": "Greška pri učitavanju",
-    "saveFailed": "Greška pri spremanju",
-    "deleteFailed": "Greška pri brisanju"
+    "loadFailed": "Pogreška pri učitavanju",
+    "saveFailed": "Pogreška pri spremanju",
+    "deleteFailed": "Pogreška pri brisanju",
+    "nameRequired": "Unesite naziv jahte",
+    "fleetRequired": "Unesite flotu",
+    "charterCompanyRequired": "Unesite čarter tvrtku",
+    "countryRequired": "Odaberite državu",
+    "categoryRequired": "Odaberite kategoriju",
+    "builtYearRequired": "Unesite godinu gradnje",
+    "cabinsRequired": "Unesite broj kabina",
+    "headsRequired": "Unesite broj WC-a",
+    "manufacturerOrBuilderRequired": "Potrebno je navesti proizvođača ili brodogradilište"
   },
   "competitors": "Konkurenti",
   "thisYacht": "ova jahta",

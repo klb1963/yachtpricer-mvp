@@ -93,7 +93,16 @@
   "errors": {
     "loadFailed": "Ошибка загрузки",
     "saveFailed": "Ошибка сохранения",
-    "deleteFailed": "Ошибка удаления"
+    "deleteFailed": "Ошибка удаления",
+    "nameRequired": "Укажите название яхты",
+    "fleetRequired": "Укажите флот",
+    "charterCompanyRequired": "Укажите чартерную компанию",
+    "countryRequired": "Выберите страну",
+    "categoryRequired": "Выберите категорию",
+    "builtYearRequired": "Укажите год постройки",
+    "cabinsRequired": "Укажите количество кают",
+    "headsRequired": "Укажите количество санузлов",
+    "manufacturerOrBuilderRequired": "Нужно указать либо верфь, либо производителя"
   },
   "competitors": "Конкуренты",
   "thisYacht": "эта яхта",

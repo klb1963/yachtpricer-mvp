@@ -94,7 +94,16 @@
   "errors": {
     "loadFailed": "Failed to load",
     "saveFailed": "Failed to save",
-    "deleteFailed": "Failed to delete"
+    "deleteFailed": "Failed to delete",
+    "nameRequired": "Enter yacht name",
+    "fleetRequired": "Enter fleet",
+    "charterCompanyRequired": "Enter charter company",
+    "countryRequired": "Select country",
+    "categoryRequired": "Select category",
+    "builtYearRequired": "Enter year of build",
+    "cabinsRequired": "Enter number of cabins",
+    "headsRequired": "Enter number of heads",
+    "manufacturerOrBuilderRequired": "Either manufacturer or builder must be provided"
   },
   "competitors": "Competitors",
   "thisYacht": "this yacht",
