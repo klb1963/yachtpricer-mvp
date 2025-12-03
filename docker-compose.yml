@@ -84,13 +84,14 @@ services:
       dockerfile: Dockerfile
       target: runner
     working_dir: /app
-    command: >
-      sh -lc "
+    entrypoint:
+      - sh
+      - -lc
+      - >
         npx prisma studio
           --port 5555
           --browser none
           --schema=./prisma/schema.prisma
-      "
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/yachtpricer
     depends_on:
