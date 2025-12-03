@@ -79,26 +79,27 @@ services:
 
   prisma-studio:
     profiles: ["tools"]
-    image: node:20-alpine
-    working_dir: /workspace/backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runner
+    working_dir: /app
     command: >
-      sh -lc '
-        npx -y prisma@6.14.0 studio
+      sh -lc "
+        npx prisma studio
           --port 5555
           --browser none
           --schema=./prisma/schema.prisma
-      '
+      "
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/yachtpricer
-    volumes:
-      - ./:/workspace:ro
     depends_on:
       db:
         condition: service_healthy
     networks:
       - yachtpricer-net
     ports:
-      - "127.0.0.1:5557:5555"  # слушаем ТОЛЬКО на localhost VPS
+      - "127.0.0.1:5557:5555"
 
 networks:
   yachtpricer-net:
