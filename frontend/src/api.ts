@@ -20,6 +20,7 @@ export type YachtPriceHistoryItem = {
 
 export interface Yacht {
   id: string
+  nausysId?: string | null // 👈 ДОБАВИЛ
   name: string
   manufacturer: string
   model: string
@@ -232,6 +233,7 @@ export async function getPendingPricingDecisions(): Promise<PendingPricingDecisi
 // Сырой ответ может приходить с разными именами полей (Pct/Percent, currentPrice/Discount, priceFetchedAt/fetchedAt)
 type YachtRaw = {
   id: string;
+  nausysId?: string | null;   // 👈 ДОБАВИЛ
   name: string;
   manufacturer: string;
   model: string;

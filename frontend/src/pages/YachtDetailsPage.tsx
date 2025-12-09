@@ -156,7 +156,25 @@ export default function YachtDetailsPage() {
       {/* Manager */}
       <div className="rounded-2xl border p-5 shadow-sm bg-white mt-6">
         <h2 className="font-semibold mb-3">Ответственный менеджер</h2>
-        <p className="text-sm">{yacht.responsibleManagerName ?? '—'}</p>
+
+        <dl className="text-sm space-y-1">
+          <div className="flex gap-2">
+            <dt className="text-gray-500 w-40">Менеджер</dt>
+            <dd className="flex-1">
+              {yacht.responsibleManagerName ?? '—'}
+            </dd>
+          </div>
+
+        <h2 className="font-semibold mt-4 mb-3">External ID</h2>
+          <div className="flex gap-2">
+            <dt className="text-gray-500 w-40">
+              {t('fields.nausysId', 'NauSYS ID')}
+            </dt>
+            <dd className="flex-1">
+              {(yacht as any).nausysId ?? '—'}
+            </dd>
+          </div>
+        </dl>
       </div>
 
       {/* Owner */}

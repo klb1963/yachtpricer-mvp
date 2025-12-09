@@ -12,8 +12,10 @@ import type {
     CatalogModel,
 } from '../../api';
 
+import React from 'react';
 import Select from 'react-select';
 import AsyncSelect from 'react-select/async';
+
 import {
     getYacht,
     updateYacht,
@@ -83,6 +85,10 @@ const CABINS_OPTIONS = range(2, 12);
 const HEADS_OPTIONS = range(1, 12);
 
 type Opt = { value: string; label: string };
+
+// Временный shim для react-select, чтобы TS не ругался на JSX-тип
+const RSSelect = Select as unknown as React.ComponentType<any>;
+const RSAsyncSelect = AsyncSelect as unknown as React.ComponentType<any>;
 
 type Props = {
     yachtId?: string | null;
@@ -525,6 +531,21 @@ export default function YachtEditForm({ yachtId }: Props) {
                                 }
                             />
                         )}
+
+                        {/* 🔹 новое поле NauSYS ID */}
+                        <div className="mt-4">
+                            <Field
+                                label={t('fields.nausysId', 'NauSYS ID')}
+                                value={form.nausysId}
+                                onChange={onChange('nausysId')}
+                            />
+                            {fieldErrors.nausysId && (
+                                <p className="mt-1 text-xs text-red-600">
+                                    {fieldErrors.nausysId}
+                                </p>
+                            )}
+                        </div>
+
                     </div>
 
                     <Legend>{t('sections.general', 'General')}</Legend>
@@ -578,18 +599,18 @@ export default function YachtEditForm({ yachtId }: Props) {
                         <span className="text-sm text-gray-600">
                             {t('fields.country', 'Country')}
                         </span>
-                        <Select<Opt, false>
+                        <RSSelect
                             className="mt-1"
                             classNamePrefix="rs"
                             options={countryOpts}
                             isClearable
                             value={selectedCountry}
-                            onChange={(opt) => {
+                            onChange={(opt:any) => {
                                 const v = opt?.value ?? '';
                                 setForm((f) => ({ ...f, countryId: v }));
                             }}
-                            getOptionValue={(o) => o.value}
-                            getOptionLabel={(o) => o.label}
+                            getOptionValue={(o:any) => o.value}
+                            getOptionLabel={(o:any) => o.label}
                             placeholder={t(
                                 'placeholders.chooseCountry',
                                 'Choose country…',
@@ -606,7 +627,7 @@ export default function YachtEditForm({ yachtId }: Props) {
                         <span className="text-sm text-gray-600">
                             {t('fields.category', 'Category')}
                         </span>
-                        <AsyncSelect<Opt, false>
+                        <RSAsyncSelect
                             className="mt-1"
                             classNamePrefix="rs"
                             cacheOptions
@@ -614,7 +635,7 @@ export default function YachtEditForm({ yachtId }: Props) {
                             loadOptions={loadCategoryOptions}
                             isClearable
                             value={categoryValue}
-                            onChange={(opt) => {
+                            onChange={(opt:any) => {
                                 if (!opt) {
                                     setForm((f) => ({ ...f, categoryId: '' }));
                                     setCategoryLabel(null);
@@ -642,7 +663,7 @@ export default function YachtEditForm({ yachtId }: Props) {
                         <span className="text-sm text-gray-600">
                             {t('fields.builder', 'Builder')}
                         </span>
-                        <AsyncSelect<Opt, false>
+                        <RSAsyncSelect
                             className="mt-1"
                             classNamePrefix="rs"
                             cacheOptions
@@ -650,7 +671,7 @@ export default function YachtEditForm({ yachtId }: Props) {
                             loadOptions={loadBuilderOptions}
                             isClearable
                             value={builderValue}
-                            onChange={(opt) => {
+                            onChange={(opt:any) => {
                                 if (!opt) {
                                     setForm((f) => ({
                                         ...f,
@@ -680,7 +701,7 @@ export default function YachtEditForm({ yachtId }: Props) {
                         <span className="text-sm text-gray-600">
                             {t('fields.model', 'Model')}
                         </span>
-                        <AsyncSelect<Opt, false>
+                        <RSAsyncSelect
                             className="mt-1"
                             classNamePrefix="rs"
                             cacheOptions
@@ -688,7 +709,7 @@ export default function YachtEditForm({ yachtId }: Props) {
                             loadOptions={loadModelOptions}
                             isClearable
                             value={modelValue}
-                            onChange={(opt) => {
+                            onChange={(opt: any) => {
                                 if (!opt) {
                                     setForm((f) => ({ ...f, model: '' }));
                                     setModelLabel(null);
