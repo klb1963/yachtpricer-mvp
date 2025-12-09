@@ -63,6 +63,7 @@ type FormState = {
     categoryId: string;
     builderId: string;
     responsibleManagerId: string;
+    nausysId: string;
 };
 
 const TYPE_OPTIONS = ['monohull', 'catamaran', 'trimaran', 'compromis'] as const;
@@ -121,6 +122,7 @@ export default function YachtEditForm({ yachtId }: Props) {
         categoryId: '',
         builderId: '',
         responsibleManagerId: '',
+        nausysId: '', 
     });
 
     const [yacht, setYacht] = useState<Yacht | null>(null);
@@ -237,6 +239,7 @@ export default function YachtEditForm({ yachtId }: Props) {
                         (y as any).responsibleManagerId != null
                             ? String((y as any).responsibleManagerId)
                             : '',
+                    nausysId: (y as any).nausysId ?? '', 
                 });
             })
             .catch((e: unknown) =>
@@ -389,6 +392,7 @@ export default function YachtEditForm({ yachtId }: Props) {
                 categoryId,
                 builderId,
                 responsibleManagerId,
+                nausysId: form.nausysId.trim() || undefined, 
             };
 
             if (isCreate) {

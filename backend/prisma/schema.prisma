@@ -18,7 +18,7 @@ enum WeekSlotStatus {
 }
 
 enum YachtType {
-  monohull
+  monohull   
   catamaran
   trimaran
   compromis

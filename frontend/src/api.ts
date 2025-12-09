@@ -367,6 +367,7 @@ export type YachtUpdatePayload = {
   builderId?: number | null;
    // 🔹 новое поле для бэкенда
   responsibleManagerId?: string | null;
+  nausysId?: string | null;
 };
 
 export async function updateYacht(id: string, payload: YachtUpdatePayload): Promise<Yacht> {

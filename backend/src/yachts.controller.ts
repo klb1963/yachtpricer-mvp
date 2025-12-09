@@ -1,5 +1,3 @@
-// backend/src/yachts.controller.ts
-
 import {
   BadRequestException,
   Body,
@@ -12,19 +10,14 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { Prisma, YachtType } from '@prisma/client';
 import { Roles } from './auth/roles.decorator';
 import { PrismaService } from './prisma/prisma.service';
 import { getEffectiveBasePriceForWeek } from './pricing-decisions/effective-base-price.helper';
 
-interface YachtWithCountry
-  extends Prisma.YachtGetPayload<{
-    include: { country: true; category: true; builder: true };
-  }> {
-  countryCode: string | null;
-  countryName: string | null;
-}
+// Локальный тип для YachtType, чтобы не тянуть enum из @prisma/client
+type YachtType = 'monohull' | 'catamaran' | 'trimaran' | 'compromis';
 
+// DTO для элементов истории цены
 interface PriceHistoryItemDto {
   date: string; // PriceHistory.date
   weekStart: string; // WeekSlot.startDate
@@ -32,21 +25,6 @@ interface PriceHistoryItemDto {
   discountPct: number;
   source: string | null;
   note: string | null;
-}
-
-interface YachtDetailsDto extends YachtWithCountry {
-  currentPrice: number | null;
-  currentDiscountPct: number | null;
-  currentPriceUpdatedAt: string | null;
-  priceHistory: PriceHistoryItemDto[];
-  // 🔹 ответственный менеджер
-  responsibleManagerId: string | null;
-  responsibleManagerName: string | null;
-  // 🔹 актуальная базовая цена (на выбранную неделю) и валюта
-  currentBasePrice: number | null;
-  currency: string | null;
-  // 🔹 по какой неделе считаем всё на показываемой странице
-  selectedWeekStart: string | null;
 }
 
 /** Хелперы парсинга */
@@ -80,7 +58,8 @@ const toNum = (v: unknown): number | undefined => {
 };
 
 // number | null | undefined:
-//   undefined → поле не трогаем//   null      → явно сбрасываем в null
+//   undefined → поле не трогаем
+//   null      → явно сбрасываем в null
 //   number    → сохраняем число
 const toNullableNum = (v: unknown): number | null | undefined => {
   if (v === undefined) return undefined;
@@ -141,7 +120,8 @@ export class YachtsController {
       }
     }
 
-    const andClauses: Array<Prisma.YachtWhereInput | undefined> = [
+    // where + orderBy без жёстких Prisma-типов
+    const andClauses: Array<Record<string, any> | undefined> = [
       q
         ? {
             OR: [
@@ -168,13 +148,11 @@ export class YachtsController {
       categoryId !== undefined ? { categoryId } : undefined,
     ];
 
-    const where: Prisma.YachtWhereInput = {
-      AND: andClauses.filter((x): x is Prisma.YachtWhereInput => Boolean(x)),
+    const where: Record<string, any> = {
+      AND: andClauses.filter(Boolean),
     };
 
-    let orderBy:
-      | Prisma.YachtOrderByWithRelationInput
-      | Prisma.YachtOrderByWithRelationInput[] = { createdAt: 'desc' };
+    let orderBy: any = { createdAt: 'desc' };
 
     switch (query.sort) {
       case 'priceAsc':
@@ -212,15 +190,15 @@ export class YachtsController {
     //    на/до выбранной недели
     let effectiveByYacht: Record<
       string,
-      { price: Prisma.Decimal | null; fromWeekStart?: Date | null }
+      { price: any | null; fromWeekStart?: Date | null }
     > = {};
 
     if (items.length > 0 && weekStartDate) {
       const entries = await Promise.all(
-        items.map(async (y) => {
+        items.map(async (y: any) => {
           const eff = await getEffectiveBasePriceForWeek(this.prisma, {
             yachtId: y.id,
-            weekStart: weekStartDate,
+            weekStart: weekStartDate!,
           });
           return [y.id, eff] as const;
         }),
@@ -228,7 +206,8 @@ export class YachtsController {
 
       effectiveByYacht = Object.fromEntries(entries);
     }
-    const mapped = items.map((y) => {
+
+    const mapped = items.map((y:any) => {
       let currentBasePrice: number | null = null;
       let selectedWeekStart: string | null = null;
 
@@ -236,13 +215,15 @@ export class YachtsController {
         // если неделя запрошена — стараемся отдать эффективную цену
         const eff = effectiveByYacht[y.id];
         if (eff && eff.price != null) {
-          currentBasePrice = Number(eff.price as unknown as number);
+          currentBasePrice = Number(eff.price as any);
           selectedWeekStart = weekStartDate.toISOString();
         } else {
           // нет решений — возвращаем исходную basePrice яхты
           currentBasePrice =
             typeof y.basePrice === 'string'
-              ? Number(y.basePrice as unknown as number)
+              ? Number(y.basePrice as any)
+              : y.basePrice != null
+              ? Number(y.basePrice as any)
               : null;
           selectedWeekStart = weekStartDate.toISOString();
         }
@@ -265,7 +246,7 @@ export class YachtsController {
   async byId(
     @Param('id') id: string,
     @Query('weekStart') weekStart?: string,
-  ): Promise<YachtDetailsDto> {
+  ): Promise<any> {
     const y = await this.prisma.yacht.findUnique({
       where: { id },
       include: {
@@ -306,7 +287,7 @@ export class YachtsController {
 
     // 🔹 Фильтр для истории: по яхте, за последний год
     // и, если задана неделя, только weekSlots с startDate <= weekStart
-    const historyWhere: Prisma.PriceHistoryWhereInput = {
+    const historyWhere: any = {
       weekSlot: {
         yachtId: id,
         ...(weekStartDate ? { startDate: { lte: weekStartDate } } : {}),
@@ -330,11 +311,9 @@ export class YachtsController {
 
     // 🔹 Текущие "фактические" цена и скидка на выбранную неделю (или последнюю)
     const currentPrice =
-      last?.price != null ? Number(last.price as unknown as number) : null;
+      last?.price != null ? Number(last.price as any) : null;
     const currentDiscountPct =
-      last?.discount != null
-        ? Number(last.discount as unknown as number)
-        : null;
+      last?.discount != null ? Number(last.discount as any) : null;
     const currentPriceUpdatedAt = last ? last.date.toISOString() : null;
 
     // 🔹 Базовая цена и валюта на эту же неделю
@@ -345,10 +324,10 @@ export class YachtsController {
       const slot = last.weekSlot;
 
       if (slot.basePrice != null) {
-        currentBasePrice = Number(slot.basePrice as unknown as number);
+        currentBasePrice = Number(slot.basePrice as any);
       } else if (last.price != null) {
         // fallback: если ещё не заполняем basePrice, используем фактическую цену
-        currentBasePrice = Number(last.price as unknown as number);
+        currentBasePrice = Number(last.price as any);
       }
 
       // аккуратно читаем валюту, чтобы не ловить no-unsafe-assignment
@@ -367,12 +346,12 @@ export class YachtsController {
       selectedWeekStart = last.weekSlot.startDate.toISOString();
     }
 
-    const priceHistory: PriceHistoryItemDto[] = history.map((h) => ({
+    const priceHistory: PriceHistoryItemDto[] = history.map((h:any) => ({
       date: h.date.toISOString(),
       weekStart: h.weekSlot.startDate.toISOString(),
-      price: Number(h.price as unknown as number),
-      discountPct: Number(h.discount as unknown as number),
-      source: (h.source as unknown as string) ?? null,
+      price: Number(h.price as any),
+      discountPct: Number(h.discount as any),
+      source: (h.source as any as string) ?? null,
       note: h.note ?? null,
     }));
 
@@ -429,7 +408,7 @@ export class YachtsController {
     return s || undefined;
   }
 
-  private isJsonInputValue(v: unknown): v is Prisma.InputJsonValue {
+  private isJsonInputValue(v: unknown): v is any {
     try {
       JSON.stringify(v);
       return true;
@@ -438,7 +417,7 @@ export class YachtsController {
     }
   }
 
-  private toJsonValueEnsure(v: unknown): Prisma.InputJsonValue {
+  private toJsonValueEnsure(v: unknown): any {
     if (v === undefined || v === null || v === '') return [];
     if (typeof v === 'string') {
       try {
@@ -451,7 +430,7 @@ export class YachtsController {
     return this.isJsonInputValue(v) ? v : [];
   }
 
-  private toJsonValueOptional(v: unknown): Prisma.InputJsonValue | undefined {
+  private toJsonValueOptional(v: unknown): any {
     if (v === undefined) return undefined;
     return this.toJsonValueEnsure(v);
   }
@@ -506,18 +485,7 @@ export class YachtsController {
       throwValidation('heads', 'yacht:errors.headsRequired');
     }
 
-    type CreateBase = Omit<
-      Prisma.YachtCreateInput,
-      | 'currentExtraServices'
-      | 'owner'
-      | 'location'
-      | 'type'
-      | 'country'
-      | 'category'
-      | 'builder'
-    >;
-
-    const baseData: CreateBase = {
+    const baseData = {
       name: this.reqStr(body, 'name'),
       manufacturer: '',
       model: this.reqStr(body, 'model'),
@@ -541,6 +509,8 @@ export class YachtsController {
     const categoryId = toNullableInt(body['categoryId']);
     const builderId = toNullableInt(body['builderId']);
     const maxDiscountPct = toNullableNum(body['maxDiscountPct']);
+    // 🔹 NauSYS external ID
+    const nausysId = toNullableStr(body['nausysId']);
 
     let manufacturer: string | null | undefined = this.optStr(
       body,
@@ -559,7 +529,7 @@ export class YachtsController {
       );
     }
 
-    const data: Prisma.YachtCreateInput = {
+    const data: any = {
       ...baseData,
       manufacturer,
       currentExtraServices: services,
@@ -574,6 +544,7 @@ export class YachtsController {
         ? { builder: { connect: { id: builderId } } }
         : {}),
       ...(maxDiscountPct !== undefined ? { maxDiscountPct } : {}),
+      ...(nausysId !== undefined ? { nausysId } : {}),
     };
 
     return this.prisma.yacht.create({ data });
@@ -594,7 +565,7 @@ export class YachtsController {
       return Number.isFinite(n) ? n : undefined;
     };
 
-    const data: Prisma.YachtUpdateInput = {
+    const data: any = {
       name: asStr('name'),
       manufacturer: asStr('manufacturer'),
       model: asStr('model'),
@@ -619,6 +590,12 @@ export class YachtsController {
       data.maxDiscountPct = maxDiscountPct;
     }
 
+    // 🔹 nausysId: string | null | undefined
+    const nausysId = toNullableStr(body['nausysId']);
+    if (nausysId !== undefined) {
+      data.nausysId = nausysId;
+    }
+
     if (Object.prototype.hasOwnProperty.call(body, 'currentExtraServices')) {
       const val = this.toJsonValueOptional(body['currentExtraServices']);
       if (val !== undefined) data.currentExtraServices = val;
@@ -631,7 +608,7 @@ export class YachtsController {
 
     if (Object.prototype.hasOwnProperty.call(body, 'countryId')) {
       const v = toNullableStr(body['countryId']);
-      let countryUpdate: Prisma.YachtUpdateInput['country'];
+      let countryUpdate: any;
       if (v === null) {
         countryUpdate = { disconnect: true };
       } else if (typeof v === 'string' && v) {
@@ -642,7 +619,7 @@ export class YachtsController {
 
     if (Object.prototype.hasOwnProperty.call(body, 'categoryId')) {
       const v = toNullableInt(body['categoryId']);
-      let categoryUpdate: Prisma.YachtUpdateInput['category'];
+      let categoryUpdate: any;
       if (v === null) {
         categoryUpdate = { disconnect: true };
       } else if (typeof v === 'number') {
@@ -653,7 +630,7 @@ export class YachtsController {
 
     if (Object.prototype.hasOwnProperty.call(body, 'builderId')) {
       const v = toNullableInt(body['builderId']);
-      let builderUpdate: Prisma.YachtUpdateInput['builder'];
+      let builderUpdate: any;
       if (v === null) {
         builderUpdate = { disconnect: true };
       } else if (typeof v === 'number') {
@@ -662,14 +639,14 @@ export class YachtsController {
       if (builderUpdate) data.builder = builderUpdate;
     }
 
-    (Object.keys(data) as Array<keyof Prisma.YachtUpdateInput>).forEach((k) => {
+    (Object.keys(data) as Array<keyof typeof data>).forEach((k) => {
       if (data[k] === undefined) delete data[k];
     });
 
     // --- Обновление яхты и ответственного менеджера в одной транзакции ---
     const responsibleManagerId = this.optStr(body, 'responsibleManagerId');
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx:any) => {
       // 1. Обновляем основные поля яхты
       const updatedYacht = await tx.yacht.update({
         where: { id },

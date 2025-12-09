@@ -6,13 +6,14 @@
     # ---------- deps (все зависимости, включая dev) ----------
     FROM base AS deps
     WORKDIR /app
-    # Копируем только манифест пакета backend
-    COPY package.json ./
+
+    # Копируем package.json и package-lock.json backend
+    COPY package*.json ./
 
     # Диагностика: проверим, что зависимость заявлена в package.json
     RUN node -e "const p=require('./package.json'); if(!p.dependencies || !p.dependencies['@clerk/backend']){console.error('NO @clerk/backend in package.json'); process.exit(1)}"
 
-    # Устанавливаем зависимости без локального package-lock.json
+    # Устанавливаем зависимости (lock-файл не обязателен, backend автономен)
     RUN npm install
 
     # Диагностика: убеждаемся, что пакет реально установлен

@@ -103,6 +103,9 @@ export default function PricingPage() {
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [error, setError] = useState<string | null>(null);
 
+  // NEW: флаг выгрузки в NauSYS
+  const [exporting, setExporting] = useState(false);
+
   // модалка подтверждения со сбором комментария
   const [dialog, setDialog] = useState<{
     open: boolean;
@@ -247,6 +250,18 @@ export default function PricingPage() {
       }
     } finally {
       setSavingId(null);
+    }
+  }
+
+  // ─ выгрузка для NauSYS (пока заглушка) ─
+  async function handleExportNausys() {
+    try {
+      setExporting(true);
+      // TODO: здесь позже сделаем реальный вызов API backend-а
+      // например: await api.post('/pricing/export-nausys', { week: weekISO })
+      alert('Выгрузка для NauSYS пока не реализована (TODO).');
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -426,34 +441,48 @@ export default function PricingPage() {
           <HeaderWithSourceBadge />
         </div>
 
-        {/* Блок выбора недели */}
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            className="px-3 py-2 rounded border"
-            onClick={() => setWeek(toYMD(prevSaturday(weekDate)))}
-            disabled={loading}
-          >
-            ◀ 
-          </button>
+        {/* Блок выбора недели + кнопка выгрузки для NauSYS */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="px-3 py-2 rounded border"
+              onClick={() => setWeek(toYMD(prevSaturday(weekDate)))}
+              disabled={loading}
+            >
+              ◀
+            </button>
 
-          <input
-            type="date"
-            className="px-3 py-2 border rounded bg-white"
-            value={weekLabel}
-            onChange={(e) => onPickDate(e.target.value)}
-            disabled={loading}
-          />
+            <input
+              type="date"
+              className="px-3 py-2 border rounded bg-white"
+              value={weekLabel}
+              onChange={(e) => onPickDate(e.target.value)}
+              disabled={loading}
+            />
+
+            <button
+              className="px-3 py-2 rounded border"
+              onClick={() => setWeek(toYMD(nextSaturday(weekDate)))}
+              disabled={loading}
+            >
+              ▶
+            </button>
+          </div>
 
           <button
-            className="px-3 py-2 rounded border"
-            onClick={() => setWeek(toYMD(nextSaturday(weekDate)))}
-            disabled={loading}
+            type="button"
+            onClick={handleExportNausys}
+            disabled={loading || exporting}
+            className="inline-flex items-center rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium
+                       text-blue-600 hover:bg-blue-50 disabled:opacity-60 disabled:hover:bg-transparent"
           >
-            ▶
+            {exporting
+              ? t('exportNausysInProgress', 'Exporting for NauSYS…')
+              : t('exportNausys', 'Export for NauSYS')}
           </button>
         </div>
 
-        {/* Переключатель вида — теперь под выбором недели */}
+        {/* Переключатель вида — под выбором недели */}
         <div className="flex items-center gap-2">
           <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">
             <button
