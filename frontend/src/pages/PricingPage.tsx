@@ -159,7 +159,8 @@ export default function PricingPage() {
         const data = await fetchRows(weekISO, scanSource);
         if (alive) setRows(data);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Failed to load pricing rows';
+        console.error(e);
+        const msg = t('loadError', 'Failed to load pricing rows');
         if (alive) {
           setError(msg);
           setRows([]);
@@ -250,7 +251,7 @@ export default function PricingPage() {
       // 403 для автосейва по blur показывать не обязательно
       const status = (e as { response?: { status?: number } })?.response?.status;
       if (status && status !== 403) {
-        alert('Не удалось сохранить черновик');
+        alert(t('alerts.saveDraftFailed', 'Failed to save draft'));
       }
     } finally {
       setSavingId(null);
@@ -276,10 +277,16 @@ export default function PricingPage() {
         },
       });
 
-    if (!res.ok) {
-      alert("Ошибка при экспорте NauSYS: " + res.status);
-      return;
-    }
+      if (!res.ok) {
+        alert(
+          t(
+            'alerts.exportError',
+            'NauSYS export error: {{status}}',
+            { status: res.status },
+          ),
+        );
+        return;
+      }
 
       // Получаем CSV как Blob
       const blob = await res.blob();
@@ -294,7 +301,12 @@ export default function PricingPage() {
       window.URL.revokeObjectURL(downloadUrl);
     } catch (err) {
       console.error(err);
-      alert('Не удалось выполнить экспорт NauSYS. Подробности в консоли.');
+      alert(
+        t(
+          'alerts.exportFailed',
+          'Failed to export for NauSYS. See console for details.',
+        ),
+      );
     } finally {
       setExporting(false);
     }
@@ -323,7 +335,16 @@ export default function PricingPage() {
       discountPct != null &&
       discountPct > row.maxDiscountPercent
     ) {
-      alert(`Скидка ${discountPct}% превышает лимит ${row.maxDiscountPercent}%.`);
+      alert(
+        t(
+          'alerts.discountLimitExceeded',
+          'Discount {{discount}}% exceeds limit {{limit}}%.',
+          {
+            discount: discountPct,
+            limit: row?.maxDiscountPercent ?? '',
+          },
+        ),
+      );
       return; // не уходим в сеть
     }
     setSubmitting(true);
@@ -365,9 +386,9 @@ export default function PricingPage() {
       closeDialog();
     } catch (e) {
       if (axios.isAxiosError(e) && e.response?.status === 403) {
-        alert('Недостаточно прав');
+        alert(t('alerts.forbidden', 'Insufficient permissions'));
       } else {
-        alert('Не удалось сменить статус');
+        alert(t('alerts.statusChangeFailed', 'Failed to change status'));
       }
     } finally {
       setSubmitting(false);
@@ -588,7 +609,7 @@ export default function PricingPage() {
                 <th className="p-3 w-32 text-right">{t('avgTop3')}</th>
                 <th className="p-3 w-28 text-right">{t('mlReco')}</th>
                 <th className="p-3">{t('discountFinal')}</th>
-                <th className="p-3">{t('status')}</th>
+                <th className="p-3">{t('statusColumn')}</th>
                 <th className="p-3 w-[18rem]">{t('lastComment')}</th>
                 <th className="p-3 w-48">{t('actions')}</th>
               </tr>
@@ -654,7 +675,9 @@ export default function PricingPage() {
 
                     {/* Status */}
                     <td className="p-3">
-                      <span className="px-2 py-1 text-xs rounded bg-gray-100">{st}</span>
+                      <span className="px-2 py-1 text-xs rounded bg-gray-100">
+                        {t(`status.${st}`, st)}
+                      </span>
                     </td>
 
                     {/* Last comment */}
@@ -812,7 +835,9 @@ export default function PricingPage() {
 
                 {/* Footer: статус + кнопки */}
                 <div className="mt-4 flex items-center gap-2">
-                  <span className="px-2 py-1 text-xs rounded bg-gray-100">{st}</span>
+                  <span className="px-2 py-1 text-xs rounded bg-gray-100">
+                    {t(`status.${st}`, st)}
+                  </span>
                   <div className="flex gap-2 ml-auto">
                     <button
                       className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"

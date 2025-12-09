@@ -1,40 +1,61 @@
 {
-  "title": "Pricing",
+  "title": "Прайсинг",
   "table": "Таблица",
   "cards": "Карточки",
   "prevWeek": "Пред. неделя",
   "nextWeek": "След. неделя",
   "yacht": "Яхта",
   "base": "База",
-  "actuals": "Факт",
-  "actualPrice": "Факт. цена",
-  "actualDiscount": "Факт. скидка",
-  "fetchedAt": "Согласовано",
+  "actuals": "Фактические данные",
+  "actualPrice": "Фактическая цена",
+  "actualDiscount": "Фактическая скидка",
+  "fetchedAt": "Обновлено",
   "maxDiscount": "Макс. скидка %",
   "top1": "Top1",
-  "avgTop3": "Avg(Top3)",
-  "mlReco": "ML reco",
-  "discountFinal": "Скидка % / Итог €",
-  "status": "Статус",
-  "lastComment": "Комментарий",
+  "avgTop3": "Средн.(Top3)",
+  "mlReco": "ML-рекомендация",
+  "discountFinal": "Скидка % / Финальная €",
+  "lastComment": "Последний комментарий",
   "actions": "Действия",
   "loading": "Загрузка…",
-  "noRows": "Нет строк на эту неделю.",
+  "noRows": "Нет данных за эту неделю.",
   "discount": "Скидка",
-  "finalPrice": "Итоговая цена",
+  "finalPrice": "Финальная цена",
   "calculated": "Рассчитано",
+  "statusColumn": "Статус",
   "submit": "Отправить",
   "approve": "Одобрить",
   "reject": "Отклонить",
   "confirm": "Подтвердить",
+
   "dialog": {
     "submitForApproval": "Отправить на согласование",
     "approveDecision": "Одобрить решение",
     "rejectDecision": "Отклонить решение",
-    "changeStatus": "Сменить статус"
+    "changeStatus": "Изменить статус"
   },
+
   "placeholders": {
-    "rejectWhy": "Почему отклонено? (необязательно)…",
+    "rejectWhy": "Причина отклонения (необязательно)…",
     "comment": "Комментарий (необязательно)…"
+  },
+
+  "loadError": "Не удалось загрузить строки прайсинга",
+  "exportYear": "Год",
+
+  "alerts": {
+    "saveDraftFailed": "Не удалось сохранить черновик",
+    "exportError": "Ошибка экспорта в NauSYS: {{status}}",
+    "exportFailed": "Не удалось выполнить экспорт в NauSYS. Подробности в консоли.",
+    "discountLimitExceeded": "Скидка {{discount}}% превышает лимит {{limit}}%.",
+    "forbidden": "Недостаточно прав",
+    "statusChangeFailed": "Не удалось изменить статус"
+  },
+
+  "status": {
+    "DRAFT": "Черновик",
+    "SUBMITTED": "Отправлено",
+    "APPROVED": "Одобрено",
+    "REJECTED": "Отклонено"
   }
 }

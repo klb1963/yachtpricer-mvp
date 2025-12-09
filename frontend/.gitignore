@@ -34,3 +34,5 @@ node_modules
 # Lockfiles (оставь только тот, что реально используешь)
 yarn.lock
 pnpm-lock.yaml
+
+/backend/tsconfig.build.tsbuildinfo

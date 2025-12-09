@@ -15,7 +15,6 @@
   "avgTop3": "Avg(Top3)",
   "mlReco": "ML reco",
   "discountFinal": "Discount % / Final €",
-  "status": "Status",
   "lastComment": "Last comment",
   "actions": "Actions",
   "loading": "Loading…",
@@ -23,6 +22,7 @@
   "discount": "Discount",
   "finalPrice": "Final price",
   "calculated": "Calculated",
+  "statusColumn": "Status",
   "submit": "Submit",
   "approve": "Approve",
   "reject": "Reject",
@@ -36,5 +36,21 @@
   "placeholders": {
     "rejectWhy": "Why is it rejected? (optional)…",
     "comment": "Comment (optional)…"
+  },
+    "loadError": "Failed to load pricing rows",
+  "exportYear": "Year",
+  "alerts": {
+    "saveDraftFailed": "Failed to save draft",
+    "exportError": "NauSYS export error: {{status}}",
+    "exportFailed": "Failed to export for NauSYS. See console for details.",
+    "discountLimitExceeded": "Discount {{discount}}% exceeds limit {{limit}}%.",
+    "forbidden": "Insufficient permissions",
+    "statusChangeFailed": "Failed to change status"
+  },
+  "status": {
+    "DRAFT": "Draft",
+    "SUBMITTED": "Submitted",
+    "APPROVED": "Approved",
+    "REJECTED": "Rejected"
   }
 }

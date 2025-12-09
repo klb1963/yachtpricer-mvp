@@ -1,40 +1,61 @@
 {
-  "title": "Cijene",
+  "title": "Cjenik",
   "table": "Tablica",
   "cards": "Kartice",
   "prevWeek": "Prethodni tjedan",
   "nextWeek": "Sljedeći tjedan",
   "yacht": "Jahta",
   "base": "Osnovna cijena",
-  "actuals": "Stvarno",
+  "actuals": "Stvarni podaci",
   "actualPrice": "Stvarna cijena",
   "actualDiscount": "Stvarni popust",
-  "fetchedAt": "Dohvaćeno",
+  "fetchedAt": "Ažurirano",
   "maxDiscount": "Maks. popust %",
   "top1": "Top1",
   "avgTop3": "Prosj.(Top3)",
   "mlReco": "ML preporuka",
-  "discountFinal": "Popust % / Konačno €",
-  "status": "Status",
+  "discountFinal": "Popust % / Konačna €",
   "lastComment": "Zadnji komentar",
   "actions": "Radnje",
   "loading": "Učitavanje…",
-  "noRows": "Nema redaka za ovaj tjedan.",
+  "noRows": "Nema podataka za ovaj tjedan.",
   "discount": "Popust",
   "finalPrice": "Konačna cijena",
   "calculated": "Izračunato",
+  "statusColumn": "Status",
   "submit": "Pošalji",
   "approve": "Odobri",
-  "reject": "Odbij",
+  "reject": "Odbaci",
   "confirm": "Potvrdi",
+
   "dialog": {
     "submitForApproval": "Pošalji na odobrenje",
     "approveDecision": "Odobri odluku",
-    "rejectDecision": "Odbij odluku",
+    "rejectDecision": "Odbaci odluku",
     "changeStatus": "Promijeni status"
   },
+
   "placeholders": {
-    "rejectWhy": "Zašto je odbijeno? (neobavezno)…",
-    "comment": "Komentar (neobavezno)…"
+    "rejectWhy": "Zašto se odbacuje? (nije obavezno)…",
+    "comment": "Komentar (nije obavezno)…"
+  },
+
+  "loadError": "Nije moguće učitati retke cjenika",
+  "exportYear": "Godina",
+
+  "alerts": {
+    "saveDraftFailed": "Spremanje nacrta nije uspjelo",
+    "exportError": "Greška pri izvozu u NauSYS: {{status}}",
+    "exportFailed": "Nije moguće izvršiti izvoz za NauSYS. Detalji u konzoli.",
+    "discountLimitExceeded": "Popust {{discount}}% prelazi limit {{limit}}%.",
+    "forbidden": "Nedovoljno dopuštenja",
+    "statusChangeFailed": "Promjena statusa nije uspjela"
+  },
+
+  "status": {
+    "DRAFT": "Nacrt",
+    "SUBMITTED": "Poslano",
+    "APPROVED": "Odobreno",
+    "REJECTED": "Odbijeno"
   }
 }
