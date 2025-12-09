@@ -10,6 +10,7 @@ import ConfirmActionModal from '@/components/ConfirmActionModal';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { HeaderWithSourceBadge } from '../components/HeaderWithSourceBadge';
+import { API_BASE } from '../api';
 
 // ─ helpers ─
 function asMoney(n: number | null | undefined) {
@@ -253,17 +254,48 @@ export default function PricingPage() {
     }
   }
 
-  // ─ выгрузка для NauSYS (пока заглушка) ─
-  async function handleExportNausys() {
-    try {
-      setExporting(true);
-      // TODO: здесь позже сделаем реальный вызов API backend-а
-      // например: await api.post('/pricing/export-nausys', { week: weekISO })
-      alert('Выгрузка для NauSYS пока не реализована (TODO).');
-    } finally {
-      setExporting(false);
+// ─ выгрузка для NauSYS ─
+async function handleExportNausys() {
+  try {
+    setExporting(true);
+
+    // Год можно вычислить из выбранной недели:
+    const year = weekISO ? new Date(weekISO).getFullYear() : new Date().getFullYear();
+
+    const url = `${API_BASE}/nausys/export-prices?year=${year}`;
+
+    // ⚠ fetch используем напрямую, чтобы отработал download
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        // axios-интерсептор токен сюда НЕ добавит — нужно вручную
+        Authorization: `Bearer ${await window.Clerk?.session?.getToken()}`,
+      },
+    });
+
+    if (!res.ok) {
+      alert("Ошибка при экспорте NauSYS: " + res.status);
+      return;
     }
+
+    // Получаем CSV как Blob
+    const blob = await res.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+
+    // Создаём скрытую ссылку для скачивания
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `nausys-prices-${year}.csv`;
+    a.click();
+
+    window.URL.revokeObjectURL(downloadUrl);
+  } catch (err) {
+    console.error(err);
+    alert("Не удалось выполнить экспорт NauSYS. Подробности в консоли.");
+  } finally {
+    setExporting(false);
   }
+}
 
   // ─ смена статуса через модалку комментария ─
   function openStatusDialog(yachtId: string, status: DecisionStatus) {

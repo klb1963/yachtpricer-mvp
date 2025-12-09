@@ -27,6 +27,7 @@ import { ClerkAuthMiddleware } from './auth/clerk-auth.middleware';
 import { GeoModule } from './geo/geo.module';
 import { CompetitorFiltersModule } from './filters/competitor-filters.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { NausysExportController } from './nausys-export.controller';
 
 @Module({
   imports: [
@@ -42,7 +43,7 @@ import { CatalogModule } from './catalog/catalog.module';
     CompetitorFiltersModule,
     CatalogModule,
   ],
-  controllers: [AppController, YachtsController],
+  controllers: [AppController, YachtsController, NausysExportController],
   providers: [
     AppService,
     { provide: APP_GUARD, useClass: RolesGuard }, // @Public учитывается
