@@ -107,6 +107,9 @@ export default function PricingPage() {
   // NEW: флаг выгрузки в NauSYS
   const [exporting, setExporting] = useState(false);
 
+  // NEW: год для экспорта NauSYS (по умолчанию — текущий)
+  const [exportYear, setExportYear] = useState<number>(() => new Date().getFullYear()); 
+
   // модалка подтверждения со сбором комментария
   const [dialog, setDialog] = useState<{
     open: boolean;
@@ -254,48 +257,48 @@ export default function PricingPage() {
     }
   }
 
-// ─ выгрузка для NauSYS ─
-async function handleExportNausys() {
-  try {
-    setExporting(true);
+  // ─ выгрузка для NauSYS ─
+  async function handleExportNausys() {
+    try {
+      setExporting(true);
 
-    // Год можно вычислить из выбранной недели:
-    const year = weekISO ? new Date(weekISO).getFullYear() : new Date().getFullYear();
+      // Берём явно выбранный год (либо текущий как запасной вариант)
+      const year = exportYear || new Date().getFullYear();
 
-    const url = `${API_BASE}/nausys/export-prices?year=${year}`;
+      const url = `${API_BASE}/nausys/export-prices?year=${year}`;
 
-    // ⚠ fetch используем напрямую, чтобы отработал download
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        // axios-интерсептор токен сюда НЕ добавит — нужно вручную
-        Authorization: `Bearer ${await window.Clerk?.session?.getToken()}`,
-      },
-    });
+      // ⚠ fetch используем напрямую, чтобы отработал download
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          // axios-интерсептор токен сюда НЕ добавит — нужно вручную
+          Authorization: `Bearer ${await window.Clerk?.session?.getToken()}`,
+        },
+      });
 
     if (!res.ok) {
       alert("Ошибка при экспорте NauSYS: " + res.status);
       return;
     }
 
-    // Получаем CSV как Blob
-    const blob = await res.blob();
-    const downloadUrl = window.URL.createObjectURL(blob);
+      // Получаем CSV как Blob
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
 
-    // Создаём скрытую ссылку для скачивания
-    const a = document.createElement("a");
-    a.href = downloadUrl;
-    a.download = `nausys-prices-${year}.csv`;
-    a.click();
+      // Создаём скрытую ссылку для скачивания
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `nausys-prices-${year}.csv`;
+      a.click();
 
-    window.URL.revokeObjectURL(downloadUrl);
-  } catch (err) {
-    console.error(err);
-    alert("Не удалось выполнить экспорт NauSYS. Подробности в консоли.");
-  } finally {
-    setExporting(false);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.error(err);
+      alert('Не удалось выполнить экспорт NauSYS. Подробности в консоли.');
+    } finally {
+      setExporting(false);
+    }
   }
-}
 
   // ─ смена статуса через модалку комментария ─
   function openStatusDialog(yachtId: string, status: DecisionStatus) {
@@ -501,17 +504,38 @@ async function handleExportNausys() {
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={handleExportNausys}
-            disabled={loading || exporting}
-            className="inline-flex items-center rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium
-                       text-blue-600 hover:bg-blue-50 disabled:opacity-60 disabled:hover:bg-transparent"
-          >
-            {exporting
-              ? t('exportNausysInProgress', 'Exporting for NauSYS…')
-              : t('exportNausys', 'Export for NauSYS')}
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Ввод года для экспорта NauSYS */}
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              {t('exportYear', 'Year')}
+              <input
+                type="number"
+                min={2020}
+                max={2100}
+                value={exportYear}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (Number.isFinite(v)) {
+                    setExportYear(v);
+                  }
+                }}
+                className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={handleExportNausys}
+              disabled={loading || exporting}
+              className="inline-flex items-center rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium
+                         text-blue-600 hover:bg-blue-50 disabled:opacity-60 disabled:hover:bg-transparent"
+            >
+              {exporting
+                ? t('exportNausysInProgress', 'Exporting for NauSYS…')
+                : t('exportNausys', 'Export for NauSYS')}
+            </button>
+          </div>
+
         </div>
 
         {/* Переключатель вида — под выбором недели */}
