@@ -65,6 +65,7 @@ enum AuditAction {
   SUBMIT
   APPROVE
   REJECT
+  REOPEN
 }
 
 enum FilterScope {
