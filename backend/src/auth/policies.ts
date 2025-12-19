@@ -47,6 +47,9 @@ export function canSubmit(
   price: PriceLike,
   ctx: AccessCtx,
 ): boolean {
+  // Только своя организация
+  if (!ctx.sameOrg) return false;
+
   if (price.status !== 'DRAFT' && price.status !== 'REJECTED') return false;
 
   // ADMIN всегда может (жёсткий режим после APPROVED нас не касается здесь)
@@ -67,6 +70,9 @@ export function canApproveOrReject(
   price: PriceLike,
   ctx: AccessCtx,
 ): boolean {
+  // Только своя организация
+  if (!ctx.sameOrg) return false;
+
   if (price.status !== 'SUBMITTED') return false;
 
   if (user.role === 'ADMIN') return true;
@@ -77,3 +83,23 @@ export function canApproveOrReject(
 
   return false;
 }
+
+/** Reopen (APPROVED → DRAFT). Доступно только FLEET_MANAGER / ADMIN */
+export function canReopen(
+  user: User,
+  price: PriceLike,
+  ctx: AccessCtx,
+): boolean {
+  // Только своя организация
+  if (!ctx.sameOrg) return false;
+
+  // Reopen возможен только из APPROVED
+  if (price.status !== 'APPROVED') return false;
+
+  // Только Fleet Manager / Admin
+  if (user.role === 'ADMIN') return true;
+  if (user.role === 'FLEET_MANAGER') return true;
+
+  return false;
+}
+

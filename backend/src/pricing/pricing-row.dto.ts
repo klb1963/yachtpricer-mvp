@@ -22,6 +22,7 @@ export type RowPermsDto = {
   canEditDraft: boolean;
   canSubmit: boolean;
   canApproveOrReject: boolean;
+  canReopen: boolean;
 };
 
 /** Основная строка таблички на /pricing/rows */

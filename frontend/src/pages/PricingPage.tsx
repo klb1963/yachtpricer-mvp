@@ -622,7 +622,7 @@ export default function PricingPage() {
                 const canApproveReject = st === 'SUBMITTED'
 
                 // NEW: reopen (APPROVED -> DRAFT) только для тех, у кого есть approve/reject perms
-                const canReopen = st === 'APPROVED' && !!r.perms?.canApproveOrReject
+                const canReopen = st === 'APPROVED' && !!r.perms?.canReopen
 
                 return (
                   <tr key={r.yachtId} className="border-t">
@@ -745,7 +745,7 @@ export default function PricingPage() {
             const st = r.decision?.status ?? 'DRAFT'
             const canSubmit = st === 'DRAFT' || st === 'REJECTED'
             const canApproveReject = st === 'SUBMITTED'
-            const canReopen = st === 'APPROVED' && !!r.perms?.canApproveOrReject
+            const canReopen = st === 'APPROVED' && !!r.perms?.canReopen
             const isSaving = savingId === r.yachtId
             const limit = r.maxDiscountPercent ?? null;
             const discVal = r.decision?.discountPct ?? '';

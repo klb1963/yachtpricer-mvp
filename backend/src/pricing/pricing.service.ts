@@ -8,7 +8,7 @@ import {
   ChangeStatusDto,
 } from './pricing.dto';
 import { AccessCtxService } from '../auth/access-ctx.service';
-import { canSubmit, canApproveOrReject, canEditDraft } from '../auth/policies';
+import { canSubmit, canApproveOrReject, canEditDraft, canReopen } from '../auth/policies';
 import type { AccessCtx } from '../auth/access-ctx.service';
 import {
   mapActualFields,
@@ -123,6 +123,7 @@ export class PricingService {
         canEditDraft: canEditDraft(user, { status }, ctx),
         canSubmit: canSubmit(user, { status }, ctx),
         canApproveOrReject: canApproveOrReject(user, { status }, ctx),
+        canReopen: canReopen(user, { status }, ctx),
       };
 
       // рекомендация = top3Avg, если есть
@@ -307,14 +308,16 @@ export class PricingService {
       if (!canApproveOrReject(user, { status: currentStatus }, ctx)) {
         throw new ForbiddenException('Недостаточно прав для Approve/Reject');
       }
-    } else if (
-      toStatus === DecisionStatus.DRAFT &&
-      currentStatus === DecisionStatus.APPROVED
-    ) {
-      // REOPEN
-      if (!canApproveOrReject(user, { status: currentStatus }, ctx)) {
+
+    } else if (toStatus === DecisionStatus.DRAFT) {
+      // REOPEN: разрешаем только APPROVED → DRAFT
+      if (currentStatus !== DecisionStatus.APPROVED) {
+        throw new ForbiddenException('Invalid source status for Reopen');
+      }
+      if (!canReopen(user, { status: currentStatus }, ctx)) {
         throw new ForbiddenException('Недостаточно прав для Reopen');
       }
+
     } else {
       throw new ForbiddenException('Недопустимая смена статуса');
     }
