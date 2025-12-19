@@ -1,4 +1,5 @@
 // backend/src/auth/access-ctx.service.ts
+
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { User, OwnerMode } from '@prisma/client';
@@ -37,11 +38,18 @@ export class AccessCtxService {
     const yachtOrgId = yacht?.orgId ?? null;
     const userOrgId = user.orgId ?? null;
 
+    const multiTenancy = String(process.env.MULTI_TENANCY).toLowerCase() === 'true';
+
+    const sameOrg = multiTenancy
+      ? !!yachtOrgId && !!userOrgId && yachtOrgId === userOrgId
+      : true; // single-tenant: org-scope отключён
+
+
     return {
       isManagerOfYacht: Boolean(managerLink),
       isOwnerOfYacht: Boolean(ownerLink),
       ownerMode: ownerLink?.mode ?? null,
-      sameOrg: !!yachtOrgId && !!userOrgId && yachtOrgId === userOrgId,
+      sameOrg,
       yachtOrgId,
       userOrgId,
     };
