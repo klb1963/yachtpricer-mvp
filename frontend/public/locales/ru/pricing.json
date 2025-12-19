@@ -27,12 +27,14 @@
   "approve": "Одобрить",
   "reject": "Отклонить",
   "confirm": "Подтвердить",
+  "reopen": "Пересогласовать",
 
   "dialog": {
     "submitForApproval": "Отправить на согласование",
     "approveDecision": "Одобрить решение",
     "rejectDecision": "Отклонить решение",
-    "changeStatus": "Изменить статус"
+    "changeStatus": "Изменить статус",
+    "reopenDecision": "Пересогласовать решение"
   },
 
   "placeholders": {

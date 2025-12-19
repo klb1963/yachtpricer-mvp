@@ -18,6 +18,7 @@ export type RowPerms = {
   canEditDraft: boolean;
   canSubmit: boolean;
   canApproveOrReject: boolean;
+  canReopen: boolean;
 };
 
 export type PricingRow = {
