@@ -401,6 +401,7 @@ export default function PricingPage() {
     if (s === 'SUBMITTED') return t('dialog.submitForApproval');
     if (s === 'APPROVED') return t('dialog.approveDecision');
     if (s === 'REJECTED') return t('dialog.rejectDecision');
+    if (s === 'DRAFT') return t('dialog.reopenDecision', 'Reopen for approval');
     return t('dialog.changeStatus');
   }
 
@@ -619,6 +620,10 @@ export default function PricingPage() {
                 const st = r.decision?.status ?? 'DRAFT'
                 const canSubmit = st === 'DRAFT' || st === 'REJECTED'
                 const canApproveReject = st === 'SUBMITTED'
+
+                // NEW: reopen (APPROVED -> DRAFT) только для тех, у кого есть approve/reject perms
+                const canReopen = st === 'APPROVED' && !!r.perms?.canApproveOrReject
+
                 return (
                   <tr key={r.yachtId} className="border-t">
                     <td className="p-3 sticky left-0 bg-white z-10">
@@ -688,7 +693,7 @@ export default function PricingPage() {
 
                     {/* Actions */}
                     <td className="p-3">
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         <button
                           className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
                           onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
@@ -697,6 +702,7 @@ export default function PricingPage() {
                         >
                           {t('submit')}
                         </button>
+
                         <button
                           className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
                           onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
@@ -705,6 +711,7 @@ export default function PricingPage() {
                         >
                           {t('approve')}
                         </button>
+
                         <button
                           className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
                           onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
@@ -712,6 +719,16 @@ export default function PricingPage() {
                           title={t('reject')}
                         >
                           {t('reject')}
+                        </button>
+
+                        {/* NEW: Reopen */}
+                        <button
+                          className="px-3 py-1 rounded text-white bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300"
+                          onClick={() => openStatusDialog(r.yachtId, 'DRAFT')}
+                          disabled={savingId === r.yachtId || !canReopen}
+                          title={t('reopen', 'Reopen')}
+                        >
+                          {t('reopen', 'Reopen')}
                         </button>
                       </div>
                     </td>
@@ -728,6 +745,7 @@ export default function PricingPage() {
             const st = r.decision?.status ?? 'DRAFT'
             const canSubmit = st === 'DRAFT' || st === 'REJECTED'
             const canApproveReject = st === 'SUBMITTED'
+            const canReopen = st === 'APPROVED' && !!r.perms?.canApproveOrReject
             const isSaving = savingId === r.yachtId
             const limit = r.maxDiscountPercent ?? null;
             const discVal = r.decision?.discountPct ?? '';
@@ -863,6 +881,14 @@ export default function PricingPage() {
                     >
                       {t('reject')}
                     </button>
+                    <button
+                      className="px-3 py-1 rounded text-white bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300"
+                      onClick={() => openStatusDialog(r.yachtId, 'DRAFT')}
+                      disabled={isSaving || !canReopen}
+                      title={t('reopen', 'Reopen')}
+                    >
+                      {t('reopen', 'Reopen')}
+                    </button>
                   </div>
                 </div>
 
@@ -889,7 +915,9 @@ export default function PricingPage() {
               ? t('approve')
               : dialog.status === 'REJECTED'
                 ? t('reject')
-                : t('confirm')
+                : dialog.status === 'DRAFT'
+                  ? t('reopen', 'Reopen')
+                  : t('confirm')
         }
         placeholder={
           dialog.status === 'REJECTED' ? t('placeholders.rejectWhy') : t('placeholders.comment')

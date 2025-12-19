@@ -23,22 +23,29 @@
   "finalPrice": "Final price",
   "calculated": "Calculated",
   "statusColumn": "Status",
+
   "submit": "Submit",
   "approve": "Approve",
   "reject": "Reject",
+  "reopen": "Reopen",
   "confirm": "Confirm",
+
   "dialog": {
     "submitForApproval": "Submit for approval",
     "approveDecision": "Approve decision",
     "rejectDecision": "Reject decision",
+    "reopenDecision": "Reopen for approval",
     "changeStatus": "Change status"
   },
+
   "placeholders": {
     "rejectWhy": "Why is it rejected? (optional)…",
     "comment": "Comment (optional)…"
   },
-    "loadError": "Failed to load pricing rows",
+
+  "loadError": "Failed to load pricing rows",
   "exportYear": "Year",
+
   "alerts": {
     "saveDraftFailed": "Failed to save draft",
     "exportError": "NauSYS export error: {{status}}",
@@ -47,6 +54,7 @@
     "forbidden": "Insufficient permissions",
     "statusChangeFailed": "Failed to change status"
   },
+
   "status": {
     "DRAFT": "Draft",
     "SUBMITTED": "Submitted",

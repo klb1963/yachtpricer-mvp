@@ -28,6 +28,7 @@ import { PricingRepo, type YachtForRows } from './pricing.repo';
 import { toNum } from '../common/decimal';
 import type { PricingRowDto } from './pricing-row.dto';
 import { getEffectiveBasePriceForWeek } from '../pricing-decisions/effective-base-price.helper';
+import type { AuditAction as AuditActionType } from '@prisma/client';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 import {
@@ -306,6 +307,16 @@ export class PricingService {
       if (!canApproveOrReject(user, { status: currentStatus }, ctx)) {
         throw new ForbiddenException('Недостаточно прав для Approve/Reject');
       }
+    } else if (
+      toStatus === DecisionStatus.DRAFT &&
+      currentStatus === DecisionStatus.APPROVED
+    ) {
+      // REOPEN
+      if (!canApproveOrReject(user, { status: currentStatus }, ctx)) {
+        throw new ForbiddenException('Недостаточно прав для Reopen');
+      }
+    } else {
+      throw new ForbiddenException('Недопустимая смена статуса');
     }
 
     // 3) Расчёт пары (discount/final) и проверка лимита скидки
@@ -362,19 +373,33 @@ export class PricingService {
         data: {
           status: toStatus,
           approvedAt: toStatus === DecisionStatus.APPROVED ? new Date() : null,
+          approvedBy: toStatus === DecisionStatus.APPROVED ? user.id : null,
         },
         include: { yacht: true },
       });
 
       // (в) аудит
-      const auditAction =
-        toStatus === DecisionStatus.SUBMITTED
-          ? AuditAction.SUBMIT
-          : toStatus === DecisionStatus.APPROVED
-            ? AuditAction.APPROVE
-            : toStatus === DecisionStatus.REJECTED
-              ? AuditAction.REJECT
-              : null;
+      let auditAction: AuditActionType | null = null;
+
+      switch (toStatus) {
+        case DecisionStatus.SUBMITTED:
+          auditAction = AuditAction.SUBMIT;
+          break;
+
+        case DecisionStatus.APPROVED:
+          auditAction = AuditAction.APPROVE;
+          break;
+
+        case DecisionStatus.REJECTED:
+          auditAction = AuditAction.REJECT;
+          break;
+
+        case DecisionStatus.DRAFT:
+          if (currentStatus === DecisionStatus.APPROVED) {
+            auditAction = AuditAction.REOPEN;
+          }
+          break;
+      }
 
       if (auditAction) {
         await tx.priceAuditLog.create({

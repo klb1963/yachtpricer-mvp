@@ -27,12 +27,14 @@
   "approve": "Odobri",
   "reject": "Odbaci",
   "confirm": "Potvrdi",
+  "reopen": "Ponovno otvoriti",
 
   "dialog": {
     "submitForApproval": "Pošalji na odobrenje",
     "approveDecision": "Odobri odluku",
     "rejectDecision": "Odbaci odluku",
-    "changeStatus": "Promijeni status"
+    "changeStatus": "Promijeni status",
+    "reopenDecision": "Ponovno otvoriti za odobrenje"
   },
 
   "placeholders": {
