@@ -852,11 +852,12 @@ export default function PricingPage() {
                 </div>
 
                 {/* Footer: статус + кнопки */}
-                <div className="mt-4 flex items-center gap-2">
-                  <span className="px-2 py-1 text-xs rounded bg-gray-100">
+                <div className="mt-4 flex flex-col gap-2">
+                  <span className="self-start px-2 py-1 text-xs rounded bg-gray-100">
                     {t(`status.${st}`, st)}
                   </span>
-                  <div className="flex gap-2 ml-auto">
+
+                  <div className="flex flex-wrap gap-2 justify-start">
                     <button
                       className="px-3 py-1 rounded text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
                       onClick={() => openStatusDialog(r.yachtId, 'SUBMITTED')}
@@ -865,6 +866,7 @@ export default function PricingPage() {
                     >
                       {t('submit')}
                     </button>
+
                     <button
                       className="px-3 py-1 rounded text-white bg-green-500 hover:bg-green-600 disabled:bg-gray-300"
                       onClick={() => openStatusDialog(r.yachtId, 'APPROVED')}
@@ -873,6 +875,7 @@ export default function PricingPage() {
                     >
                       {t('approve')}
                     </button>
+
                     <button
                       className="px-3 py-1 rounded text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300"
                       onClick={() => openStatusDialog(r.yachtId, 'REJECTED')}
@@ -881,6 +884,7 @@ export default function PricingPage() {
                     >
                       {t('reject')}
                     </button>
+
                     <button
                       className="px-3 py-1 rounded text-white bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300"
                       onClick={() => openStatusDialog(r.yachtId, 'DRAFT')}
