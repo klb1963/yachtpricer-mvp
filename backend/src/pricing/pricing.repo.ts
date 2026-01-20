@@ -8,6 +8,8 @@ import {
   CompetitorSnapshot,
   ScrapeSource,
   PriceAuditLog,
+  PriceListNode,
+  PriceSource,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { WeekSlotMini } from './pricing-mappers';
@@ -128,17 +130,20 @@ export class PricingRepo {
   async createDraftForYacht(
     yachtId: string,
     weekStart: Date,
+    basePrice: Prisma.Decimal | null,
   ): Promise<DecisionWithYacht> {
     const yacht = await this.prisma.yacht.findUniqueOrThrow({
       where: { id: yachtId },
       select: { id: true, basePrice: true },
     });
 
+    const base = basePrice ?? yacht.basePrice ?? new Prisma.Decimal(0);
+
     return this.prisma.pricingDecision.create({
       data: {
         yachtId,
         weekStart,
-        basePrice: yacht.basePrice ?? new Prisma.Decimal(0),
+        basePrice: base,
         status: DecisionStatus.DRAFT,
       },
       include: {
@@ -187,6 +192,52 @@ export class PricingRepo {
   ): Promise<PriceAuditLog> {
     return this.prisma.priceAuditLog.create({
       data: { ...data, decisionId },
+    });
+  }
+
+  async listPriceListNodes(yachtId: string): Promise<PriceListNode[]> {
+    return this.prisma.priceListNode.findMany({
+      where: { yachtId },
+      orderBy: { weekStart: 'asc' },
+    });
+  }
+
+  async upsertPriceListNode(params: {
+    yachtId: string;
+    weekStart: Date;
+    price: Prisma.Decimal;
+    currency?: string;
+    source?: PriceSource;
+    note?: string | null;
+    authorId?: string | null;
+  }): Promise<PriceListNode> {
+    const { yachtId, weekStart, price, currency, source, note, authorId } =
+      params;
+
+    return this.prisma.priceListNode.upsert({
+      where: { yachtId_weekStart: { yachtId, weekStart } },
+      create: {
+        yachtId,
+        weekStart,
+        price,
+        currency: currency ?? 'EUR',
+        source: source ?? PriceSource.INTERNAL,
+        note: note ?? null,
+        authorId: authorId ?? null,
+      },
+      update: {
+        price,
+        currency: currency ?? 'EUR',
+        source: source ?? PriceSource.INTERNAL,
+        note: note ?? null,
+        authorId: authorId ?? null,
+      },
+    });
+  }
+
+  async deletePriceListNode(yachtId: string, weekStart: Date): Promise<void> {
+    await this.prisma.priceListNode.delete({
+      where: { yachtId_weekStart: { yachtId, weekStart } },
     });
   }
 

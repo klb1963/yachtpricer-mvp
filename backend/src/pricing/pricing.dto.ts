@@ -8,8 +8,10 @@ import {
   IsEnum,
   Min,
   MaxLength,
+  IsIn,
 } from 'class-validator';
 import { DecisionStatus, ScrapeSource } from '@prisma/client';
+import { PriceSource } from '@prisma/client';
 
 export class PricingRowsQueryDto {
   /** Любая дата внутри нужной недели (ISO). */
@@ -67,4 +69,46 @@ export class ChangeStatusDto {
   @IsNumber()
   @Min(0)
   finalPrice?: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PriceListNode API
+// ─────────────────────────────────────────────────────────────────────────────
+
+export class GetPriceListNodesQueryDto {
+  @IsString()
+  yachtId!: string;
+}
+
+export class UpsertPriceListNodeDto {
+  @IsString()
+  yachtId!: string;
+
+  /** Любая дата внутри недели, будет нормализована через weekStartUTC */
+  @IsISO8601()
+  weekStart!: string;
+
+  /** Цена прайса на эту неделю */
+  @IsNumber()
+  @Min(0)
+  price!: number;
+
+  /** Валюта (пока разрешим только EUR, чтобы не плодить условности) */
+  @IsOptional()
+  @IsString()
+  @IsIn(['EUR'])
+  currency?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
+export class DeletePriceListNodeDto {
+  @IsString()
+  yachtId!: string;
+
+  @IsISO8601()
+  weekStart!: string;
 }

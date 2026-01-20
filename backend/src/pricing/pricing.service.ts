@@ -6,6 +6,9 @@ import {
   PricingRowsQueryDto,
   UpsertDecisionDto,
   ChangeStatusDto,
+  GetPriceListNodesQueryDto,
+  UpsertPriceListNodeDto,
+  DeletePriceListNodeDto,
 } from './pricing.dto';
 import { AccessCtxService } from '../auth/access-ctx.service';
 import {
@@ -25,9 +28,11 @@ import {
   Prisma,
   DecisionStatus,
   User,
+  Role,
   AuditAction,
   ScrapeSource,
   WeekSlotStatus,
+  PriceSource,
 } from '@prisma/client';
 import { PricingRepo, type YachtForRows } from './pricing.repo';
 import { toNum } from '../common/decimal';
@@ -60,6 +65,101 @@ export class PricingService {
     private accessCtx: AccessCtxService,
     private repo: PricingRepo,
   ) {}
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // PriceListNode helpers & methods
+  // ───────────────────────────────────────────────────────────────────────────
+
+  private assertPriceListNodeAccess(user: User) {
+    // максимально просто и предсказуемо
+    if (user.role !== Role.ADMIN && user.role !== Role.FLEET_MANAGER) {
+      throw new ForbiddenException('Недостаточно прав для изменения прайса');
+    }
+  }
+
+  async listPriceListNodes(q: GetPriceListNodesQueryDto, user: User) {
+    this.assertPriceListNodeAccess(user);
+
+    // (опционально) можно проверить org через accessCtx,
+    // но пока минимально: доступ по роли + дальше фронт всё равно работает в своём orgId.
+    return this.prisma.priceListNode.findMany({
+      where: { yachtId: q.yachtId },
+      orderBy: { weekStart: 'asc' },
+      select: {
+        id: true,
+        yachtId: true,
+        weekStart: true,
+        price: true,
+        currency: true,
+        source: true,
+        importedAt: true,
+        note: true,
+        authorId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async upsertPriceListNode(dto: UpsertPriceListNodeDto, user: User) {
+    this.assertPriceListNodeAccess(user);
+
+    const ws = weekStartUTC(new Date(dto.weekStart));
+
+    return this.prisma.priceListNode.upsert({
+      where: {
+        yachtId_weekStart: {
+          yachtId: dto.yachtId,
+          weekStart: ws,
+        },
+      },
+      create: {
+        yachtId: dto.yachtId,
+        weekStart: ws,
+        price: new Prisma.Decimal(dto.price),
+        currency: dto.currency ?? 'EUR',
+        source: 'INTERNAL',
+        note: dto.note?.trim() || null,
+        authorId: user.id,
+      },
+      update: {
+        price: new Prisma.Decimal(dto.price),
+        currency: dto.currency ?? 'EUR',
+        note: dto.note?.trim() || null,
+        authorId: user.id,
+      },
+      select: {
+        id: true,
+        yachtId: true,
+        weekStart: true,
+        price: true,
+        currency: true,
+        source: true,
+        importedAt: true,
+        note: true,
+        authorId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async deletePriceListNode(dto: DeletePriceListNodeDto, user: User) {
+    this.assertPriceListNodeAccess(user);
+
+    const ws = weekStartUTC(new Date(dto.weekStart));
+
+    await this.prisma.priceListNode.delete({
+      where: {
+        yachtId_weekStart: {
+          yachtId: dto.yachtId,
+          weekStart: ws,
+        },
+      },
+    });
+
+    return { ok: true };
+  }
 
   /** Табличка по флоту на неделю: базовая цена, снапшот, черновик решения,
    *  perms, комментарии и предложка mlReco
@@ -271,9 +371,20 @@ export class PricingService {
 
     // 1) Текущая запись (или создаём черновик)
     let current = await this.repo.getDecisionWithYacht(dto.yachtId, ws);
+
     if (!current) {
-      current = await this.repo.createDraftForYacht(dto.yachtId, ws);
+      const effectiveBase = await getEffectiveBasePriceForWeek(this.prisma, {
+        yachtId: dto.yachtId,
+        weekStart: ws,
+      });
+
+      current = await this.repo.createDraftForYacht(
+        dto.yachtId,
+        ws,
+        effectiveBase.price,
+      );
     }
+
     const currentStatus = current.status ?? DecisionStatus.DRAFT;
 
     // 2) RBAC
