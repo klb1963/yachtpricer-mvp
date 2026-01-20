@@ -11,7 +11,6 @@ import {
   IsIn,
 } from 'class-validator';
 import { DecisionStatus, ScrapeSource } from '@prisma/client';
-import { PriceSource } from '@prisma/client';
 
 export class PricingRowsQueryDto {
   /** Любая дата внутри нужной недели (ISO). */
