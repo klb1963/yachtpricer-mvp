@@ -189,6 +189,7 @@ export default function PricingPage() {
             status: r.decision?.status ?? 'DRAFT',
             discountPct: discount,
             finalPrice: newFinal,
+            __lastEdited: 'discount',
           },
         };
       }),
@@ -209,6 +210,7 @@ export default function PricingPage() {
             status: r.decision?.status ?? 'DRAFT',
             discountPct: newDiscount,
             finalPrice,
+            __lastEdited: 'final',
           },
         };
       }),
@@ -221,7 +223,13 @@ export default function PricingPage() {
     if (!row) return;
     const discountPct = row.decision?.discountPct ?? null;
     const base = getBaseForRow(row);
-    const finalPrice = calcFinal(base, discountPct);
+
+    // если последним редактировали "цену руками" — её не трогаем
+    const lastEdited = (row.decision as any)?.__lastEdited as ('final' | 'discount' | undefined);
+    const finalPrice =
+      lastEdited === 'final'
+        ? (row.decision?.finalPrice ?? null)
+        : calcFinal(base, discountPct);
 
     setSavingId(yachtId);
     try {
@@ -326,6 +334,8 @@ export default function PricingPage() {
 
     // Берём актуальную строку и “нормализованную” пару (pct/final)
     const row = rows.find(r => r.yachtId === dialog.yachtId);
+
+    // pairFromRow уже с приоритетом finalPrice, но если хочешь жёстко:
     const { discountPct, finalPrice } = row ? pairFromRow(row) : { discountPct: null, finalPrice: null };
 
      // 👉 Клиентская проверка лимита

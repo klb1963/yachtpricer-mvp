@@ -165,8 +165,13 @@ export function pairFromRow(r: PricingRow): { discountPct: number | null; finalP
   if (draftDisc != null && Number.isFinite(draftDisc)) {
     return { discountPct: draftDisc, finalPrice: _calcFinal(r.basePrice, draftDisc) };
   }
-  if (draftFinal != null && Number.isFinite(draftFinal)) {
-    return { discountPct: _calcDiscountPct(r.basePrice, draftFinal), finalPrice: draftFinal };
+  // ✅ приоритет у введённой руками цены
+   if (draftFinal != null && Number.isFinite(draftFinal)) {
+     return { discountPct: _calcDiscountPct(r.basePrice, draftFinal), finalPrice: draftFinal };
+   }
+  // иначе — считаем finalPrice из скидки
+  if (draftDisc != null && Number.isFinite(draftDisc)) {
+    return { discountPct: draftDisc, finalPrice: _calcFinal(r.basePrice, draftDisc) };
   }
   return { discountPct: null, finalPrice: null };
 }
