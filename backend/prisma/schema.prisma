@@ -18,7 +18,7 @@ enum WeekSlotStatus {
 }
 
 enum YachtType {
-  monohull   
+  monohull
   catamaran
   trimaran
   compromis
@@ -109,7 +109,7 @@ model Organization {
   // 👇 обратная сторона связи к CompetitorFilters
   competitorFilters CompetitorFilters[]
 
-  presets CompetitorFilterPreset[]  @relation("OrgPresets")
+  presets CompetitorFilterPreset[] @relation("OrgPresets")
 
   createdAt DateTime @default(now())
 }
@@ -131,39 +131,39 @@ model Yacht {
   id       String  @id @default(uuid())
   nausysId String? @unique // 👈 внешний ID NauSYS
 
-  name                 String
-  manufacturer         String
-  model                String
-  type                 YachtType? 
-  length               Float
-  builtYear            Int
-  cabins               Int
-  heads                Int
-  basePrice            Decimal   @db.Decimal(12, 2)
-  maxDiscountPct       Decimal?  @db.Decimal(5, 2)
+  name           String
+  manufacturer   String
+  model          String
+  type           YachtType?
+  length         Float
+  builtYear      Int
+  cabins         Int
+  heads          Int
+  basePrice      Decimal    @db.Decimal(12, 2)
+  maxDiscountPct Decimal?   @db.Decimal(5, 2)
 
   location             String?
   fleet                String
   charterCompany       String
   currentExtraServices Json
-  imageUrl String?
+  imageUrl             String?
 
   // --- ссылка на Location по UUID ---
   locationId  String?
-  locationRef Location? @relation( "YachtLocation", fields: [locationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  locationRef Location? @relation("YachtLocation", fields: [locationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   // --- связи со справочниками ---
-  countryId  String?
-  country    Country?       @relation(fields: [countryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  countryId String?
+  country   Country? @relation(fields: [countryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   categoryId Int?
   category   YachtCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
-  builderId  Int?
-  builder    YachtBuilder?  @relation(fields: [builderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  builderId Int?
+  builder   YachtBuilder? @relation(fields: [builderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   yachtModelId Int?
-  yachtModel   YachtModel?  @relation(fields: [yachtModelId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  yachtModel   YachtModel? @relation(fields: [yachtModelId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   orgId String?
   org   Organization? @relation(fields: [orgId], references: [id])
@@ -181,6 +181,7 @@ model Yacht {
   competitorPrices    CompetitorPrice[]
   competitorSnapshots CompetitorSnapshot[]
   pricingDecisions    PricingDecision[]
+  priceListNodes      PriceListNode[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -300,25 +301,25 @@ model CompetitorPrice {
   feesTotal   Decimal? @db.Decimal(12, 2) // доп. сборы (чистка/турист.налог и т.п.), если считаем
 
   // гео-конкурента
-  countryCode String?  // ISO-2 ("HR", "GR", ...)
-  countryId   String?  // FK -> Country.id (наш UUID)
+  countryCode String? // ISO-2 ("HR", "GR", ...)
+  countryId   String? // FK -> Country.id (наш UUID)
   country     Country? @relation(fields: [countryId], references: [id])
 
   // измерения, по которым фильтруем конкурентов
   categoryId Int?
   category   YachtCategory? @relation(fields: [categoryId], references: [id])
 
-  regionId   Int?
-  region     Region?        @relation(fields: [regionId], references: [id])
+  regionId Int?
+  region   Region? @relation(fields: [regionId], references: [id])
 
   locationId String?
-  location   Location?      @relation(fields: [locationId], references: [id])
+  location   Location? @relation(fields: [locationId], references: [id])
 
-  builderId  Int?
-  builder    YachtBuilder?  @relation(fields: [builderId], references: [id])
+  builderId Int?
+  builder   YachtBuilder? @relation(fields: [builderId], references: [id])
 
-  modelId    Int?
-  model      YachtModel?    @relation(fields: [modelId], references: [id])
+  modelId Int?
+  model   YachtModel? @relation(fields: [modelId], references: [id])
 
   // часто удобно дедуплицировать по ссылке + неделя + источник:
   @@unique([source, link, weekStart])
@@ -410,13 +411,16 @@ model User {
   ownerLinks        OwnerYacht[]
   auditLogs         PriceAuditLog[]     @relation("AuditActor")
 
-  presets CompetitorFilterPreset[]  @relation("UserPresets")
+  presets CompetitorFilterPreset[] @relation("UserPresets")
 
   /// Пользователь включён / выключен в рамках YachtPricer
-  isActive  Boolean  @default(true)
+  isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /// 👇 ОБРАТНАЯ СТОРОНА ДЛЯ PriceListNode.author
+  priceListNodes PriceListNode[] @relation("PriceListNodeAuthor")
 
   @@map("users")
 }
@@ -492,23 +496,23 @@ model Country {
   updatedAt DateTime @updatedAt
 
   // 👇 обратная сторона связи по ISO-2
-  locations         Location[]          @relation("CountryCode2Locations")
+  locations Location[] @relation("CountryCode2Locations")
 
   // старая связь регионов по nausysId (остаётся для обратной совместимости импорта)
-  regionsByNausys   Region[]            @relation("RegionCountryNausys")
+  regionsByNausys Region[] @relation("RegionCountryNausys")
 
   // новая связь регионов по UUID страны
-  regions           Region[]
+  regions Region[]
 
   // НОВОЕ: обратная сторона для Location.countryId (UUID FK)
-  locationsById     Location[]
+  locationsById Location[]
 
   competitorFilters CompetitorFilters[] @relation("FiltersCountries")
 
-  yachts            Yacht[]
+  yachts Yacht[]
 
   // связь с CompetitorPrice.countryId
-  competitorPrices  CompetitorPrice[]
+  competitorPrices CompetitorPrice[]
 
   @@index([name])
   @@map("countries")
@@ -587,9 +591,9 @@ model Location {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([source, externalId])
   @@index([regionId])
   @@index([countryId])
-  @@unique([source, externalId])
   @@index([source])
   @@index([countryCode])
   @@map("locations")
@@ -666,8 +670,8 @@ model YachtCategory {
 
   competitorFilters CompetitorFilters[] @relation("FiltersCategories")
 
-  yachts Yacht[]
-  competitorPrices  CompetitorPrice[]  // 👈 НОВОЕ ПОЛЕ
+  yachts           Yacht[]
+  competitorPrices CompetitorPrice[] // 👈 НОВОЕ ПОЛЕ
 
   @@map("yacht_categories")
 }
@@ -723,7 +727,7 @@ model YachtModel {
 
   // 👇 НОВОЕ
   competitorPrices CompetitorPrice[]
-  yachts Yacht[]
+  yachts           Yacht[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -735,41 +739,69 @@ model YachtModel {
 }
 
 model CompetitorFilterPreset {
-  id        String        @id @default(cuid())
+  id String @id @default(cuid())
 
   // --- связи ---
-  orgId     String
-  userId    String?
+  orgId  String
+  userId String?
 
-  org       Organization  @relation("OrgPresets", fields: [orgId], references: [id])
-  user      User?         @relation("UserPresets", fields: [userId], references: [id])
+  org  Organization @relation("OrgPresets", fields: [orgId], references: [id])
+  user User?        @relation("UserPresets", fields: [userId], references: [id])
 
   // --- общие поля ---
-  scope     FilterScope   // enum уже определён в схеме
-  name      String
+  scope FilterScope // enum уже определён в схеме
+  name  String
 
   // --- Геофильтры ---
-  countryIds   String[]   // UUID стран (countries.id)
-  regionIds    Int[]      // PK регионов (regions.id)
-  locationIds  String[]   // UUID марин (locations.id)
+  countryIds  String[] // UUID стран (countries.id)
+  regionIds   Int[] // PK регионов (regions.id)
+  locationIds String[] // UUID марин (locations.id)
 
   // --- Категории лодок ---
-  categoryIds  Int[]      // YachtCategory.id[]
-  builderIds   Int[]      // YachtBuilder.id[]
-  modelIds     Int[]      // YachtModel.id[]
+  categoryIds Int[] // YachtCategory.id[]
+  builderIds  Int[] // YachtBuilder.id[]
+  modelIds    Int[] // YachtModel.id[]
 
   // --- Числовые допуски ---
-  lenFtMinus   Int
-  lenFtPlus    Int
-  yearMinus    Int
-  yearPlus     Int
-  peopleMinus  Int
-  peoplePlus   Int
-  cabinsMinus  Int
-  cabinsPlus   Int
-  headsMin     Int
+  lenFtMinus  Int
+  lenFtPlus   Int
+  yearMinus   Int
+  yearPlus    Int
+  peopleMinus Int
+  peoplePlus  Int
+  cabinsMinus Int
+  cabinsPlus  Int
+  headsMin    Int
 
   // --- timestamps ---
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model PriceListNode {
+  id String @id @default(uuid())
+
+  yachtId String
+  yacht   Yacht  @relation(fields: [yachtId], references: [id], onDelete: Cascade)
+
+  // Старт недели (нормализованный weekStartUTC)
+  weekStart DateTime
+
+  // Цена прайса, действующая с этой недели
+  price    Decimal @db.Decimal(12, 2)
+  currency String  @default("EUR")
+
+  // источник (внутренний/из Nausys/BM)
+  source     PriceSource? @default(INTERNAL)
+  importedAt DateTime?
+  note       String?
+  authorId   String?
+  author     User?        @relation("PriceListNodeAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([yachtId, weekStart])
+  @@index([yachtId, weekStart])
+  @@map("price_list_nodes")
 }

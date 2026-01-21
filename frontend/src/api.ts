@@ -18,6 +18,40 @@ export type YachtPriceHistoryItem = {
   note?: string | null;
 };
 
+export type PriceListNodeSource = "INTERNAL" | "NAUSYS" | "BOATAROUND";
+
+export type PriceListNode = {
+  id: string;
+  yachtId: string;
+  weekStart: string;   // ISO (как отдаёт бек)
+  price: string;       // Decimal -> string
+  currency: string;    // "EUR"
+  source: PriceListNodeSource | string;
+  importedAt?: string | null;
+  note?: string | null;
+  authorId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GetPriceListNodesParams = {
+  yachtId: string;
+};
+
+export type UpsertPriceListNodeInput = {
+  yachtId: string;
+  weekStart: string; // "YYYY-MM-DD" (или ISO) — бек сам нормализует
+  price: number;
+  currency: string; // "EUR"
+  source: PriceListNodeSource; // "INTERNAL"
+  note?: string | null;
+};
+
+export type DeletePriceListNodeInput = {
+  yachtId: string;
+  weekStart: string; // ISO weekStart узла (то, что реально хранится)
+};
+
 export interface Yacht {
   id: string
   nausysId?: string | null // 👈 ДОБАВИЛ
@@ -137,6 +171,7 @@ function joinUrl(base: string, path: string) {
 async function apiFetch(inputPath: string, init?: RequestInit) {
   // токен Clerk (как в axios-интерсепторе)
   const token = await getClerkToken();
+
   const headers = new Headers(init?.headers || {});
   if (!headers.has("Content-Type") && init?.body) {
     headers.set("Content-Type", "application/json");
@@ -164,15 +199,21 @@ async function getClerkToken(opts?: { refresh?: boolean }): Promise<string | nul
   }
 }
 
-// Подставляем Bearer JWT в каждый запрос
+// Подставляем Bearer JWT и/или X-User-Email (fake/dev)
 api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   const token = await getClerkToken();
-  if (token) {
-    const headers = ensureHeaders(config.headers);
-    headers.set("Authorization", `Bearer ${token}`);
-    config.headers = headers;
+  const devEmail = import.meta.env.VITE_DEV_USER_EMAIL;
 
-    // 🔊 видно всегда
+  const headers = ensureHeaders(config.headers);
+
+  // 👇 DEV / fake mode — всегда добавляем X-User-Email, если задан
+  if (devEmail) {
+    headers.set("X-User-Email", devEmail);
+  }
+
+  // 👇 Clerk mode — если есть токен, добавляем Authorization
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
     try {
       console.log(
         "[api.ts] attached Clerk token (first16):",
@@ -181,11 +222,14 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
         config.method?.toUpperCase(),
         config.baseURL + (config.url || "")
       );
-      // eslint-disable-next-line no-empty
-    } catch {}
+    } catch {
+      /* noop */
+    }
   } else {
-    console.log("[api.ts] Clerk token missing (getToken() returned null)");
+    console.log("[api.ts] Clerk token missing");
   }
+
+  config.headers = headers;
   return config;
 });
 
@@ -384,6 +428,32 @@ export async function createYacht(payload: YachtUpdatePayload): Promise<Yacht> {
 
 export async function deleteYacht(id: string): Promise<{ success: boolean }> {
   const { data } = await api.delete<{ success: boolean }>(`/yachts/${id}`);
+  return data;
+}
+// ============================
+// PriceListNode API
+// ============================
+
+export async function listPriceListNodes(yachtId: string): Promise<PriceListNode[]> {
+  const { data } = await api.get<PriceListNode[]>("/pricing/price-list-nodes", {
+    params: { yachtId },
+  });
+  return data;
+}
+
+export async function upsertPriceListNode(
+  input: UpsertPriceListNodeInput
+): Promise<PriceListNode> {
+  const { data } = await api.post<PriceListNode>("/pricing/price-list-nodes", input);
+  return data;
+}
+
+export async function deletePriceListNode(
+  input: DeletePriceListNodeInput
+): Promise<{ ok: boolean }> {
+  const { data } = await api.delete<{ ok: boolean }>("/pricing/price-list-nodes", {
+    data: input, // важно: axios delete body → через data
+  });
   return data;
 }
 

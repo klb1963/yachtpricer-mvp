@@ -3,6 +3,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Post,
   Query,
@@ -15,6 +16,9 @@ import {
   PricingRowsQueryDto,
   UpsertDecisionDto,
   ChangeStatusDto,
+  GetPriceListNodesQueryDto,
+  UpsertPriceListNodeDto,
+  DeletePriceListNodeDto,
 } from './pricing.dto';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { User } from '@prisma/client';
@@ -23,6 +27,37 @@ import type { User } from '@prisma/client';
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class PricingController {
   constructor(private readonly svc: PricingService) {}
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // PriceListNode endpoints
+  // ───────────────────────────────────────────────────────────────────────────
+
+  @Get('price-list-nodes')
+  listPriceListNodes(
+    @Query() q: GetPriceListNodesQueryDto,
+    @CurrentUser() user: User | null,
+  ) {
+    if (!user) throw new UnauthorizedException();
+    return this.svc.listPriceListNodes(q, user);
+  }
+
+  @Post('price-list-nodes')
+  upsertPriceListNode(
+    @Body() dto: UpsertPriceListNodeDto,
+    @CurrentUser() user: User | null,
+  ) {
+    if (!user) throw new UnauthorizedException();
+    return this.svc.upsertPriceListNode(dto, user);
+  }
+
+  @Delete('price-list-nodes')
+  deletePriceListNode(
+    @Body() dto: DeletePriceListNodeDto,
+    @CurrentUser() user: User | null,
+  ) {
+    if (!user) throw new UnauthorizedException();
+    return this.svc.deletePriceListNode(dto, user);
+  }
 
   @Get('rows')
   rows(@Query() q: PricingRowsQueryDto, @CurrentUser() user: User | null) {

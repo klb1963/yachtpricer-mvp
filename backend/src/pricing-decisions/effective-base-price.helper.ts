@@ -1,6 +1,6 @@
 // backend/src/pricing-decisions/effective-base-price.helper.ts
 
-import { PrismaClient, DecisionStatus, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 export type EffectiveBasePriceResult = {
   /** Итоговая "эффективная" базовая цена на выбранную неделю */
@@ -18,10 +18,10 @@ export type EffectiveBasePriceResult = {
 /**
  * Возвращает "эффективную" базовую цену для яхты на указанную неделю.
  *
- * Алгоритм:
- * 1) Ищем последнее APPROVED-решение по этой яхте с weekStart <= targetWeekStart.
- * 2) Если нашли — берём из него finalPrice.
- * 3) Если нет решений — возвращаем yacht.basePrice.
+ * Новая логика (PriceListNode):
+ * 1) Ищем последний узел прайса (PriceListNode) по этой яхте с weekStart <= targetWeekStart.
+ * 2) Если нашли — берём из него price (это "Price List" для недели).
+ * 3) Если узлов прайса нет — fallback на yacht.basePrice.
  */
 export async function getEffectiveBasePriceForWeek(
   prisma: PrismaClient,
@@ -29,26 +29,29 @@ export async function getEffectiveBasePriceForWeek(
 ): Promise<EffectiveBasePriceResult> {
   const { yachtId, weekStart } = params;
 
-  // 1) Последнее APPROVED-решение до/на эту неделю
-  const decision = await prisma.pricingDecision.findFirst({
+  // 1) Последний узел прайса до/на эту неделю
+  const node = await prisma.priceListNode.findFirst({
     where: {
       yachtId,
-      status: DecisionStatus.APPROVED,
       weekStart: { lte: weekStart },
-      finalPrice: { not: null },
     },
     orderBy: {
       weekStart: 'desc',
     },
+    select: {
+      price: true,
+      weekStart: true,
+    },
   });
 
-  if (decision && decision.finalPrice != null) {
+  if (node && node.price != null) {
     return {
-      price: decision.finalPrice,
-      fromDecisionId: decision.id,
-      fromWeekStart: decision.weekStart,
-      discountPct: decision.discountPct ?? null,
-      approvedAt: decision.approvedAt ?? null,
+      price: node.price,
+      // база больше не вычисляется из decision → оставляем мета-поля пустыми
+      fromDecisionId: null,
+      fromWeekStart: node.weekStart,
+      discountPct: null,
+      approvedAt: null,
     };
   }
 

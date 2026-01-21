@@ -67,3 +67,4 @@ frontend/vite.config.local.ts
 
 # TS incremental build artifacts
 *.tsbuildinfofrontend/package-lock.json
+*.tsbuildinfo

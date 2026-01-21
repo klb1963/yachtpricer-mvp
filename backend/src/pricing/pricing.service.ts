@@ -6,9 +6,17 @@ import {
   PricingRowsQueryDto,
   UpsertDecisionDto,
   ChangeStatusDto,
+  GetPriceListNodesQueryDto,
+  UpsertPriceListNodeDto,
+  DeletePriceListNodeDto,
 } from './pricing.dto';
 import { AccessCtxService } from '../auth/access-ctx.service';
-import { canSubmit, canApproveOrReject, canEditDraft, canReopen } from '../auth/policies';
+import {
+  canSubmit,
+  canApproveOrReject,
+  canEditDraft,
+  canReopen,
+} from '../auth/policies';
 import type { AccessCtx } from '../auth/access-ctx.service';
 import {
   mapActualFields,
@@ -20,6 +28,7 @@ import {
   Prisma,
   DecisionStatus,
   User,
+  Role,
   AuditAction,
   ScrapeSource,
   WeekSlotStatus,
@@ -55,6 +64,101 @@ export class PricingService {
     private accessCtx: AccessCtxService,
     private repo: PricingRepo,
   ) {}
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // PriceListNode helpers & methods
+  // ───────────────────────────────────────────────────────────────────────────
+
+  private assertPriceListNodeAccess(user: User) {
+    // максимально просто и предсказуемо
+    if (user.role !== Role.ADMIN && user.role !== Role.FLEET_MANAGER) {
+      throw new ForbiddenException('Недостаточно прав для изменения прайса');
+    }
+  }
+
+  async listPriceListNodes(q: GetPriceListNodesQueryDto, user: User) {
+    this.assertPriceListNodeAccess(user);
+
+    // (опционально) можно проверить org через accessCtx,
+    // но пока минимально: доступ по роли + дальше фронт всё равно работает в своём orgId.
+    return this.prisma.priceListNode.findMany({
+      where: { yachtId: q.yachtId },
+      orderBy: { weekStart: 'asc' },
+      select: {
+        id: true,
+        yachtId: true,
+        weekStart: true,
+        price: true,
+        currency: true,
+        source: true,
+        importedAt: true,
+        note: true,
+        authorId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async upsertPriceListNode(dto: UpsertPriceListNodeDto, user: User) {
+    this.assertPriceListNodeAccess(user);
+
+    const ws = weekStartUTC(new Date(dto.weekStart));
+
+    return this.prisma.priceListNode.upsert({
+      where: {
+        yachtId_weekStart: {
+          yachtId: dto.yachtId,
+          weekStart: ws,
+        },
+      },
+      create: {
+        yachtId: dto.yachtId,
+        weekStart: ws,
+        price: new Prisma.Decimal(dto.price),
+        currency: dto.currency ?? 'EUR',
+        source: 'INTERNAL',
+        note: dto.note?.trim() || null,
+        authorId: user.id,
+      },
+      update: {
+        price: new Prisma.Decimal(dto.price),
+        currency: dto.currency ?? 'EUR',
+        note: dto.note?.trim() || null,
+        authorId: user.id,
+      },
+      select: {
+        id: true,
+        yachtId: true,
+        weekStart: true,
+        price: true,
+        currency: true,
+        source: true,
+        importedAt: true,
+        note: true,
+        authorId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async deletePriceListNode(dto: DeletePriceListNodeDto, user: User) {
+    this.assertPriceListNodeAccess(user);
+
+    const ws = weekStartUTC(new Date(dto.weekStart));
+
+    await this.prisma.priceListNode.delete({
+      where: {
+        yachtId_weekStart: {
+          yachtId: dto.yachtId,
+          weekStart: ws,
+        },
+      },
+    });
+
+    return { ok: true };
+  }
 
   /** Табличка по флоту на неделю: базовая цена, снапшот, черновик решения,
    *  perms, комментарии и предложка mlReco
@@ -152,28 +256,8 @@ export class PricingService {
       const snapshot = mapSnapshot(s);
       const decision = mapDecision(d);
 
-      let { actualPrice, actualDiscountPct, priceFetchedAt } =
+      const { actualPrice, actualDiscountPct, priceFetchedAt } =
         mapActualFields(slot);
-
-      // Если по этой неделе нет WeekSlot (всё пусто),
-      // но есть утверждённое решение в прошлом —
-      // показываем его как «фактическую» цену/скидку.
-      if (
-        actualPrice == null &&
-        actualDiscountPct == null &&
-        !priceFetchedAt &&
-        effectiveBase.price &&
-        effectiveBase.fromDecisionId
-      ) {
-        actualPrice = effectiveBase.price.toNumber();
-        actualDiscountPct = effectiveBase.discountPct
-          ? effectiveBase.discountPct.toNumber()
-          : null;
-        priceFetchedAt = effectiveBase.approvedAt
-          ? effectiveBase.approvedAt.toISOString()
-          : null;
-        // priceSource оставляем как есть (null или NAUSYS/… при наличии)
-      }
 
       // Decimal → number | null
       const maxDiscountPercent = toNum(y.maxDiscountPct);
@@ -286,9 +370,20 @@ export class PricingService {
 
     // 1) Текущая запись (или создаём черновик)
     let current = await this.repo.getDecisionWithYacht(dto.yachtId, ws);
+
     if (!current) {
-      current = await this.repo.createDraftForYacht(dto.yachtId, ws);
+      const effectiveBase = await getEffectiveBasePriceForWeek(this.prisma, {
+        yachtId: dto.yachtId,
+        weekStart: ws,
+      });
+
+      current = await this.repo.createDraftForYacht(
+        dto.yachtId,
+        ws,
+        effectiveBase.price,
+      );
     }
+
     const currentStatus = current.status ?? DecisionStatus.DRAFT;
 
     // 2) RBAC
@@ -308,7 +403,6 @@ export class PricingService {
       if (!canApproveOrReject(user, { status: currentStatus }, ctx)) {
         throw new ForbiddenException('Недостаточно прав для Approve/Reject');
       }
-
     } else if (toStatus === DecisionStatus.DRAFT) {
       // REOPEN: разрешаем только APPROVED → DRAFT
       if (currentStatus !== DecisionStatus.APPROVED) {
@@ -317,7 +411,6 @@ export class PricingService {
       if (!canReopen(user, { status: currentStatus }, ctx)) {
         throw new ForbiddenException('Недостаточно прав для Reopen');
       }
-
     } else {
       throw new ForbiddenException('Недопустимая смена статуса');
     }
