@@ -171,6 +171,7 @@ function joinUrl(base: string, path: string) {
 async function apiFetch(inputPath: string, init?: RequestInit) {
   // токен Clerk (как в axios-интерсепторе)
   const token = await getClerkToken();
+
   const headers = new Headers(init?.headers || {});
   if (!headers.has("Content-Type") && init?.body) {
     headers.set("Content-Type", "application/json");
@@ -198,16 +199,21 @@ async function getClerkToken(opts?: { refresh?: boolean }): Promise<string | nul
   }
 }
 
-// Подставляем Bearer JWT в каждый запрос
+// Подставляем Bearer JWT и/или X-User-Email (fake/dev)
 api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   const token = await getClerkToken();
+  const devEmail = import.meta.env.VITE_DEV_USER_EMAIL;
 
-  // ✅ 1) Есть Clerk token → работаем как раньше
+  const headers = ensureHeaders(config.headers);
+
+  // 👇 DEV / fake mode — всегда добавляем X-User-Email, если задан
+  if (devEmail) {
+    headers.set("X-User-Email", devEmail);
+  }
+
+  // 👇 Clerk mode — если есть токен, добавляем Authorization
   if (token) {
-    const headers = ensureHeaders(config.headers);
     headers.set("Authorization", `Bearer ${token}`);
-    config.headers = headers;
-
     try {
       console.log(
         "[api.ts] attached Clerk token (first16):",
@@ -219,33 +225,14 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
     } catch {
       /* noop */
     }
-    return config;
-  }
-
-  // ✅ 2) Нет токена → dev-fallback для AUTH_MODE=fake
-  const devEmail = import.meta.env.VITE_DEV_USER_EMAIL;
-  if (devEmail) {
-    const headers = ensureHeaders(config.headers);
-    headers.set("X-User-Email", devEmail);
-    config.headers = headers;
-
-    try {
-      console.log(
-        "[api.ts] Clerk token missing → using X-User-Email:",
-        devEmail,
-        "→",
-        config.method?.toUpperCase(),
-        config.baseURL + (config.url || "")
-      );
-    } catch {
-      /* noop */
-    }
   } else {
-    console.log("[api.ts] Clerk token missing (getToken() returned null)");
+    console.log("[api.ts] Clerk token missing");
   }
 
+  config.headers = headers;
   return config;
 });
+
 // Тип для конфига с нашим флагом ретрая
 interface RetryableConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;

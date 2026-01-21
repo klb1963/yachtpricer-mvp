@@ -17,7 +17,9 @@
     "scan": "Skeniraj",
     "scanning": "Skeniranje…",
     "details": "Detalji",
-    "hide": "Sakrij"
+    "hide": "Sakrij",
+    "add": "Dodaj",
+    "update": "Ažuriraj"
   },
   "sections": {
     "general": "Općenito",
@@ -32,7 +34,21 @@
     "currentDiscount": "Trenutni popust",
     "priceUpdatedAt": "Cijena ažurirana: ",
     "startingBasePriceHint": "Ova se vrijednost postavlja samo prilikom stvaranja jahte i kasnije se ne može mijenjati.",
-    "maxDiscountHint": "Ova se vrijednost postavlja samo prilikom stvaranja jahte i kasnije se ne može mijenjati."
+    "maxDiscountHint": "Ova se vrijednost postavlja samo prilikom stvaranja jahte i kasnije se ne može mijenjati.",
+    "basePriceNodes": "Osnovne cjenovne točke",
+    "week": "Tjedan",
+    "price": "Cijena",
+
+    "willBeSavedAs": "Spremit će se kao weekStart",
+    "duplicateWeek": "Ovaj tjedan već postoji — spremanje će ažurirati tu cijenu.",
+
+    "nodesHint": "Tjedan će se pri spremanju automatski poravnati na početak tjedna.",
+
+    "noNodes": "Cjenovne točke još nisu definirane",
+    "errors": {
+      "weekRequired": "Tjedan je obavezan",
+      "priceInvalid": "Cijena mora biti pozitivan broj"
+    }
   },
   "history": {
     "weekStart": "Početak tjedna",

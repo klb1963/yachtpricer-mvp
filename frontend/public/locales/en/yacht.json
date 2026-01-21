@@ -17,7 +17,9 @@
     "scan": "Scan",
     "scanning": "Scanning…",
     "details": "Details",
-    "hide": "Hide"
+    "hide": "Hide",
+    "add": "Add",
+    "update": "Update"
   },
   "sections": {
     "general": "General",
@@ -32,8 +34,18 @@
     "currentDiscount": "Current discount",
     "priceUpdatedAt": "Price updated at: ",
     "startingBasePriceHint": "This value is set only when creating the yacht and cannot be changed later.",
-    "maxDiscountHint": "This value is set only when creating the yacht and cannot be changed later."
-
+    "maxDiscountHint": "This value is set only when creating the yacht and cannot be changed later.",
+    "basePriceNodes": "Price list",
+    "week": "Week",
+    "price": "Price",
+    "willBeSavedAs": "Will be saved as weekStart",
+    "duplicateWeek": "This week already exists in the table — saving will update that week.",
+    "nodesHint": "Week will be normalized to the start of week on save.",
+    "noNodes": "No nodes yet",
+     "errors": {
+      "weekRequired": "Week is required",
+      "priceInvalid": "Price must be a positive number"
+    }
   },
   "history": {
     "weekStart": "Week start",
