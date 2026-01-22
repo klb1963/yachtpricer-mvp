@@ -20,6 +20,23 @@ export type RowPerms = {
   canReopen: boolean;
 };
 
+export type DecisionLastEdited = 'final' | 'discount';
+
+export type DecisionWithMeta = {
+  discountPct: number | null;
+  finalPrice: number | null;
+  status: DecisionStatus;
+  __lastEdited?: DecisionLastEdited;
+};
+
+export function getLastEdited(decision: PricingRow['decision']): DecisionLastEdited | undefined {
+  if (!decision) return undefined;
+  if ('__lastEdited' in decision) {
+    return decision.__lastEdited;
+  }
+  return undefined;
+}
+
 export type DraftEditedField = 'discount' | 'final';
 
 export type PricingRow = {

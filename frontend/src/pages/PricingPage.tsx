@@ -1,10 +1,17 @@
 // frontend/src/pages/PricingPage.tsx
 
+// frontend/src/pages/PricingPage.tsx
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { changeStatus, fetchRows, upsertDecision, pairFromRow, buildSubmitPayload } from '../api/pricing';
-import type { PricingRow, DecisionStatus } from '../api/pricing';
+import {
+  changeStatus,
+  fetchRows,
+  upsertDecision,
+  buildSubmitPayload,
+  getLastEdited,
+} from '../api/pricing';
 import type { ScrapeSource } from '../api';
+import type { PricingRow, DecisionStatus } from '../api/pricing';
 import { toYMD, nextSaturday, prevSaturday, toSaturdayUTC } from '../utils/week';
 import ConfirmActionModal from '@/components/ConfirmActionModal';
 import { useTranslation } from 'react-i18next';
@@ -172,7 +179,7 @@ export default function PricingPage() {
     return () => {
       alive = false;
     };
-  }, [weekISO, scanSource]);
+  }, [weekISO, scanSource, t]);
 
   // ─ локальный драфт ─
   const onDraftDiscountChange = useCallback((yachtId: string, valueStr: string) => {
@@ -227,7 +234,8 @@ export default function PricingPage() {
     const base = getBaseForRow(row);
 
     // если последним редактировали "цену руками" — её не трогаем
-    const lastEdited = (row.decision as any)?.__lastEdited as ('final' | 'discount' | undefined);
+    const lastEdited = getLastEdited(row.decision);
+    
     const finalPrice =
       lastEdited === 'final'
         ? (row.decision?.finalPrice ?? null)
