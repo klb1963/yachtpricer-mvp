@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { changeStatus, fetchRows, upsertDecision, pairFromRow } from '../api/pricing';
+import { changeStatus, fetchRows, upsertDecision, pairFromRow, buildSubmitPayload } from '../api/pricing';
 import type { PricingRow, DecisionStatus } from '../api/pricing';
 import type { ScrapeSource } from '../api';
 import { toYMD, nextSaturday, prevSaturday, toSaturdayUTC } from '../utils/week';
@@ -184,6 +184,7 @@ export default function PricingPage() {
         const newFinal = calcFinal(base, discount);
         return {
           ...r,
+          draftSource: 'discount',
           finalPrice: newFinal,
           decision: {
             status: r.decision?.status ?? 'DRAFT',
@@ -205,6 +206,7 @@ export default function PricingPage() {
         const newDiscount = calcDiscountPct(base, finalPrice);
         return {
           ...r,
+          draftSource: 'final',
           finalPrice,
           decision: {
             status: r.decision?.status ?? 'DRAFT',
@@ -243,13 +245,15 @@ export default function PricingPage() {
   async function onChangeFinalPrice(yachtId: string) {
     const row = rows.find(x => x.yachtId === yachtId);
     if (!row) return;
-    const finalPrice = row.decision?.finalPrice ?? null;
-    const base = getBaseForRow(row);
-    const discountPct = calcDiscountPct(base, finalPrice);
-    // если обе стороны null/равны — ничего не отправляем
-    const prevFinal = row.decision?.finalPrice ?? null;
-    const prevDisc = row.decision?.discountPct ?? null;
-    if (prevFinal === finalPrice && prevDisc === discountPct) return;
+
+  const finalPrice = row.decision?.finalPrice ?? null;
+  const base = getBaseForRow(row);
+
+  // 👉 discount — вторичен, считаем от введённой цены
+  const discountPct = calcDiscountPct(base, finalPrice);
+
+  // если цена не менялась — ничего не делаем
+  if (finalPrice === row.decision?.finalPrice) return;
 
     setSavingId(yachtId);
     try {
@@ -332,50 +336,63 @@ export default function PricingPage() {
   async function confirmDialog(comment: string) {
     if (!dialog.yachtId || !dialog.status) return;
 
-    // Берём актуальную строку и “нормализованную” пару (pct/final)
     const row = rows.find(r => r.yachtId === dialog.yachtId);
+    if (!row) return;
 
-    // pairFromRow уже с приоритетом finalPrice, но если хочешь жёстко:
-    const { discountPct, finalPrice } = row ? pairFromRow(row) : { discountPct: null, finalPrice: null };
+    // 🔹 что именно отправляем (ТОЛЬКО одно поле)
+    const submitPayload = buildSubmitPayload(row);
 
-     // 👉 Клиентская проверка лимита
+    // 🔹 справочная скидка — ТОЛЬКО для проверки лимита
+    let discountForCheck: number | null = null;
+
+    if ('finalPrice' in submitPayload && submitPayload.finalPrice != null) {
+      discountForCheck = calcDiscountPct(getBaseForRow(row), submitPayload.finalPrice);
+    } else if ('discountPct' in submitPayload && submitPayload.discountPct != null) {
+      discountForCheck = submitPayload.discountPct;
+    }
+
+    // 👉 клиентская проверка лимита (только при SUBMITTED)
     if (
       dialog.status === 'SUBMITTED' &&
-      row?.maxDiscountPercent != null &&
-      discountPct != null &&
-      discountPct > row.maxDiscountPercent
+      row.maxDiscountPercent != null &&
+      discountForCheck != null &&
+      discountForCheck > row.maxDiscountPercent
     ) {
       alert(
         t(
           'alerts.discountLimitExceeded',
           'Discount {{discount}}% exceeds limit {{limit}}%.',
           {
-            discount: discountPct,
-            limit: row?.maxDiscountPercent ?? '',
+            discount: discountForCheck,
+            limit: row.maxDiscountPercent,
           },
         ),
       );
-      return; // не уходим в сеть
+      return;
     }
+
     setSubmitting(true);
     setSavingId(dialog.yachtId);
+
     try {
       const updated = await changeStatus({
         yachtId: dialog.yachtId,
         week,
         status: dialog.status,
         comment: comment?.trim() || undefined,
-        discountPct,
-        finalPrice,
+        ...submitPayload, // ✅ только source field
       });
 
-      // Оптимистично: статус меняем сразу
+      // 🔹 оптимистичное обновление
       setRows(prev =>
         prev.map(r => {
           if (r.yachtId !== updated.yachtId) return r;
+
           const nextDecision =
             updated.decision ??
-            r.decision ?? ({ status: 'DRAFT', discountPct: null, finalPrice: null } as PricingRow['decision']);
+            r.decision ??
+            ({ status: 'DRAFT', discountPct: null, finalPrice: null } as PricingRow['decision']);
+
           return {
             ...r,
             decision: nextDecision,
@@ -386,12 +403,10 @@ export default function PricingPage() {
         }),
       );
 
-      // Тихо подтянем свежие значения с бэка (без спиннера)
+      // 🔹 тихо подтянуть свежие данные
       fetchRows(weekISO)
         .then(fresh => setRows(fresh))
-        .catch(() => {
-          /* игнорируем, оптимистичное состояние уже есть */
-        });
+        .catch(() => { });
 
       closeDialog();
     } catch (e) {

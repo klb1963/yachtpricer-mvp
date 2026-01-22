@@ -13,7 +13,6 @@ export type PriceSourceLiteral =
   | 'BOOKING_MANAGER'
   | 'OTHER';
 
-
 export type RowPerms = {
   canEditDraft: boolean;
   canSubmit: boolean;
@@ -21,40 +20,49 @@ export type RowPerms = {
   canReopen: boolean;
 };
 
+export type DraftEditedField = 'discount' | 'final';
+
 export type PricingRow = {
-  yachtId: string
-  name: string
-  basePrice: number
+  yachtId: string;
+  name: string;
+  basePrice: number;
 
   snapshot: null | {
-    top1Price: number | null
-    top3Avg: number | null
-    currency: string | null
-    sampleSize: number | null
-    collectedAt: string | null // ISO
-  }
+    top1Price: number | null;
+    top3Avg: number | null;
+    currency: string | null;
+    sampleSize: number | null;
+    collectedAt: string | null; // ISO
+  };
 
+  // ⚠️ decision — это то, что пришло с бэка (истина).
+  // __lastEdited — чисто фронтовая мета (НЕ сохраняем на бэкенд).
   decision: null | {
-    discountPct: number | null
-    finalPrice: number | null
-    status: DecisionStatus
-  }
+    discountPct: number | null;
+    finalPrice: number | null;
+    status: DecisionStatus;
+    __lastEdited?: DraftEditedField;
+  };
 
-  mlReco: number | null
-  finalPrice: number | null
+  mlReco: number | null;
+  finalPrice: number | null;
 
-  perms?: RowPerms
+  perms?: RowPerms;
+
+  // локально на фронте: какое поле редактировали последним (старое поле, оставляем для совместимости)
+  draftSource?: DraftEditedField;
 
   // новое:
-  lastComment?: string | null
-  lastActionAt?: string | null // ISO
+  lastComment?: string | null;
+  lastActionAt?: string | null; // ISO
+
   // ─ добавленные колонки (Actuals + Max %) ─
-  maxDiscountPercent?: number | null
-  actualPrice?: number | null
-  actualDiscountPercent?: number | null
-  fetchedAt?: string | null // ISO
-  priceSource?: PriceSourceLiteral | null
-}
+  maxDiscountPercent?: number | null;
+  actualPrice?: number | null;
+  actualDiscountPercent?: number | null;
+  fetchedAt?: string | null; // ISO
+  priceSource?: PriceSourceLiteral | null;
+};
 
 // — “сырой” ответ бэка (подстроен так, чтобы принять разные варианты) —
 type RawPricingRow = {
@@ -83,6 +91,7 @@ type RawPricingRow = {
 
   lastComment?: string | null;
   lastActionAt?: string | null;
+
   // ─ новые поля (стандартизированы на бэке) ─
   maxDiscountPercent?: number | string | null;
   actualPrice?: number | string | null;
@@ -121,9 +130,7 @@ function normalizeRow(raw: RawPricingRow): PricingRow {
       ? {
           discountPct: toNum(dec.discountPct),
           finalPrice: toNum(dec.finalPrice),
-          status:
-            (dec.status as DecisionStatus) ??
-            'DRAFT', // дефолт безопасный
+          status: ((dec.status as DecisionStatus) ?? 'DRAFT') as DecisionStatus,
         }
       : null,
 
@@ -134,7 +141,7 @@ function normalizeRow(raw: RawPricingRow): PricingRow {
 
     lastComment: raw.lastComment ?? null,
     lastActionAt: raw.lastActionAt ?? null,
-    // ─ новые поля с учётом алиасов ─
+
     maxDiscountPercent: toNum(raw.maxDiscountPercent),
     actualPrice: toNum(raw.actualPrice),
     actualDiscountPercent: toNum(raw.actualDiscountPercent),
@@ -157,23 +164,60 @@ const _calcDiscountPct = (base: number, finalPrice: number | null): number | nul
   return Number(pct.toFixed(1));
 };
 
-// возвращаем согласованную пару значений (если введено только одно)
-export function pairFromRow(r: PricingRow): { discountPct: number | null; finalPrice: number | null } {
-  const draftDisc = r.decision?.discountPct ?? null;
-  const draftFinal = r.decision?.finalPrice ?? null;
+// ─────────────────────────────────────────────────────────────
+// DISPLAY-логика пары (НЕ ДЛЯ SUBMIT!)
+// Спека: "введённая цена не меняется никогда", % — справка.
+// Поэтому: если есть finalPrice — он главный, discount считаем подсказкой.
+// ─────────────────────────────────────────────────────────────
+export function pairFromRow(
+  r: PricingRow,
+): { discountPct: number | null; finalPrice: number | null } {
+  const disc = r.decision?.discountPct ?? null;
+  const final = r.decision?.finalPrice ?? null;
 
-  if (draftDisc != null && Number.isFinite(draftDisc)) {
-    return { discountPct: draftDisc, finalPrice: _calcFinal(r.basePrice, draftDisc) };
+  const hasFinal = final != null && Number.isFinite(final);
+  const hasDisc = disc != null && Number.isFinite(disc);
+
+  // display-логика: если есть введённая цена — показываем её,
+  // а % считаем справочно
+  if (hasFinal) {
+    return {
+      finalPrice: final as number,
+      discountPct: _calcDiscountPct(r.basePrice, final as number),
+    };
   }
-  // ✅ приоритет у введённой руками цены
-   if (draftFinal != null && Number.isFinite(draftFinal)) {
-     return { discountPct: _calcDiscountPct(r.basePrice, draftFinal), finalPrice: draftFinal };
-   }
-  // иначе — считаем finalPrice из скидки
-  if (draftDisc != null && Number.isFinite(draftDisc)) {
-    return { discountPct: draftDisc, finalPrice: _calcFinal(r.basePrice, draftDisc) };
+
+  // иначе — если есть скидка, показываем её и считаем цену
+  if (hasDisc) {
+    return {
+      discountPct: disc as number,
+      finalPrice: _calcFinal(r.basePrice, disc as number),
+    };
   }
+
   return { discountPct: null, finalPrice: null };
+}
+
+// ─────────────────────────────────────────────────────────────
+// SUBMIT-пейлоад: отправляем только source field
+// (нужно на странице, но держим рядом с pairFromRow как часть спеки)
+// ─────────────────────────────────────────────────────────────
+export function buildSubmitPayload(row: PricingRow): { discountPct?: number; finalPrice?: number } {
+  const last = row.decision?.__lastEdited ?? row.draftSource;
+
+  const final = row.decision?.finalPrice;
+  const disc = row.decision?.discountPct;
+
+  const hasFinal = final != null && Number.isFinite(final);
+  const hasDisc = disc != null && Number.isFinite(disc);
+
+  if (last === 'final' && hasFinal) return { finalPrice: final as number };
+  if (last === 'discount' && hasDisc) return { discountPct: disc as number };
+
+  // fallback: приоритет у цены
+  if (hasFinal) return { finalPrice: final as number };
+  if (hasDisc) return { discountPct: disc as number };
+  return {};
 }
 
 // — API —
@@ -191,6 +235,7 @@ export async function upsertDecision(params: {
   yachtId: string;
   week: string;
   source?: ScrapeSource;
+  // ✅ по новой спеке допускаем отправку только одного поля
   discountPct?: number | null;
   finalPrice?: number | null;
 }): Promise<PricingRow> {
@@ -204,6 +249,7 @@ export async function changeStatus(params: {
   status: DecisionStatus;
   source?: ScrapeSource;
   comment?: string;
+  // ✅ по новой спеке на SUBMITTED будем слать только одно поле (на странице)
   discountPct?: number | null;
   finalPrice?: number | null;
 }): Promise<PricingRow> {

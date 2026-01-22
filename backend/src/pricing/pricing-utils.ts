@@ -43,21 +43,30 @@ export const calcDiscountPct = (base: number, finalPrice: number): number => {
   return Number(pct.toFixed(1));
 };
 
-/** Разрешение входной пары (discountPct | finalPrice) в согласованную пару */
+/** Разрешение входной пары (discountPct | finalPrice) в согласованную пару
+ *  Приоритет всегда у finalPrice (ручной ввод)
+ */
 export function resolveDiscountPair(
   base: number,
   nextDisc?: number,
   nextFinal?: number,
 ): { discountPct?: number; finalPrice?: number } {
-  if (isNum(nextDisc)) {
-    return { discountPct: nextDisc, finalPrice: calcFinal(base, nextDisc) };
-  }
+  // ✅ 1. Если передана финальная цена — она главная
   if (isNum(nextFinal)) {
     return {
       finalPrice: nextFinal,
-      discountPct: calcDiscountPct(base, nextFinal),
+      discountPct: isNum(base) ? calcDiscountPct(base, nextFinal) : undefined,
     };
   }
+
+  // 2. Иначе считаем финал из скидки
+  if (isNum(nextDisc)) {
+    return {
+      discountPct: nextDisc,
+      finalPrice: calcFinal(base, nextDisc),
+    };
+  }
+
   return {};
 }
 
