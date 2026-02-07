@@ -29,8 +29,9 @@ export type RowPermsDto = {
 export type PricingRowDto = {
   yachtId: string;
   name: string;
-  basePrice: Prisma.Decimal;
+  modelName?: string | null;
 
+  basePrice: Prisma.Decimal;
   snapshot: SnapshotDto | null;
   decision: DecisionDto | null;
 

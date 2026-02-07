@@ -10,7 +10,8 @@ function parseIsoDateOnlyToUtc(isoDate: string): Date | null {
   const y = Number(m[1]);
   const mo = Number(m[2]);
   const d = Number(m[3]);
-  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d))
+    return null;
   return new Date(Date.UTC(y, mo - 1, d, 0, 0, 0, 0));
 }
 

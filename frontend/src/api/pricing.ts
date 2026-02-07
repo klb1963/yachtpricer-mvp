@@ -42,6 +42,7 @@ export type DraftEditedField = 'discount' | 'final';
 export type PricingRow = {
   yachtId: string;
   name: string;
+  modelName?: string | null;
   basePrice: number;
 
   snapshot: null | {
@@ -85,6 +86,7 @@ export type PricingRow = {
 type RawPricingRow = {
   yachtId: string;
   name: string;
+  modelName?: string | null;
   basePrice: number | string;
 
   snapshot?: null | {
@@ -131,6 +133,7 @@ function normalizeRow(raw: RawPricingRow): PricingRow {
   return {
     yachtId: raw.yachtId,
     name: raw.name,
+    modelName: raw.modelName ?? null,
     basePrice: toNum(raw.basePrice) ?? 0,
 
     snapshot: snap

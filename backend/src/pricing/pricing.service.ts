@@ -265,6 +265,7 @@ export class PricingService {
       rows.push({
         yachtId: y.id,
         name: y.name,
+        modelName: y.model ?? null,
         // 🔹 на фронт отдаём уже эффективную базовую цену
         basePrice: baseDecimal,
         snapshot,

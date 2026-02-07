@@ -26,6 +26,7 @@ export type YachtForRows = Prisma.YachtGetPayload<{
   select: {
     id: true;
     name: true;
+    model: true;
     basePrice: true;
     location: true;
     builtYear: true;
@@ -47,6 +48,7 @@ export class PricingRepo {
       select: {
         id: true,
         name: true,
+        model: true,
         basePrice: true,
         location: true,
         builtYear: true,

@@ -671,6 +671,9 @@ export default function PricingPage() {
                           {r.name}
                         </Link>
                       </div>
+                      {r.modelName ? (
+                        <div className="text-xs text-gray-600">{r.modelName}</div>
+                      ) : null}
                       <div className="text-xs text-gray-500">
                         {r.snapshot?.currency ?? 'EUR'}
                       </div>
@@ -798,7 +801,9 @@ export default function PricingPage() {
                     {r.name}
                   </Link>
                 </h2>
-
+                {r.modelName ? (
+                  <div className="text-xs text-gray-600 -mt-1 mb-2">{r.modelName}</div>
+                ) : null}
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                   <div className="text-gray-500">{t('actualPrice')}</div>
                   <div>{asMoney(r.actualPrice)}</div>
