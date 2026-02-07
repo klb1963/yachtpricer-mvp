@@ -17,6 +17,7 @@ import ConfirmActionModal from '@/components/ConfirmActionModal';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { HeaderWithSourceBadge } from '../components/HeaderWithSourceBadge';
+import PricingSearchBar from '../components/PricingSearchBar';
 import { API_BASE } from '../api';
 
 // ─ helpers ─
@@ -111,6 +112,9 @@ export default function PricingPage() {
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [error, setError] = useState<string | null>(null);
 
+  // NEW: search filter (like Dashboard)
+  const [q, setQ] = useState('');
+
   // NEW: флаг выгрузки в NauSYS
   const [exporting, setExporting] = useState(false);
 
@@ -180,6 +184,20 @@ export default function PricingPage() {
       alive = false;
     };
   }, [weekISO, scanSource, t]);
+
+  // ─ local filtering (name + model) ─
+  const filteredRows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((r) => {
+      const name = (r.name ?? '').toLowerCase();
+      const model = (r.modelName ?? '').toLowerCase();
+      return name.includes(needle) || model.includes(needle);
+    });
+  }, [rows, q]);
+
+  const resetSearch = useCallback(() => setQ(''), []);
+
 
   // ─ локальный драфт ─
   const onDraftDiscountChange = useCallback((yachtId: string, valueStr: string) => {
@@ -622,11 +640,20 @@ export default function PricingPage() {
         </div>
       </div>
 
+      {/* Search (like Dashboard) */}
+      <PricingSearchBar
+        q={q}
+        setQ={setQ}
+        onReset={resetSearch}
+        total={rows.length}
+        filtered={filteredRows.length}
+      />
+
       {error && <div className="text-red-600 mb-3">{error}</div>}
 
       {loading ? (
         <div className="text-gray-500">{t('loading')}</div>
-      ) : rows.length === 0 ? (
+      ) : filteredRows.length === 0 ? (
         <div className="text-gray-500">{t('noRows')}</div>
       ) : viewMode === 'table' ? (
         <div className="border rounded-lg relative max-h-[70vh] overflow-auto">
@@ -649,7 +676,7 @@ export default function PricingPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {filteredRows.map((r) => {
                 const st = r.decision?.status ?? 'DRAFT'
                 const canSubmit = st === 'DRAFT' || st === 'REJECTED'
                 const canApproveReject = st === 'SUBMITTED'
@@ -777,7 +804,7 @@ export default function PricingPage() {
       ) : (
         // Cards
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {rows.map((r) => {
+          {filteredRows.map((r) => {
             const st = r.decision?.status ?? 'DRAFT'
             const canSubmit = st === 'DRAFT' || st === 'REJECTED'
             const canApproveReject = st === 'SUBMITTED'
