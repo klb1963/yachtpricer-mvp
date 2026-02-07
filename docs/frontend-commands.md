@@ -23,6 +23,7 @@ nvm use
 
 # 2) Запускаем Vite c локальным конфигом
 npm run dev -- --config vite.config.local.ts
+
 # Альтернатива, если в package.json скрипт dev без конфига:
 # npx vite --config vite.config.local.ts
 

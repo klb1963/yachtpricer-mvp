@@ -51,16 +51,17 @@ function parseIsoDateToUtc(isoDate: string): Date | null {
 }
 
 // Нормализуем выбранную дату к "weekStart" (start of week) в UTC.
-// ⚠️ Я оставляю Monday-start (ISO week). Если у вас на бэке Sunday-start — поменяй формулу.
 function normalizeToWeekStartIsoDate(inputDate: string): string | null {
   const dt = parseIsoDateToUtc(inputDate);
   if (!dt) return null;
 
   // JS: getUTCDay(): 0=Sun..6=Sat
   const dow = dt.getUTCDay();
-  // хотим Monday=0..Sunday=6
-  const mondayBased = (dow + 6) % 7;
-  dt.setUTCDate(dt.getUTCDate() - mondayBased);
+
+ // хотим Saturday=0..Friday=6
+  const saturdayBased = (dow + 1) % 7; // Sat(6)->0, Sun(0)->1, Mon(1)->2, ...
+
+  dt.setUTCDate(dt.getUTCDate() - saturdayBased);
 
   const y = dt.getUTCFullYear();
   const m = String(dt.getUTCMonth() + 1).padStart(2, '0');
@@ -360,6 +361,13 @@ export function YachtPricingSection({
                                   prev.map((x, i) => (i === idx ? { ...x, weekDate: e.target.value } : x)),
                                 )
                               }
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();     // стопим submit всей формы
+                                  e.stopPropagation();
+                                  void saveRow(idx);      // сохраняем строку
+                                }
+                              }}
                             />
 
                             <div className="mt-1 text-[11px] leading-4 text-gray-500">
@@ -389,6 +397,13 @@ export function YachtPricingSection({
                                   prev.map((x, i) => (i === idx ? { ...x, price: e.target.value } : x)),
                                 )
                               }
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();      // не даём родительскому form сабмитнуться
+                                  e.stopPropagation();
+                                  void saveRow(idx);       // сохраняем текущую строку
+                                }
+                              }}
                             />
                             {r.error && <div className="mt-1 text-xs leading-4 text-red-600">{r.error}</div>}
                             {/* держим одинаковую высоту "подвала" даже без ошибки */}
