@@ -90,7 +90,16 @@ export class YachtsController {
       minPrice?: string;
       maxPrice?: string;
       categoryId?: string;
-      sort?: 'priceAsc' | 'priceDesc' | 'yearAsc' | 'yearDesc' | 'createdDesc';
+      sort?:
+        | 'createdDesc'
+        | 'priceAsc'
+        | 'priceDesc'
+        | 'yearAsc'
+        | 'yearDesc'
+        | 'nameAsc'
+        | 'nameDesc'
+        | 'lengthAsc'
+        | 'lengthDesc';
       page?: string;
       pageSize?: string;
       // неделя, для которой хотим показывать base price
@@ -166,6 +175,18 @@ export class YachtsController {
         break;
       case 'yearDesc':
         orderBy = [{ builtYear: 'desc' }, { createdAt: 'desc' }];
+        break;
+      case 'nameAsc':
+        orderBy = [{ name: 'asc' }, { createdAt: 'desc' }];
+        break;
+      case 'nameDesc':
+        orderBy = [{ name: 'desc' }, { createdAt: 'desc' }];
+        break;
+      case 'lengthAsc':
+        orderBy = [{ length: 'asc' }, { createdAt: 'desc' }];
+        break;
+      case 'lengthDesc':
+        orderBy = [{ length: 'desc' }, { createdAt: 'desc' }];
         break;
       case 'createdDesc':
       default:

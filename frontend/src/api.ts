@@ -101,7 +101,16 @@ export type YachtListParams = {
   minPrice?: number;
   maxPrice?: number;
   categoryId?: number;
-  sort?: "priceAsc" | "priceDesc" | "yearAsc" | "yearDesc" | "createdDesc";
+  sort?:
+    | "createdDesc"
+    | "nameAsc"
+    | "nameDesc"
+    | "lengthAsc"
+    | "lengthDesc"
+    | "priceAsc"
+    | "priceDesc"
+    | "yearAsc"
+    | "yearDesc";
   page?: number;
   pageSize?: number;
   /** неделя, для которой хотим получить basePrice, ISO YYYY-MM-DD */

@@ -6,7 +6,16 @@ import { useTranslation } from 'react-i18next';
 import type { ScrapeSource } from '../api';
 import CompetitorOffersList from './CompetitorOffersList';
 
-type SortKey = 'priceAsc' | 'priceDesc' | 'yearAsc' | 'yearDesc' | 'createdDesc';
+type SortKey =
+  | 'createdDesc'
+  | 'nameAsc'
+  | 'nameDesc'
+  | 'lengthAsc'
+  | 'lengthDesc'
+  | 'priceAsc'
+  | 'priceDesc'
+  | 'yearAsc'
+  | 'yearDesc';
 
 export interface YachtAgg {
   top1: string;
@@ -19,7 +28,7 @@ interface Props {
   items: Yacht[];
   locationSearch: string;
   sort: SortKey;
-  onSortBy: (field: 'price' | 'year') => void;
+  onSortBy: (field: 'price' | 'year' | 'name' | 'length') => void;
 
   busyId: string | null;
   aggByYacht: Record<string, YachtAgg | undefined>;
@@ -53,10 +62,36 @@ const YachtTable: React.FC<Props> = ({
       <table className="min-w-full text-sm">
         <thead className="bg-gray-50">
           <tr className="[&>th]:px-4 [&>th]:py-2 [&>th]:font-semibold [&>th]:text-gray-800 text-left">
-            <th>{t('fields.name') || 'Name'}</th>
+            <th>
+              <button
+                type="button"
+                onClick={() => onSortBy('name')}
+                className="inline-flex items-center gap-1 rounded px-1 py-0.5 !text-gray-900 hover:!text-gray-900 hover:bg-gray-100"
+                title={t('sort.byName') || 'Sort by name'}
+              >
+                {t('fields.name') || 'Name'}
+                <span className={sort.startsWith('name') ? 'text-blue-600 font-bold' : 'text-gray-400'}>
+                  {sort === 'nameAsc' ? '↑' : sort === 'nameDesc' ? '↓' : ''}
+                </span>
+              </button>
+            </th>
             <th>{t('fields.model') || 'Model'}</th>
             <th>{t('fields.type') || 'Type'}</th>
-            <th>{t('fields.length') || 'Length'}</th>
+
+            <th>
+              <button
+                type="button"
+                onClick={() => onSortBy('length')}
+                className="inline-flex items-center gap-1 rounded px-1 py-0.5 !text-gray-900 hover:!text-gray-900 hover:bg-gray-100"
+                title={t('sort.byLength') || 'Sort by length'}
+              >
+                {t('fields.length') || 'Length'}
+                <span className={sort.startsWith('length') ? 'text-blue-600 font-bold' : 'text-gray-400'}>
+                  {sort === 'lengthAsc' ? '↑' : sort === 'lengthDesc' ? '↓' : ''}
+                </span>
+              </button>
+            </th>
+            
             <th>
               <button
                 type="button"

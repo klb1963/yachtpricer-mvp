@@ -5,9 +5,20 @@ import { useTranslation } from 'react-i18next';
 import { findCategories, type CatalogCategory } from '../api';
 
 type SortKey = 'createdDesc' | 'priceAsc' | 'priceDesc' | 'yearAsc' | 'yearDesc';
+// ⬆️ расширяем сортировки
+type SortKeyExtended =
+  | SortKey
+  | 'nameAsc'
+  | 'nameDesc'
+  | 'lengthAsc'
+  | 'lengthDesc';
 
 const SORT_OPTIONS = (t: (k: string) => string) => [
   { value: 'createdDesc', label: t('filters.sortNewest') },
+  { value: 'nameAsc',     label: t('filters.sortNameAsc') },
+  { value: 'nameDesc',    label: t('filters.sortNameDesc') },
+  { value: 'lengthAsc',   label: t('filters.sortLengthAsc') },
+  { value: 'lengthDesc',  label: t('filters.sortLengthDesc') },
   { value: 'priceAsc',    label: t('filters.sortPriceAsc') },
   { value: 'priceDesc',   label: t('filters.sortPriceDesc') },
   { value: 'yearAsc',     label: t('filters.sortYearAsc') },
@@ -34,8 +45,8 @@ export interface YachtListFiltersProps {
   maxPrice: string;
   setMaxPrice: (v: string) => void;
 
-  sort: SortKey;
-  setSort: (v: SortKey) => void;
+  sort: SortKeyExtended;
+  setSort: (v: SortKeyExtended) => void;
 
   currentYear: number;
 
@@ -110,7 +121,7 @@ export default function YachtListFilters(props: YachtListFiltersProps) {
       <select
         className="rounded border p-2"
         value={sort}
-        onChange={(e) => setSort(e.target.value as SortKey)}
+        onChange={(e) => setSort(e.target.value as SortKeyExtended)}
       >
         {SORT_OPTIONS(t).map((s) => (
           <option key={s.value} value={s.value}>

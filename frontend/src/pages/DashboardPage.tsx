@@ -62,7 +62,6 @@ export default function DashboardPage() {
 
   // pending decisions для уведомлений
   const [pending, setPending] = useState<PendingPricingDecisionsResponse | null>(null);
-  const [pendingError, setPendingError] = useState(false); 
 
   // читаем неделю из URL (если валидна), иначе текущая
   const initWeekFromUrl = () => {
@@ -122,7 +121,17 @@ export default function DashboardPage() {
   const [minPrice, setMinPrice] = useState<string>('');
   const [maxPrice, setMaxPrice] = useState<string>('');
   const [sort, setSort] =
-    useState<'priceAsc' | 'priceDesc' | 'yearAsc' | 'yearDesc' | 'createdDesc'>('createdDesc');
+    useState<
+      | 'createdDesc'
+      | 'priceAsc'
+      | 'priceDesc'
+      | 'yearAsc'
+      | 'yearDesc'
+      | 'nameAsc'
+      | 'nameDesc'
+      | 'lengthAsc'
+      | 'lengthDesc'
+    >('createdDesc');
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -174,7 +183,6 @@ export default function DashboardPage() {
         }
       } catch (e) {
         console.error('Failed to load pending decisions', e);
-        if (!cancelled) setPendingError(true);
       }
     })();
     return () => {
@@ -222,10 +230,12 @@ export default function DashboardPage() {
   };
 
   // сорт по клику на заголовок
-  const onSortBy = (field: 'price' | 'year') => {
+  const onSortBy = (field: 'price' | 'year' | 'name' | 'length') => {
     setSort((prev) => {
       if (field === 'price') return prev === 'priceAsc' ? 'priceDesc' : 'priceAsc';
-      return prev === 'yearAsc' ? 'yearDesc' : 'yearAsc';
+      if (field === 'year') return prev === 'yearAsc' ? 'yearDesc' : 'yearAsc';
+      if (field === 'name') return prev === 'nameAsc' ? 'nameDesc' : 'nameAsc';
+      return prev === 'lengthAsc' ? 'lengthDesc' : 'lengthAsc';
     });
     setPage(1);
   };
