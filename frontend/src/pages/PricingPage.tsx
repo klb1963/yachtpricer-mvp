@@ -59,19 +59,9 @@ function calcFinal(base: number, discountPct: number | null | undefined) {
   return Math.round(base * k);
 }
 
-// 🔹 Эффективная базовая цена для строки Pricing:
-//    если по этой неделе есть APPROVED-решение с finalPrice,
-//    считаем базой именно его; иначе — исходная basePrice.
-function getBaseForRow(row: PricingRow): number {
-  if (
-    row.decision?.status === 'APPROVED' &&
-    row.decision.finalPrice != null &&
-    Number.isFinite(row.decision.finalPrice)
-  ) {
-    return row.decision.finalPrice as number;
-  }
-  return row.basePrice;
-}
+// Pricing-page rule:
+// "Price" column must always show week base price (row.basePrice).
+const weekBasePrice = (row: PricingRow) => row.basePrice;
 
 export default function PricingPage() {
   // i18n
@@ -220,8 +210,8 @@ export default function PricingPage() {
       }
       // sortKey === 'price'
       // use the same number that is shown in the "Price" column: getBaseForRow(row)
-      const av = getBaseForRow(a) ?? 0;
-      const bv = getBaseForRow(b) ?? 0;
+      const av = weekBasePrice(a) ?? 0;
+      const bv = weekBasePrice(b) ?? 0;
       const cmp = av - bv;
       return sortDir === 'asc' ? cmp : -cmp;
     });
@@ -240,7 +230,7 @@ export default function PricingPage() {
     setRows(prev =>
       prev.map(r => {
         if (r.yachtId !== yachtId) return r;
-        const base = getBaseForRow(r);
+        const base = weekBasePrice(r);
         const newFinal = calcFinal(base, discount);
         return {
           ...r,
@@ -262,7 +252,7 @@ export default function PricingPage() {
     setRows(prev =>
       prev.map(r => {
         if (r.yachtId !== yachtId) return r;
-        const base = getBaseForRow(r);
+        const base = weekBasePrice(r);
         const newDiscount = calcDiscountPct(base, finalPrice);
         return {
           ...r,
@@ -284,7 +274,7 @@ export default function PricingPage() {
     const row = rows.find(x => x.yachtId === yachtId);
     if (!row) return;
     const discountPct = row.decision?.discountPct ?? null;
-    const base = getBaseForRow(row);
+    const base = weekBasePrice(row);
 
     // если последним редактировали "цену руками" — её не трогаем
     const lastEdited = getLastEdited(row.decision);
@@ -308,7 +298,7 @@ export default function PricingPage() {
     if (!row) return;
 
   const finalPrice = row.decision?.finalPrice ?? null;
-  const base = getBaseForRow(row);
+  const base = weekBasePrice(row);
 
   // 👉 discount — вторичен, считаем от введённой цены
   const discountPct = calcDiscountPct(base, finalPrice);
@@ -407,7 +397,7 @@ export default function PricingPage() {
     let discountForCheck: number | null = null;
 
     if ('finalPrice' in submitPayload && submitPayload.finalPrice != null) {
-      discountForCheck = calcDiscountPct(getBaseForRow(row), submitPayload.finalPrice);
+      discountForCheck = calcDiscountPct(weekBasePrice(row), submitPayload.finalPrice);
     } else if ('discountPct' in submitPayload && submitPayload.discountPct != null) {
       discountForCheck = submitPayload.discountPct;
     }
@@ -764,7 +754,7 @@ export default function PricingPage() {
                     </td>
                     {/* База: показываем эффективную цену для недели */}
                     <td className="p-3 text-right tabular-nums">
-                      {asMoney(getBaseForRow(r))}
+                      {asMoney(weekBasePrice(r))}
                     </td>
                     {/* NEW: Actuals column */}
                     <td className="p-3 align-top">
