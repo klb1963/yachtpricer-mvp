@@ -115,6 +115,16 @@ export default function PricingPage() {
   // NEW: search filter (like Dashboard)
   const [q, setQ] = useState('');
 
+  // NEW: sorting for Pricing table/cards (only Yacht name + Price)
+  type SortKey = 'name' | 'price';
+  type SortDir = 'asc' | 'desc';
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const toggleSort = useCallback((key: SortKey) => {
+    setSortDir((prev) => (key === sortKey ? (prev === 'asc' ? 'desc' : 'asc') : 'asc'));
+    setSortKey(key);
+  }, [sortKey]);
+
   // NEW: флаг выгрузки в NauSYS
   const [exporting, setExporting] = useState(false);
 
@@ -197,6 +207,31 @@ export default function PricingPage() {
   }, [rows, q]);
 
   const resetSearch = useCallback(() => setQ(''), []);
+
+  // NEW: sorted rows (after filtering)
+  const sortedRows = useMemo(() => {
+   const arr = [...filteredRows];
+    arr.sort((a, b) => {
+      if (sortKey === 'name') {
+        const av = (a.name ?? '').toLowerCase();
+        const bv = (b.name ?? '').toLowerCase();
+        const cmp = av.localeCompare(bv);
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
+      // sortKey === 'price'
+      // use the same number that is shown in the "Price" column: getBaseForRow(row)
+      const av = getBaseForRow(a) ?? 0;
+      const bv = getBaseForRow(b) ?? 0;
+      const cmp = av - bv;
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [filteredRows, sortKey, sortDir]);
+
+  const sortIndicator = useCallback((key: SortKey) => {
+    if (sortKey !== key) return '';
+    return sortDir === 'asc' ? '↑' : '↓';
+  }, [sortKey, sortDir]);  
 
 
   // ─ локальный драфт ─
@@ -660,10 +695,32 @@ export default function PricingPage() {
           <table className="min-w-full text-sm table-fixed">
             <thead className="bg-gray-50 sticky top-0 z-20">
               <tr className="text-left">
-                <th className="p-3 w-56 sticky left-0 bg-gray-50 z-10">
-                  {t('yacht')}
+
+                <th
+                  className="p-3 w-56 sticky left-0 bg-gray-50 z-10 cursor-pointer select-none"
+                  onClick={() => toggleSort('name')}
+                  title={t('sortByYacht', 'Sort by yacht name')}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {t('yacht')}
+                    <span className={sortKey === 'name' ? 'text-blue-600 font-bold' : 'text-gray-400'}>
+                      {sortIndicator('name')}
+                    </span>
+                  </span>
                 </th>
-                <th className="p-3 w-28 text-right">{t('base')}</th>
+                <th
+                  className="p-3 w-28 text-right cursor-pointer select-none"
+                  onClick={() => toggleSort('price')}
+                  title={t('sortByPrice', 'Sort by price')}
+                >
+                  <span className="inline-flex items-center justify-end gap-1 w-full">
+                    {t('base')}
+                    <span className={sortKey === 'price' ? 'text-blue-600 font-bold' : 'text-gray-400'}>
+                      {sortIndicator('price')}
+                    </span>
+                  </span>
+                </th>
+
                 <th className="p-3 w-44">{t('actuals')}</th>
                 <th className="p-3 w-32 text-right">{t('maxDiscount')}</th>
                 <th className="p-3 w-28 text-right">{t('top1')}</th>
@@ -676,7 +733,7 @@ export default function PricingPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((r) => {
+              {sortedRows.map((r) => {
                 const st = r.decision?.status ?? 'DRAFT'
                 const canSubmit = st === 'DRAFT' || st === 'REJECTED'
                 const canApproveReject = st === 'SUBMITTED'
@@ -804,7 +861,7 @@ export default function PricingPage() {
       ) : (
         // Cards
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredRows.map((r) => {
+          {sortedRows.map((r) => {
             const st = r.decision?.status ?? 'DRAFT'
             const canSubmit = st === 'DRAFT' || st === 'REJECTED'
             const canApproveReject = st === 'SUBMITTED'
