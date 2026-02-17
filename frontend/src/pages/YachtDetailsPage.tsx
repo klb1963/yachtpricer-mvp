@@ -1,6 +1,6 @@
 // frontend/src/pages/YachtDetailsPage.tsx
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { getYacht } from '../api';
 import type { Yacht } from '../api';
@@ -20,6 +20,20 @@ function asMoney(
   return `${symbol} ${(num as number).toLocaleString('en-EN', {
     maximumFractionDigits: 0,
   })}`;
+}
+
+function fmtUserLabel(v: unknown): string {
+  if (v == null) return '—';
+  // на будущее: если бэк начнёт отдавать объект author {name,email}
+  if (typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    const name = typeof o.name === 'string' ? o.name.trim() : '';
+    const email = typeof o.email === 'string' ? o.email.trim() : '';
+    return name || email || '—';
+  }
+  // сейчас у нас максимум authorId (string)
+  if (typeof v === 'string') return v || '—';
+  return '—';
 }
 
 function asPercent(n: number | null | undefined) {
@@ -86,17 +100,6 @@ type BuilderRef = { id: number; name: string };
 
 type ExtraService = { name: string; price: number };
 
-type PriceListNodeItem = {
-  weekStart: string; // ISO
-  price: number;
-  currency: string | null;
-  source: string | null;
-  note: string | null;
-  importedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
 // Локально расширяем тип Yacht, потому что /yachts/:id отдает include: country/category/builder
 type YachtDetails = Yacht & {
   country?: CountryRef | null;
@@ -105,6 +108,11 @@ type YachtDetails = Yacht & {
   // currentExtraServices может приходить как JSON-string или как массив/объект
   currentExtraServices?: unknown;
 };
+
+type PriceListNodeForTable = NonNullable<Yacht['priceListNodes']>[number] & {
+  author?: unknown; // на будущее (если бэк начнет отдавать author)
+};
+
 
 function normalizeExtraServices(v: unknown): unknown[] {
   if (v == null) return [];
@@ -143,20 +151,6 @@ function isExtraServiceArray(v: unknown): v is ExtraService[] {
   // ✅ ВАЖНО: хуки должны вызываться ДО любых ранних return
   const yd = yacht as YachtDetails | null;
 
-  // ─────────────────────────────────────────────────────────────
-  // Price list nodes (узлы) from backend: yd.priceListNodes
-  // ─────────────────────────────────────────────────────────────
-  const priceNodes = useMemo(() => {
-    const nodes = Array.isArray(yd?.priceListNodes) ? yd!.priceListNodes : [];
-    const arr = nodes.slice();
-    arr.sort(
-      (a, b) =>
-        new Date(a.weekStart).getTime() - new Date(b.weekStart).getTime(),
-    );
-    return arr;
-  }, [yd?.priceListNodes]);
-
-
   if (error)
     return <div className="text-center mt-16 text-red-600">{error}</div>;
   if (!yacht)
@@ -172,6 +166,11 @@ function isExtraServiceArray(v: unknown): v is ExtraService[] {
     ? servicesRaw
     : [];
 
+  // ✅ Реальные узлы прайс-листа с бэкенда
+  const priceNodes: PriceListNodeForTable[] = Array.isArray(yacht.priceListNodes)
+    ? (yacht.priceListNodes as PriceListNodeForTable[])
+    : [];
+  
   // ссылки из бекенда (типизируем через YachtDetails)
   const country = (yd as YachtDetails).country ?? undefined;
   const category = (yd as YachtDetails).category ?? undefined;
@@ -309,13 +308,14 @@ function isExtraServiceArray(v: unknown): v is ExtraService[] {
           {t('sections.priceList', 'Price list')}
         </h2>
 
-        {/* стартовая базовая цена яхты (из карточки яхты) */}
+        {/* стартовая базовая цена яхты (из карточки яхты) 
         <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm mb-4">
           <div className="text-gray-500">{t('fields.basePrice', 'Base price')}</div>
           <div className="font-medium">
             {asMoney(yacht.basePrice ?? null, yacht.currency ?? undefined)}
           </div>
         </div>
+        */}
 
         {priceNodes.length > 0 ? (
           <div className="overflow-x-auto">
@@ -329,7 +329,7 @@ function isExtraServiceArray(v: unknown): v is ExtraService[] {
                     {t('priceList.price', 'Price (price list)')}
                   </th>
                   <th className="text-left py-2 pr-4 text-gray-500">
-                    {t('history.note', 'Note')}
+                    {t('priceList.updatedBy', 'Updated by')}
                   </th>
                   <th className="text-left py-2 pr-4 text-gray-500">
                     {t('priceList.updatedAt', 'Updated at')}
@@ -346,10 +346,10 @@ function isExtraServiceArray(v: unknown): v is ExtraService[] {
                         n.currency ?? yacht.currency ?? undefined,
                       )}
                     </td>
-                    <td className="py-1 pr-4">{n.note || '—'}</td>
                     <td className="py-1 pr-4">
-                      {fmtWhen(n.updatedAt ?? n.createdAt ?? n.importedAt ?? null)}
+                      {fmtUserLabel(n.authorId)}
                     </td>
+                    <td className="py-1 pr-4">{fmtWhen(n.updatedAt)}</td>
                   </tr>
                 ))}
               </tbody>

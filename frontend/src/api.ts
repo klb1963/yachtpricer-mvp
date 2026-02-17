@@ -18,6 +18,20 @@ export type YachtPriceHistoryItem = {
   note?: string | null;
 };
 
+ 
+// ✅ Реальные узлы прайс-листа (PriceListNode) для YachtDetails
+export type PriceListNodeItem = {
+  weekStart: string; // ISO
+  price: number | null;
+  currency: string | null;
+  source: string | null;
+  note: string | null;
+  importedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  authorId?: string | null;
+};
+
 export type PriceListNodeSource = "INTERNAL" | "NAUSYS" | "BOATAROUND";
 
 export type PriceListNode = {
@@ -84,6 +98,8 @@ export interface Yacht {
   currentDiscountPct?: number | null
   currentPriceUpdatedAt?: string | null
   priceHistory?: YachtPriceHistoryItem[]
+  // ✅ NEW: реальный прайс-лист (узлы), вводимый на /edit
+  priceListNodes?: PriceListNodeItem[]
    // 🔹 новое
   responsibleManagerId?: string | null
   responsibleManagerName?: string | null
@@ -335,12 +351,24 @@ type YachtRaw = {
     note?: string | null;
   }> | null;
 
+  // ✅ PriceListNodes from backend (/yachts/:id)
+  priceListNodes?: Array<{
+    weekStart: string;
+    price: number | string | null;
+    currency: string | null;
+    source: string | null;
+    note: string | null;
+    importedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+    authorId?: string | null;
+  }> | null;  
+
   // ─ weekly base price additions (YachtDetailsDto) ─
   currentBasePrice?: number | string | null;
   currency?: string | null;
   selectedWeekStart?: string | null;
 };
-
 
 export async function listYachts(params: YachtListParams): Promise<YachtListResponse> {
   const { data } = await api.get<YachtListResponse>("/yachts", { params });
@@ -390,6 +418,18 @@ export async function getYacht(
       discountPct: toNum(h.discountPct),
       source: h.source ?? null,
       note: h.note ?? null,
+    })),
+    // ✅ NEW: real price list nodes (PriceListNode)
+    priceListNodes: (data?.priceListNodes ?? []).map((n) => ({
+      weekStart: n.weekStart,
+      price: toNum(n.price),
+      currency: n.currency ?? null,
+      source: n.source ?? null,
+      note: n.note ?? null,
+      importedAt: n.importedAt ?? null,
+      createdAt: n.createdAt,
+      updatedAt: n.updatedAt,
+      authorId: n.authorId ?? null,
     })),
     // 🔹 weekly base price additions
     currentBasePrice: toNum(data?.currentBasePrice),

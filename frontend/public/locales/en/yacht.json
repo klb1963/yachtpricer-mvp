@@ -27,7 +27,13 @@
     "pricing": "Pricing",
     "extraServices": "Extra services (JSON)",
     "charter": "Charter",
-    "priceHistory": "Price history"
+    "priceHistory": "Price history",
+    "priceList": "Price list"
+  },
+  "priceList": {
+    "price": "Price (price list)",
+    "updatedBy": "Updated by",
+    "updatedAt": "Updated at"
   },
     "pricing": {
     "forWeekStarting": "for week starting:",

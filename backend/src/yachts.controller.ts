@@ -34,16 +34,17 @@ interface PriceListNodeItemDto {
   price: number;
   currency: string | null;
   source: string | null;
-  note: string | null;
   importedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  updatedBy: string | null;
 }
 
 // Prisma payload-типы под наши include/select
 type HistoryRow = Prisma.PriceHistoryGetPayload<{
   include: { weekSlot: true };
 }>;
+
 type PriceListNodeRow = Prisma.PriceListNodeGetPayload<{
   select: {
     weekStart: true;
@@ -54,6 +55,7 @@ type PriceListNodeRow = Prisma.PriceListNodeGetPayload<{
     importedAt: true;
     createdAt: true;
     updatedAt: true;
+    author: { select: { id: true; name: true; email: true } };
   };
 }>;
 
@@ -388,6 +390,7 @@ export class YachtsController {
           importedAt: true,
           createdAt: true,
           updatedAt: true,
+          author: { select: { id: true, name: true, email: true } },
         },
       });
 
@@ -443,10 +446,10 @@ export class YachtsController {
         price: toNumberOrNull(n.price) ?? 0,
         currency: typeof n.currency === 'string' ? n.currency : null,
         source: n.source != null ? String(n.source) : null,
-        note: n.note ?? null,
         importedAt: n.importedAt ? n.importedAt.toISOString() : null,
         createdAt: n.createdAt.toISOString(),
         updatedAt: n.updatedAt.toISOString(),
+        updatedBy: n.author?.name?.trim() || n.author?.email || null,
       }),
     );
 

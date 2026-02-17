@@ -27,7 +27,8 @@
     "pricing": "Cijene i popusti",
     "extraServices": "Dodatne usluge (JSON)",
     "charter": "Čarter",
-    "priceHistory": "Povijest cijena"
+    "priceHistory": "Povijest cijena",
+    "priceList": "Cjenik"
   },
   "pricing": {
     "forWeekStarting": "za tjedan koji počinje:",
