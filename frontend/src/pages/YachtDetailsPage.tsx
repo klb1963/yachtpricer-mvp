@@ -1,6 +1,6 @@
 // frontend/src/pages/YachtDetailsPage.tsx
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { getYacht } from '../api';
 import type { Yacht } from '../api';
@@ -129,6 +129,44 @@ function isExtraServiceArray(v: unknown): v is ExtraService[] {
       .catch((e) => setError(e?.message ?? t('errors.loadFailed')));
   }, [id, t]);
 
+  // ✅ ВАЖНО: хуки должны вызываться ДО любых ранних return
+  const yd = yacht as YachtDetails | null;
+
+  // ─────────────────────────────────────────────────────────────
+  // Price list nodes (узлы) derived from priceHistory:
+  // берём последнее значение price для каждой weekStart
+  // ─────────────────────────────────────────────────────────────
+  const priceNodes = useMemo(() => {
+    const history = Array.isArray(yacht?.priceHistory)
+      ? yacht.priceHistory
+      : [];
+
+    const map = new Map<
+      string,
+      { weekStart: string; price: number | null; date: string; note?: string | null }
+    >();
+
+    for (const h of history) {
+      if (!h.weekStart || !h.date) continue;
+
+      map.set(h.weekStart, {
+        weekStart: h.weekStart,
+        price: h.price ?? null,
+        date: h.date,
+        note: h.note ?? null,
+      });
+    }
+
+    const arr = Array.from(map.values());
+    arr.sort(
+      (a, b) =>
+        new Date(a.weekStart).getTime() -
+        new Date(b.weekStart).getTime(),
+    );
+
+    return arr;
+  }, [yacht?.priceHistory]);
+
   if (error)
     return <div className="text-center mt-16 text-red-600">{error}</div>;
   if (!yacht)
@@ -136,19 +174,15 @@ function isExtraServiceArray(v: unknown): v is ExtraService[] {
       <div className="text-center mt-16 text-gray-500">{t('loading')}</div>
     );
 
-
-
-  const yd = yacht as YachtDetails;
-
   // безаварийный парсинг услуг -> приводим к типизированному массиву 1 раз
-  const servicesRaw = normalizeExtraServices(yd.currentExtraServices);
+  const servicesRaw = normalizeExtraServices((yd as YachtDetails).currentExtraServices);
   const servicesList: ExtraService[] = isExtraServiceArray(servicesRaw) ? servicesRaw : [];
  
 
   // ссылки из бекенда (типизируем через YachtDetails)
-  const country = yd.country ?? undefined;
-  const category = yd.category ?? undefined;
-  const builder = yd.builder ?? undefined;
+  const country = (yd as YachtDetails).country ?? undefined;
+  const category = (yd as YachtDetails).category ?? undefined;
+  const builder = (yd as YachtDetails).builder ?? undefined;
 
   const pickCategoryLabel = () => {
     if (!category) return '—';
@@ -276,55 +310,57 @@ function isExtraServiceArray(v: unknown): v is ExtraService[] {
         </div>
       </div>
 
-      {/* Pricing section */}
+      {/* Price list (узлы) */}
       <div className="rounded-2xl border p-5 shadow-sm bg-white mt-6">
         <h2 className="font-semibold mb-3">
-          {t('sections.pricing', 'Pricing')}
+          {t('sections.priceList', 'Price list')}
         </h2>
 
-        {yacht.selectedWeekStart && (
-          <div className="text-gray-500 text-base mb-3">
-            {t('pricing.forWeekStarting', 'for week starting:')}{' '}
-            <span className="font-medium text-gray-900">
-              {fmtDate(yacht.selectedWeekStart)}
-            </span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
-          <div className="text-gray-500">
-            {t('fields.basePrice', 'Base price')}
-          </div>
+        {/* стартовая базовая цена яхты (из карточки яхты) */}
+        <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm mb-4">
+          <div className="text-gray-500">{t('fields.basePrice', 'Base price')}</div>
           <div className="font-medium">
-            {asMoney(
-              yacht.currentBasePrice ?? null,
-              yacht.currency ?? undefined,
-            )}
-          </div>
-
-          <div className="text-gray-500">
-            {t('pricing.currentDiscount', 'Current discount')}
-          </div>
-          <div className="font-medium">
-            {asPercent(yacht.currentDiscountPct ?? null)}
-          </div>
-
-          <div className="text-gray-500">
-            {t('fields.maxDiscount', 'Max. discount %')}
-          </div>
-          <div className="font-medium">
-            {asPercent(yacht.maxDiscountPct ?? null)}
-          </div>
-
-          <div className="mt-2 text-gray-500 text-base mb-3">
-            {t('pricing.priceUpdatedAt', 'Price updated at')}{' '}
-            <span className="font-medium text-gray-900">
-              {yacht.currentPriceUpdatedAt
-                ? fmtWhen(yacht.currentPriceUpdatedAt)
-                : '—'}
-            </span>
+            {asMoney(yacht.basePrice ?? null, yacht.currency ?? undefined)}
           </div>
         </div>
+
+        {priceNodes.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 pr-4 text-gray-500">
+                    {t('history.weekStart', 'Week start')}
+                  </th>
+                  <th className="text-left py-2 pr-4 text-gray-500">
+                    {t('priceList.price', 'Price (price list)')}
+                  </th>
+                  <th className="text-left py-2 pr-4 text-gray-500">
+                    {t('history.note', 'Note')}
+                  </th>
+                  <th className="text-left py-2 pr-4 text-gray-500">
+                    {t('priceList.updatedAt', 'Updated at')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {priceNodes.map((n) => (
+                  <tr key={n.weekStart} className="border-b last:border-0">
+                    <td className="py-1 pr-4">{fmtDate(n.weekStart)}</td>
+                    <td className="py-1 pr-4">
+                      {asMoney(n.price ?? null, yacht.currency ?? undefined)}
+                    </td>
+                    <td className="py-1 pr-4">{n.note || '—'}</td>
+                    <td className="py-1 pr-4">{fmtWhen(n.date)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500">{t('noData')}</div>
+        )}
+
       </div>
 
       {/* Price history */}
