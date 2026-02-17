@@ -75,6 +75,53 @@ export default function YachtDetailsPage() {
     }
   }
 
+type CountryRef = { id: string; code2: string; name: string };
+type CategoryRef = {
+  id: number;
+  nameEn?: string | null;
+  nameRu?: string | null;
+  nameHr?: string | null;
+};
+type BuilderRef = { id: number; name: string };
+
+type ExtraService = { name: string; price: number };
+
+// Локально расширяем тип Yacht, потому что /yachts/:id отдает include: country/category/builder
+type YachtDetails = Yacht & {
+  country?: CountryRef | null;
+  category?: CategoryRef | null;
+  builder?: BuilderRef | null;
+  // currentExtraServices может приходить как JSON-string или как массив/объект
+  currentExtraServices?: unknown;
+};
+
+function normalizeExtraServices(v: unknown): unknown[] {
+  if (v == null) return [];
+  if (Array.isArray(v)) return v;
+  if (typeof v === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(v);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function isExtraServiceArray(v: unknown): v is ExtraService[] {
+  return (
+    Array.isArray(v) &&
+    v.every(
+      (x) =>
+        typeof x === 'object' &&
+        x !== null &&
+        typeof (x as Record<string, unknown>).name === 'string' &&
+        typeof (x as Record<string, unknown>).price === 'number',
+    )
+  );
+}
+
   useEffect(() => {
     if (!id) return;
     getYacht(id)
@@ -89,31 +136,19 @@ export default function YachtDetailsPage() {
       <div className="text-center mt-16 text-gray-500">{t('loading')}</div>
     );
 
-  // безаварийный парсинг услуг
-  let services: any = yacht.currentExtraServices;
-  if (typeof services === 'string') {
-    try {
-      services = JSON.parse(services);
-    } catch {
-      services = [];
-    }
-  }
 
-  // ссылки из бекенда (могут быть не в типе Yacht, поэтому any)
-  const country = (yacht as any)?.country as
-    | { id: string; code2: string; name: string }
-    | undefined;
-  const category = (yacht as any)?.category as
-    | {
-        id: number;
-        nameEn?: string | null;
-        nameRu?: string | null;
-        nameHr?: string | null;
-      }
-    | undefined;
-  const builder = (yacht as any)?.builder as
-    | { id: number; name: string }
-    | undefined;
+
+  const yd = yacht as YachtDetails;
+
+  // безаварийный парсинг услуг -> приводим к типизированному массиву 1 раз
+  const servicesRaw = normalizeExtraServices(yd.currentExtraServices);
+  const servicesList: ExtraService[] = isExtraServiceArray(servicesRaw) ? servicesRaw : [];
+ 
+
+  // ссылки из бекенда (типизируем через YachtDetails)
+  const country = yd.country ?? undefined;
+  const category = yd.category ?? undefined;
+  const builder = yd.builder ?? undefined;
 
   const pickCategoryLabel = () => {
     if (!category) return '—';
@@ -171,7 +206,7 @@ export default function YachtDetailsPage() {
               {t('fields.nausysId', 'NauSYS ID')}
             </dt>
             <dd className="flex-1">
-              {(yacht as any).nausysId ?? '—'}
+              {yacht.nausysId ?? '—'}
             </dd>
           </div>
         </dl>
@@ -436,15 +471,13 @@ export default function YachtDetailsPage() {
         <h2 className="font-semibold mb-3">
           {t('sections.extraServices')}
         </h2>
-        {Array.isArray(services) && services.length > 0 ? (
+        {servicesList.length > 0 ? (
           <ul className="list-disc ml-5 text-sm">
-            {services.map(
-              (s: { name: string; price: number }, i: number) => (
-                <li key={i}>
-                  {s.name} — {s.price}
-                </li>
-              ),
-            )}
+            {servicesList.map((s, i) => (
+              <li key={i}>
+                {s.name} — {s.price}
+              </li>
+            ))}
           </ul>
         ) : (
           <div className="text-sm text-gray-500">{t('noData')}</div>
