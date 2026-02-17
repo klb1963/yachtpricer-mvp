@@ -347,7 +347,7 @@ function isExtraServiceArray(v: unknown): v is ExtraService[] {
                       )}
                     </td>
                     <td className="py-1 pr-4">
-                      {fmtUserLabel(n.authorId)}
+                      {fmtUserLabel(n.author ?? n.authorId)}
                     </td>
                     <td className="py-1 pr-4">{fmtWhen(n.updatedAt)}</td>
                   </tr>

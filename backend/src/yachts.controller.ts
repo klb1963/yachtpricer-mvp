@@ -34,6 +34,8 @@ interface PriceListNodeItemDto {
   price: number;
   currency: string | null;
   source: string | null;
+  authorId: string | null;
+  author: { id: string; name: string | null; email: string } | null;
   importedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -53,9 +55,10 @@ type PriceListNodeRow = Prisma.PriceListNodeGetPayload<{
     source: true;
     note: true;
     importedAt: true;
+    authorId: true;
+    author: { select: { id: true; name: true; email: true } };
     createdAt: true;
     updatedAt: true;
-    author: { select: { id: true; name: true; email: true } };
   };
 }>;
 
@@ -388,9 +391,10 @@ export class YachtsController {
           source: true,
           note: true,
           importedAt: true,
+          authorId: true,
+          author: { select: { id: true, name: true, email: true } },
           createdAt: true,
           updatedAt: true,
-          author: { select: { id: true, name: true, email: true } },
         },
       });
 
@@ -446,6 +450,14 @@ export class YachtsController {
         price: toNumberOrNull(n.price) ?? 0,
         currency: typeof n.currency === 'string' ? n.currency : null,
         source: n.source != null ? String(n.source) : null,
+        authorId: n.authorId ?? null,
+        author: n.author
+          ? {
+              id: n.author.id,
+              name: n.author.name ?? null,
+              email: n.author.email,
+            }
+          : null,
         importedAt: n.importedAt ? n.importedAt.toISOString() : null,
         createdAt: n.createdAt.toISOString(),
         updatedAt: n.updatedAt.toISOString(),

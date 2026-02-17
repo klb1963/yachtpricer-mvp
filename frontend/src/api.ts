@@ -26,10 +26,11 @@ export type PriceListNodeItem = {
   currency: string | null;
   source: string | null;
   note: string | null;
+  authorId?: string | null;
+  author?: { id: string; name: string | null; email: string } | null;
   importedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  authorId?: string | null;
 };
 
 export type PriceListNodeSource = "INTERNAL" | "NAUSYS" | "BOATAROUND";
@@ -359,9 +360,10 @@ type YachtRaw = {
     source: string | null;
     note: string | null;
     importedAt: string | null;
+    authorId?: string | null;
+    author?: { id: string; name: string | null; email: string } | null;
     createdAt: string;
     updatedAt: string;
-    authorId?: string | null;
   }> | null;  
 
   // ─ weekly base price additions (YachtDetailsDto) ─
@@ -430,6 +432,7 @@ export async function getYacht(
       createdAt: n.createdAt,
       updatedAt: n.updatedAt,
       authorId: n.authorId ?? null,
+      author: n.author ?? null
     })),
     // 🔹 weekly base price additions
     currentBasePrice: toNum(data?.currentBasePrice),
