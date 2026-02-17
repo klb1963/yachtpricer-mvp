@@ -86,6 +86,17 @@ type BuilderRef = { id: number; name: string };
 
 type ExtraService = { name: string; price: number };
 
+type PriceListNodeItem = {
+  weekStart: string; // ISO
+  price: number;
+  currency: string | null;
+  source: string | null;
+  note: string | null;
+  importedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 // Локально расширяем тип Yacht, потому что /yachts/:id отдает include: country/category/builder
 type YachtDetails = Yacht & {
   country?: CountryRef | null;
@@ -133,39 +144,18 @@ function isExtraServiceArray(v: unknown): v is ExtraService[] {
   const yd = yacht as YachtDetails | null;
 
   // ─────────────────────────────────────────────────────────────
-  // Price list nodes (узлы) derived from priceHistory:
-  // берём последнее значение price для каждой weekStart
+  // Price list nodes (узлы) from backend: yd.priceListNodes
   // ─────────────────────────────────────────────────────────────
   const priceNodes = useMemo(() => {
-    const history = Array.isArray(yacht?.priceHistory)
-      ? yacht.priceHistory
-      : [];
-
-    const map = new Map<
-      string,
-      { weekStart: string; price: number | null; date: string; note?: string | null }
-    >();
-
-    for (const h of history) {
-      if (!h.weekStart || !h.date) continue;
-
-      map.set(h.weekStart, {
-        weekStart: h.weekStart,
-        price: h.price ?? null,
-        date: h.date,
-        note: h.note ?? null,
-      });
-    }
-
-    const arr = Array.from(map.values());
+    const nodes = Array.isArray(yd?.priceListNodes) ? yd!.priceListNodes : [];
+    const arr = nodes.slice();
     arr.sort(
       (a, b) =>
-        new Date(a.weekStart).getTime() -
-        new Date(b.weekStart).getTime(),
+        new Date(a.weekStart).getTime() - new Date(b.weekStart).getTime(),
     );
-
     return arr;
-  }, [yacht?.priceHistory]);
+  }, [yd?.priceListNodes]);
+
 
   if (error)
     return <div className="text-center mt-16 text-red-600">{error}</div>;
@@ -175,9 +165,12 @@ function isExtraServiceArray(v: unknown): v is ExtraService[] {
     );
 
   // безаварийный парсинг услуг -> приводим к типизированному массиву 1 раз
-  const servicesRaw = normalizeExtraServices((yd as YachtDetails).currentExtraServices);
-  const servicesList: ExtraService[] = isExtraServiceArray(servicesRaw) ? servicesRaw : [];
- 
+  const servicesRaw = normalizeExtraServices(
+    (yd as YachtDetails).currentExtraServices,
+  );
+  const servicesList: ExtraService[] = isExtraServiceArray(servicesRaw)
+    ? servicesRaw
+    : [];
 
   // ссылки из бекенда (типизируем через YachtDetails)
   const country = (yd as YachtDetails).country ?? undefined;
@@ -348,10 +341,15 @@ function isExtraServiceArray(v: unknown): v is ExtraService[] {
                   <tr key={n.weekStart} className="border-b last:border-0">
                     <td className="py-1 pr-4">{fmtDate(n.weekStart)}</td>
                     <td className="py-1 pr-4">
-                      {asMoney(n.price ?? null, yacht.currency ?? undefined)}
+                      {asMoney(
+                        n.price ?? null,
+                        n.currency ?? yacht.currency ?? undefined,
+                      )}
                     </td>
                     <td className="py-1 pr-4">{n.note || '—'}</td>
-                    <td className="py-1 pr-4">{fmtWhen(n.date)}</td>
+                    <td className="py-1 pr-4">
+                      {fmtWhen(n.updatedAt ?? n.createdAt ?? n.importedAt ?? null)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
