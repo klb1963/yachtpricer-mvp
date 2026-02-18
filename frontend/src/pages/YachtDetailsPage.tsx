@@ -65,6 +65,14 @@ function fmtDate(iso: string | null | undefined) {
   });
 }
 
+function buildNausysMainPhotoUrl(nausysId: string, w = 900): string {
+  const id = String(nausysId).trim();
+  // NauSYS умеет параметр w (и h), и делает 307 redirect на S3 — браузер сам обработает
+  return `https://ws.nausys.com/CBMS-external/rest/yacht/${encodeURIComponent(
+    id,
+  )}/pictures/main.jpg?w=${encodeURIComponent(String(w))}`;
+}
+
 type HistorySortKey = 'weekStart' | 'price' | 'discount' | 'date';
 
 export default function YachtDetailsPage() {
@@ -300,6 +308,36 @@ function isExtraServiceArray(v: unknown): v is ExtraService[] {
             </dd>
           </dl>
         </div>
+      </div>
+
+      {/* Photo (NauSYS main) */}
+      <div className="rounded-2xl border p-5 shadow-sm bg-white mt-6">
+        <h2 className="font-semibold mb-3">
+          {t('sections.photo', 'Photo')}
+        </h2>
+
+        {yacht.nausysId ? (
+          <div className="overflow-hidden rounded-xl border bg-white">
+            <img
+              src={buildNausysMainPhotoUrl(yacht.nausysId, 1000)}
+              alt={t('fields.photoAlt', 'Yacht photo')}
+              className="w-full h-auto block"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                // если NauSYS/S3 не отдал — покажем пустой блок (без ошибки в консоли)
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <div className="p-3 text-xs text-gray-500">
+              {t('photo.source', 'Source: NauSYS')}
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500">
+            {t('photo.noNausysId', 'No NauSYS ID — photo unavailable')}
+          </div>
+        )}
       </div>
 
       {/* Price list (узлы) */}

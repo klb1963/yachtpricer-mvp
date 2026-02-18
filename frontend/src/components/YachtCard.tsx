@@ -1,6 +1,7 @@
 // frontend/src/components/YachtCard.tsx
 // props: { y: Yacht; search?: string }
 
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import type { Yacht, CompetitorPrice } from '../api';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +12,7 @@ import CompetitorOffersList from './CompetitorOffersList';
 type YachtWithImage = Yacht & {
   imageUrl?: string | null;
   category?: { nameEn?: string | null; nameRu?: string | null; nameDe?: string | null } | null;
+  nausysId?: number | null;
 };
 
 // Тип агрегатов
@@ -54,14 +56,23 @@ function pickByCategory(category?: string | null) {
   return IMAGE_MAP[key] ?? FALLBACK_PLACEHOLDER;
 }
 
+function nausysMainPhotoUrl(nausysId?: string | number | null) {
+  const id = nausysId == null ? '' : String(nausysId).trim();
+  if (!id) return null;
+  // NauSYS отдаёт 307 на S3 — браузер нормально следует редиректу
+  return `https://ws.nausys.com/CBMS-external/rest/yacht/${encodeURIComponent(
+    id,
+  )}/pictures/main.jpg?w=900`;
+}
+
 // Читаем подпись категории из relation; если нет — fallback на type
 function getCategoryLabel(y: YachtWithImage): string {
   return (
     y.category?.nameEn ??
     y.category?.nameRu ??
     y.category?.nameDe ??
-    // последний шанс — старое поле type уже в нужном виде
-    (y as any).type ??
+    // fallback — старое поле type
+    y.type ??
     ''
   );
 }
@@ -118,6 +129,15 @@ export default function YachtCard({
   const categoryLabel = getCategoryLabel(y);
   const src = fromDb || pickByCategory(categoryLabel);
 
+  // NEW: если это NAUSYS и у яхты есть nausysId — показываем main.jpg
+  const nausysSrc = useMemo(() => {
+    if (scanSource !== 'NAUSYS') return null;
+    return nausysMainPhotoUrl(y.nausysId);
+  }, [scanSource, y]);
+
+  const imgSrc = nausysSrc || src;
+ 
+
   // цена на выбранную неделю: сначала currentBasePrice, потом общий basePrice
   const displayBasePrice =
     y.currentBasePrice != null ? y.currentBasePrice : y.basePrice;
@@ -127,11 +147,12 @@ export default function YachtCard({
     <div className="group flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md">
       <div className="relative aspect-[16/10] w-full overflow-hidden bg-gray-100">
         <img
-          src={src}
+          src={imgSrc}
           alt={y.name}
           className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
           loading="lazy"
           onError={(e) => {
+            // если упал nausysSrc или imageUrl — откатываемся на локальную картинку по категории
             (e.currentTarget as HTMLImageElement).src = pickByCategory(categoryLabel);
           }}
         />
