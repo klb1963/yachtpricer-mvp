@@ -1,6 +1,5 @@
 // frontend/src/pages/PricingPage.tsx
 
-// frontend/src/pages/PricingPage.tsx
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
@@ -748,9 +747,6 @@ export default function PricingPage() {
                       {r.modelName ? (
                         <div className="text-xs text-gray-600">{r.modelName}</div>
                       ) : null}
-                      <div className="text-xs text-gray-500">
-                        {r.snapshot?.currency ?? 'EUR'}
-                      </div>
                     </td>
                     {/* База: показываем эффективную цену для недели */}
                     <td className="p-3 text-right tabular-nums">
