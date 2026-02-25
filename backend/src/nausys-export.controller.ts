@@ -21,8 +21,11 @@ function makeNausysPeriods(year: number): Period[] {
     firstSat.setUTCDate(firstSat.getUTCDate() + 1);
   }
 
-  // первая “короткая” неделя 01.01 - первая суббота
-  periods.push({ from: jan1, to: new Date(firstSat) });
+  // первая “короткая” неделя: 01.01 .. ПТ перед первой субботой
+  // (иначе firstSat попадает в ДВА периода)
+  const firstShortTo = new Date(firstSat);
+  firstShortTo.setUTCDate(firstShortTo.getUTCDate() - 1);
+  periods.push({ from: jan1, to: firstShortTo });
 
   let curFrom = new Date(firstSat);
   while (curFrom.getUTCFullYear() === year) {
@@ -42,22 +45,44 @@ export class NausysExportController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get('export-prices')
-  async exportPrices(
-    @Query('year') yearStr: string,
-    @Res() res: Response,
-  ) {
+  async exportPrices(@Query('year') yearStr: string, @Res() res: Response) {
     const year = Number(yearStr) || new Date().getFullYear();
 
     const from = new Date(Date.UTC(year, 0, 1));
-    const to   = new Date(Date.UTC(year + 1, 0, 1));
+    const to = new Date(Date.UTC(year + 1, 0, 1));
 
-    const slots = await this.prisma.weekSlot.findMany({
+    // 1) базовый прайс-лист
+    // ✅ Экспортируем прайс-лист из PriceListNode (то, что правит Виктория),
+    // а не weekSlot / price_history.
+    const nodes = await this.prisma.priceListNode.findMany({
       where: {
-        startDate: { gte: from, lt: to },
+        weekStart: { gte: from, lt: to },
         yacht: { nausysId: { not: null } },
       },
-      orderBy: { startDate: 'asc' },
+      orderBy: [{ weekStart: 'asc' }, { updatedAt: 'asc' }],
       include: {
+        yacht: {
+          select: {
+            nausysId: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    // 2) оверрайды по согласованным скидкам (APPROVED finalPrice)
+    // Если на конкретную неделю скидка согласована — в CSV должна уйти цена со скидкой.
+    const approvedDecisions = await this.prisma.pricingDecision.findMany({
+      where: {
+        weekStart: { gte: from, lt: to },
+        status: 'APPROVED',
+        finalPrice: { not: null },
+        yacht: { nausysId: { not: null } },
+      },
+      orderBy: [{ weekStart: 'asc' }],
+      select: {
+        weekStart: true,
+        finalPrice: true,
         yacht: {
           select: {
             nausysId: true,
@@ -69,7 +94,7 @@ export class NausysExportController {
 
     const periods = makeNausysPeriods(year);
 
-    // helper: найти индекс периода, в который попадает дата старта слота
+    // helper: найти индекс периода, в который попадает дата старта
     function findPeriodIndex(startDate: Date): number | undefined {
       const t = startDate.getTime();
       for (let i = 0; i < periods.length; i++) {
@@ -89,14 +114,14 @@ export class NausysExportController {
 
     const rows = new Map<string, Row>();
 
-    for (const s of slots) {
-      const nausysId = (s as any).yacht?.nausysId as string | null;
+    for (const n of nodes) {
+      const nausysId = n.yacht?.nausysId ?? null;
       if (!nausysId) continue;
 
-      const yachtName = (s as any).yacht?.name as string | null;
+      const yachtName = n.yacht?.name ?? null;
 
       // находим индекс периода по дате старта слота
-      const colIndex = findPeriodIndex(new Date(s.startDate));
+      const colIndex = findPeriodIndex(new Date(n.weekStart));
       if (colIndex == null) continue;
 
       let row = rows.get(nausysId);
@@ -104,19 +129,14 @@ export class NausysExportController {
         row = {
           nausysId,
           name: yachtName ?? '',
-          prices: Array(periods.length).fill(null),
+          prices: Array<string | null>(periods.length).fill(null),
         };
         rows.set(nausysId, row);
       }
 
-      // Берём basePrice, если есть, иначе currentPrice
-      const priceSource = (s as any).basePrice ?? (s as any).currentPrice;
-      if (priceSource == null) continue;
-
-      const price =
-        typeof priceSource.toString === 'function'
-          ? priceSource.toString()
-          : String(priceSource);
+      // Цена прайса из PriceListNode
+      // Prisma.Decimal -> String ок.
+      const price: string = String(n.price);
 
       row.prices[colIndex] = price;
     }
@@ -138,14 +158,35 @@ export class NausysExportController {
           }
         }
       }
+      // 3) применяем оверрайды (approved finalPrice) поверх прайс-листа
+      // ВАЖНО: после оверрайдов НЕ делаем fill-forward, чтобы скидка не "растекалась" на следующие недели
+      for (const d of approvedDecisions) {
+        const nausysId = d.yacht?.nausysId ?? null;
+        if (!nausysId) continue;
+
+        const colIndex = findPeriodIndex(new Date(d.weekStart));
+        if (colIndex == null) continue;
+
+        let row = rows.get(nausysId);
+        if (!row) {
+          row = {
+            nausysId,
+            name: d.yacht?.name ?? '',
+            prices: Array<string | null>(periods.length).fill(null),
+          };
+          rows.set(nausysId, row);
+        } else if (!row.name) {
+          row.name = d.yacht?.name ?? row.name;
+        }
+
+        row.prices[colIndex] = String(d.finalPrice);
+      }
     }
 
     const header = [
       'Yacht',
       'ID',
-      ...periods.map(
-        (p) => `${formatDM(p.from)} - ${formatDM(p.to)}`,
-      ),
+      ...periods.map((p) => `${formatDM(p.from)} - ${formatDM(p.to)}`),
     ];
 
     const lines: string[] = [];
