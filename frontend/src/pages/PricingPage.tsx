@@ -62,6 +62,68 @@ function calcFinal(base: number, discountPct: number | null | undefined) {
 // "Price" column must always show week base price (row.basePrice).
 const weekBasePrice = (row: PricingRow) => row.basePrice;
 
+// IMPORTANT: upsertDecision/changeStatus may return PARTIAL row/decision.
+// Keep stable UI fields and never "blank out" draft inputs because of missing decision fields.
+function mergeRowPatch(prev: PricingRow, patch: Partial<PricingRow>): PricingRow {
+  const next: PricingRow = { ...prev };
+
+  // top-level fields we rely on for inputs
+  if ('finalPrice' in patch) next.finalPrice = patch.finalPrice as PricingRow['finalPrice'];
+  if ('lastComment' in patch) next.lastComment = patch.lastComment as PricingRow['lastComment'];
+  if ('lastActionAt' in patch) next.lastActionAt = patch.lastActionAt as PricingRow['lastActionAt'];
+  if ('perms' in patch) next.perms = patch.perms as PricingRow['perms'];
+
+  // Merge decision carefully: if backend returns partial decision, keep previous values.
+  if ('decision' in patch) {
+    const pd = prev.decision ?? null;
+
+    // patch.decision может быть частичным объектом или null/undefined
+    const nd = (patch as { decision?: unknown }).decision as
+      | Partial<NonNullable<PricingRow['decision']>>
+      | null
+      | undefined;
+
+    if (!pd) {
+      next.decision = (nd ?? null) as PricingRow['decision'];
+    } else if (!nd) {
+      next.decision = pd;
+    } else {
+      const prevLast =
+        typeof pd === 'object' && pd && '__lastEdited' in pd
+          ? (pd.__lastEdited as NonNullable<PricingRow['decision']>['__lastEdited'])
+          : undefined;
+
+      const nextLast =
+        typeof nd === 'object' && nd && '__lastEdited' in nd
+          ? (nd.__lastEdited as NonNullable<PricingRow['decision']>['__lastEdited'])
+          : undefined;
+
+      next.decision = {
+        ...pd,
+        ...nd,
+        // if backend didn't send these — keep previous (so inputs don't blank)
+        discountPct: nd.discountPct ?? pd.discountPct ?? null,
+        finalPrice: nd.finalPrice ?? pd.finalPrice ?? next.finalPrice ?? null,
+        // preserve local helper flag
+        __lastEdited: nextLast ?? prevLast,
+      };
+    }
+  }
+
+  // If backend does send these, merge safely (do not overwrite with null/undefined)
+  if (patch.name != null) next.name = patch.name;
+  if (patch.modelName != null) next.modelName = patch.modelName;
+  if (patch.basePrice != null) next.basePrice = patch.basePrice;
+  if (patch.actualPrice != null) next.actualPrice = patch.actualPrice;
+  if (patch.actualDiscountPercent != null) next.actualDiscountPercent = patch.actualDiscountPercent;
+  if (patch.fetchedAt != null) next.fetchedAt = patch.fetchedAt;
+  if (patch.maxDiscountPercent != null) next.maxDiscountPercent = patch.maxDiscountPercent;
+  if (patch.snapshot != null) next.snapshot = patch.snapshot;
+  if (patch.mlReco != null) next.mlReco = patch.mlReco;
+
+  return next;
+}
+
 export default function PricingPage() {
   // i18n
   const { t } = useTranslation('pricing');
@@ -286,7 +348,9 @@ export default function PricingPage() {
     setSavingId(yachtId);
     try {
       const updated = await upsertDecision({ yachtId, week: weekISO, discountPct, finalPrice });
-      setRows(prev => prev.map(r => (r.yachtId === yachtId ? { ...r, ...updated } : r)));
+      setRows(prev =>
+        prev.map(r => (r.yachtId === yachtId ? mergeRowPatch(r, updated) : r)),
+      );
     } finally {
       setSavingId(null);
     }
@@ -308,7 +372,9 @@ export default function PricingPage() {
     setSavingId(yachtId);
     try {
       const updated = await upsertDecision({ yachtId, week: weekISO, finalPrice, discountPct });
-      setRows(prev => prev.map(r => (r.yachtId === yachtId ? { ...r, ...updated } : r)));
+      setRows(prev =>
+        prev.map(r => (r.yachtId === yachtId ? mergeRowPatch(r, updated) : r)),
+      );
     } catch (e: unknown) {
       // 403 для автосейва по blur показывать не обязательно
       const status = (e as { response?: { status?: number } })?.response?.status;
@@ -454,7 +520,7 @@ export default function PricingPage() {
       );
 
       // 🔹 тихо подтянуть свежие данные
-      fetchRows(weekISO)
+      fetchRows(weekISO, scanSource)
         .then(fresh => setRows(fresh))
         .catch(() => { });
 
@@ -492,7 +558,10 @@ export default function PricingPage() {
   // ────────────────────────────────────────────────────────────
   function renderEditors(r: PricingRow) {
     const discountValue = r.decision?.discountPct ?? '';
-    const finalValue = r.decision?.finalPrice ?? '';
+    // IMPORTANT: show editable "final price" from top-level finalPrice (stable after save),
+    // because backend may not return decision.finalPrice in patch response.
+    const finalValue: string | number =
+      r.finalPrice ?? r.decision?.finalPrice ?? '';
 
     const st = r.decision?.status ?? 'DRAFT';
     const canEditByStatus = st === 'DRAFT' || st === 'REJECTED';
@@ -547,7 +616,7 @@ export default function PricingPage() {
             type="number"
             step="1"
             placeholder="—"
-            value={finalValue as number | string}
+            value={finalValue}
             onChange={(e) => canEditByStatus && onDraftFinalChange(r.yachtId, e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
             onBlur={() => { if (canEditByStatus) onChangeFinalPrice(r.yachtId); }}
