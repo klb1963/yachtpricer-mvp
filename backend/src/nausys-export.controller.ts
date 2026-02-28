@@ -76,13 +76,13 @@ export class NausysExportController {
       where: {
         weekStart: { gte: from, lt: to },
         status: 'APPROVED',
-        finalPrice: { not: null },
+        discountPct: { not: null },
         yacht: { nausysId: { not: null } },
       },
       orderBy: [{ weekStart: 'asc' }],
       select: {
         weekStart: true,
-        finalPrice: true,
+        discountPct: true,
         yacht: {
           select: {
             nausysId: true,
@@ -158,29 +158,30 @@ export class NausysExportController {
           }
         }
       }
-      // 3) применяем оверрайды (approved finalPrice) поверх прайс-листа
-      // ВАЖНО: после оверрайдов НЕ делаем fill-forward, чтобы скидка не "растекалась" на следующие недели
-      for (const d of approvedDecisions) {
-        const nausysId = d.yacht?.nausysId ?? null;
-        if (!nausysId) continue;
+    }
 
-        const colIndex = findPeriodIndex(new Date(d.weekStart));
-        if (colIndex == null) continue;
+    // 3) применяем оверрайды скидок (APPROVED discountPct) поверх прайс-листа
+    // В CSV для таких недель пишем "20%" (NauSYS импортирует это как discount)
+    for (const d of approvedDecisions) {
+      const nausysId = d.yacht?.nausysId ?? null;
+      if (!nausysId) continue;
 
-        let row = rows.get(nausysId);
-        if (!row) {
-          row = {
-            nausysId,
-            name: d.yacht?.name ?? '',
-            prices: Array<string | null>(periods.length).fill(null),
-          };
-          rows.set(nausysId, row);
-        } else if (!row.name) {
-          row.name = d.yacht?.name ?? row.name;
-        }
+      const colIndex = findPeriodIndex(new Date(d.weekStart));
+      if (colIndex == null) continue;
 
-        row.prices[colIndex] = String(d.finalPrice);
+      let row = rows.get(nausysId);
+      if (!row) {
+        row = {
+          nausysId,
+          name: d.yacht?.name ?? '',
+          prices: Array<string | null>(periods.length).fill(null),
+        };
+        rows.set(nausysId, row);
+      } else if (!row.name) {
+        row.name = d.yacht?.name ?? row.name;
       }
+
+      row.prices[colIndex] = `${String(d.discountPct)}%`;
     }
 
     const header = [
